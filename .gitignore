@@ -1,0 +1,38 @@
+# Create .gitignore to exclude sensitive files
+cat > .gitignore << 'EOF'
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Database
+data/*.db
+data/*.db-journal
+
+# Generated files
+exports/
+uploads/
+temp/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+EOF

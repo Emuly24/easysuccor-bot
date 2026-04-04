@@ -11,6 +11,24 @@ const documentGenerator = require('./document-generator');
 const aiAnalyzer = require('./ai-analyzer');
 const InstallmentTracker = require('./installment-tracker');
 const ReferralTracker = require('./referral-tracker');
+// Add at the top with other requires
+const express = require('express');
+const healthApp = express();
+
+// Add health check endpoint
+healthApp.get('/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        database: 'PostgreSQL',
+        bot: 'EasySuccor'
+    });
+});
+
+const HEALTH_PORT = process.env.PORT || 3000;
+healthApp.listen(HEALTH_PORT, () => {
+    console.log(`🏥 Health check: http://localhost:${HEALTH_PORT}/health`);
+});
 
 dotenv.config();
 

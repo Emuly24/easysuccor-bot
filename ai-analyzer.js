@@ -96,6 +96,84 @@ class AIAnalyzer {
   }
 
   // ============ VACANCY EXTRACTION ============
+  // Extract client information from document
+async extractFromDocument(fileUrl, fileName) {
+    const fileExt = fileName.split('.').pop().toLowerCase();
+    let extractedText = '';
+    
+    // Extract text based on file type
+    if (fileExt === 'pdf') {
+        // Use pdf-parse or similar
+        extractedText = await this.extractFromPDF(fileUrl);
+    } else if (fileExt === 'docx') {
+        // Use mammoth or similar
+        extractedText = await this.extractFromDOCX(fileUrl);
+    } else if (['jpg', 'jpeg', 'png'].includes(fileExt)) {
+        // Use OCR
+        const result = await Tesseract.recognize(fileUrl, 'eng');
+        extractedText = result.data.text;
+    }
+    
+    // Extract client information from text
+    return {
+        client_name: this.extractName(extractedText),
+        client_email: this.extractEmail(extractedText),
+        client_phone: this.extractPhone(extractedText),
+        client_location: this.extractLocation(extractedText),
+        position: this.extractPosition(extractedText),
+        company: this.extractCompany(extractedText)
+    };
+}
+
+extractName(text) {
+    // Look for name patterns at the beginning of CV
+    const lines = text.split('\n');
+    for (const line of lines.slice(0, 10)) {
+        const cleanLine = line.trim();
+        if (cleanLine.length > 3 && cleanLine.length < 50 && /^[A-Z][a-z]+ [A-Z][a-z]+/.test(cleanLine)) {
+            return cleanLine;
+        }
+    }
+    return null;
+}
+
+extractEmail(text) {
+    const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    return emailMatch ? emailMatch[0] : null;
+}
+
+extractPhone(text) {
+    const phoneMatch = text.match(/\+?265[0-9]{9}|0[987][0-9]{8}/);
+    return phoneMatch ? phoneMatch[0] : null;
+}
+
+extractLocation(text) {
+    const locations = ['Lilongwe', 'Blantyre', 'Mzuzu', 'Zomba', 'Malawi'];
+    for (const loc of locations) {
+        if (text.includes(loc)) return loc;
+    }
+    return null;
+}
+
+extractPosition(text) {
+    const lines = text.split('\n');
+    for (const line of lines.slice(0, 20)) {
+        if (line.toLowerCase().includes('position') || line.toLowerCase().includes('role')) {
+            return line.split(':').pop().trim();
+        }
+    }
+    return null;
+}
+
+extractCompany(text) {
+    const lines = text.split('\n');
+    for (const line of lines.slice(0, 20)) {
+        if (line.toLowerCase().includes('company') || line.toLowerCase().includes('at ')) {
+            return line.split(':').pop().trim();
+        }
+    }
+    return null;
+}
   
   async extractVacancyFromFile(fileUrl, fileName) {
     const fileExt = fileName.split('.').pop().toLowerCase();

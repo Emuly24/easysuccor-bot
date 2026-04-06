@@ -191,26 +191,42 @@ app.post('/admin/upload-cv', adminAuth, upload.single('cv_file'), async (req, re
 
 app.post('/admin/upload-cover', adminAuth, upload.single('cover_file'), async (req, res) => {
     try {
-        const { client_name, client_email, client_phone, client_location, position, company } = req.body;
+        const { client_name, client_email, client_phone, client_location, position: formPosition, company: formCompany } = req.body;
         const file = req.file;
         
         if (!file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
+                // Extract information from file using AI analyzer
+        const fileUrl = `/uploads/${file.filename}`;
+        const extractedData = await aiAnalyzer.extractFromDocument(fileUrl, file.originalname);
         
-        // Check if client already exists
-        let client = await db.getClientByEmail(client_email);
+        // Use extracted data or manual override
+        const clientName = manualName || extractedData.client_name || 'Unknown Client';
+        const clientEmail = extractedData.client_email || null;
+        const clientPhone = extractedData.client_phone || null;
+        const clientLocation = extractedData.client_location || null;
+        const position = extractedData.position || formPosition || 'Unknown Position';
+        const company = extractedData.company || formCompany || 'Unknown Company';
+        
+        // Get or create client
+        let client;
+        if (clientEmail) {
+            client = await db.getClientByEmail(clientEmail);
+        }
+        if (!client && clientPhone) {
+            client = await db.getClientByPhone(clientPhone);
+        }
         if (!client) {
             client = await db.createClient(
-                null, // telegram_id
-                null, // username
-                client_name.split(' ')[0],
-                client_name.split(' ').slice(1).join(' ')
+                null, null,
+                clientName.split(' ')[0],
+                clientName.split(' ').slice(1).join(' ')
             );
             await db.updateClient(client.id, {
-                email: client_email,
-                phone: client_phone,
-                location: client_location,
+                email: clientEmail,
+                phone: clientPhone,
+                location: clientLocation,
                 is_legacy_client: true
             });
         }
@@ -1431,7 +1447,25 @@ async function startBot() {
         { command: 'help', description: 'Get help' }
     ]);
     
-    bot.launch();
+    // Try to set commands, but don't fail if network blocks it
+    try {
+        await setCommands();
+        console.log('✅ Commands set');
+    } catch (error) {
+        console.log('⚠️ Could not set commands (network issue):', error.message);
+    }
+    
+    // Use polling with error handling
+    bot.launch({
+        polling: {
+            timeout: 30,
+            limit: 100,
+            retryTimeout: 30000
+        }
+    }).catch(err => {
+        console.log('Polling error:', err.message);
+    });
+    
     console.log('========================================');
     console.log('  🤖 EasySuccor Bot Running');
     console.log('  ✅ Smart Draft Upload - Auto-extracts data');

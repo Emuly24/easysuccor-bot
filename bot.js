@@ -62,6 +62,9 @@ app.post('/admin/upload-batch', adminAuth, upload.array('files', 20), async (req
                         email: extractedData.data.personal?.email || null,
                         phone: extractedData.data.personal?.primary_phone || null,
                         location: extractedData.data.personal?.location || null,
+                        physical_address: extractedData.data.personal?.physical_address || null,
+                        nationality: extractedData.data.personal?.nationality || null,
+                        special_documents: extractedData.data.personal?.special_documents || null,
                         is_legacy_client: true
                     });
                 }
@@ -141,6 +144,9 @@ app.post('/admin/upload-cv', adminAuth, upload.single('cv_file'), async (req, re
                 email: extractedData.data.personal?.email || null,
                 phone: extractedData.data.personal?.primary_phone || null,
                 location: extractedData.data.personal?.location || null,
+                physical_address: extractedData.data.personal?.physical_address || null,
+                nationality: extractedData.data.personal?.nationality || null,
+                special_documents: extractedData.data.personal?.special_documents || null,
                 is_legacy_client: true
             });
         }
@@ -172,7 +178,10 @@ app.post('/admin/upload-cv', adminAuth, upload.single('cv_file'), async (req, re
                 name: extractedData.data.personal?.full_name,
                 email: extractedData.data.personal?.email,
                 phone: extractedData.data.personal?.primary_phone,
-                location: extractedData.data.personal?.location
+                location: extractedData.data.personal?.location,
+                physical_address: extractedData.data.personal?.physical_address,
+                nationality: extractedData.data.personal?.nationality,
+                special_documents: extractedData.data.personal?.special_documents
             }
         });
         
@@ -272,7 +281,6 @@ async function sendMarkdown(ctx, message, extra = {}) {
 }
 
 // ============ TESTIMONIAL SYSTEM ============
-// Store testimonials in memory (loaded from DB on startup)
 let TESTIMONIALS_CACHE = [];
 
 async function loadTestimonialsCache() {
@@ -352,6 +360,9 @@ class SmartDraftProcessor {
         foundMessage += `• Email: ${cvData.personal?.email || 'Not found'}\n`;
         foundMessage += `• Phone: ${cvData.personal?.primary_phone || 'Not found'}\n`;
         foundMessage += `• Location: ${cvData.personal?.location || 'Not found'}\n`;
+        foundMessage += `• Physical Address: ${cvData.personal?.physical_address || 'Not found'}\n`;
+        foundMessage += `• Nationality: ${cvData.personal?.nationality || 'Not found'}\n`;
+        foundMessage += `• Special Documents: ${cvData.personal?.special_documents?.length || 0} document(s)\n`;
         foundMessage += `• Work Experience: ${cvData.employment?.length || 0} entries\n`;
         foundMessage += `• Education: ${cvData.education?.length || 0} entries\n`;
         foundMessage += `• Skills: ${cvData.skills?.length || 0} skills\n`;
@@ -378,11 +389,13 @@ class SmartDraftProcessor {
         if (!cvData.personal?.email) missing.push('Email');
         if (!cvData.personal?.primary_phone) missing.push('Phone');
         if (!cvData.personal?.location) missing.push('Location');
+        if (!cvData.personal?.physical_address) missing.push('Physical Address');
+        if (!cvData.personal?.nationality) missing.push('Nationality');
         if (!cvData.professional_summary) missing.push('Professional Summary');
         if (!cvData.employment || cvData.employment.length === 0) missing.push('Work Experience');
         if (!cvData.education || cvData.education.length === 0) missing.push('Education');
         if (!cvData.skills || cvData.skills.length === 0) missing.push('Skills');
-        if (!cvData.referees || cvData.referees.length < 2) missing.push('Referees');
+        if (!cvData.referees || cvData.referees.length < 2) missing.push('Referees (need 2)');
         return missing;
     }
     
@@ -401,15 +414,17 @@ class SmartDraftProcessor {
         session.data.current_section = section;
         
         const prompts = {
-            'Full Name': "What's your full name? 📛",
-            'Email': "What's your email address? 📧",
-            'Phone': "What's your phone number? 📞",
-            'Location': "Where are you located? 📍",
-            'Professional Summary': "Please provide a brief professional summary (2-3 sentences) ✍️",
-            'Work Experience': "Let's add your work experience. Most recent job title? 💼",
-            'Education': "What's your highest qualification? 🎓",
-            'Skills': "List your key skills (comma separated) ⚡",
-            'Referees': "Please provide at least 2 professional referees. First referee - Full name? 👥"
+            'Full Name': "What's your full name? 📛\n*Example:* John Mwale Doe",
+            'Email': "What's your email address? 📧\n*Example:* john.doe@example.com",
+            'Phone': "What's your phone number? 📞\n*Example:* +265 991 234 567 or 0991234567",
+            'Location': "Where are you based? (City, Country) 📍\n*Example:* Lilongwe, Malawi",
+            'Physical Address': "What's your physical address? 🏠\n*Example:* House No. 123, Area 47, Lilongwe\n\nType 'Skip' to continue if not applicable.",
+            'Nationality': "What's your nationality? 🌍\n*Example:* Malawian\n\nType 'Skip' to continue.",
+            'Professional Summary': "Please provide a brief professional summary (2-3 sentences) ✍️\n*Example:* Results-oriented Project Manager with 5+ years of experience in...",
+            'Work Experience': "Let's add your work experience. Most recent job title? 💼\n*Example:* Senior Software Engineer",
+            'Education': "What's your highest qualification? 🎓\n*Example:* Bachelor of Science in Computer Science",
+            'Skills': "List your key skills (comma separated) ⚡\n*Example:* Project Management, Team Leadership, Risk Assessment",
+            'Referees (need 2)': "Please provide at least 2 professional referees.\n\n*Referee 1 - Full name?* 👥\n*Example:* Dr. Jane Mkandawire"
         };
         
         await sendMarkdown(ctx, prompts[section] || `Please provide your ${section.toLowerCase()}:`);
@@ -437,6 +452,18 @@ class SmartDraftProcessor {
                 cvData.personal = cvData.personal || {};
                 cvData.personal.location = text;
                 break;
+            case 'Physical Address':
+                if (text.toLowerCase() !== 'skip') {
+                    cvData.personal = cvData.personal || {};
+                    cvData.personal.physical_address = text;
+                }
+                break;
+            case 'Nationality':
+                if (text.toLowerCase() !== 'skip') {
+                    cvData.personal = cvData.personal || {};
+                    cvData.personal.nationality = text;
+                }
+                break;
             case 'Professional Summary':
                 cvData.professional_summary = text;
                 break;
@@ -447,23 +474,23 @@ class SmartDraftProcessor {
                 if (step === 'title') {
                     session.data.temp_job.title = text;
                     session.data.work_step = 'company';
-                    await sendMarkdown(ctx, "Company name? 🏢");
+                    await sendMarkdown(ctx, "Company name? 🏢\n*Example:* ABC Corporation");
                     return;
                 } else if (step === 'company') {
                     session.data.temp_job.company = text;
                     session.data.work_step = 'duration';
-                    await sendMarkdown(ctx, "Duration? (e.g., Jan 2020 - Present) 📅");
+                    await sendMarkdown(ctx, "Duration? 📅\n*Example:* Jan 2020 - Present (3 years)");
                     return;
                 } else if (step === 'duration') {
                     session.data.temp_job.duration = text;
                     session.data.work_step = 'responsibilities';
                     session.data.temp_job.responsibilities = [];
-                    await sendMarkdown(ctx, "Key responsibilities? One per line. Type DONE when finished.");
+                    await sendMarkdown(ctx, "Key responsibilities? One per line. Type DONE when finished.\n\n*Example:*\n• Led a team of 5 developers\n• Increased efficiency by 30%\n\nType DONE when done.");
                     return;
                 } else if (step === 'responsibilities') {
                     if (text.toUpperCase() !== 'DONE') {
                         session.data.temp_job.responsibilities.push(text);
-                        await sendMarkdown(ctx, `✓ Added. Another? (type DONE when done)`);
+                        await sendMarkdown(ctx, `✓ Added. Another responsibility? (type DONE when done)`);
                         return;
                     } else {
                         cvData.employment.push(session.data.temp_job);
@@ -483,17 +510,17 @@ class SmartDraftProcessor {
                 if (eduStep === 'level') {
                     session.data.temp_edu.level = text;
                     session.data.edu_step = 'field';
-                    await sendMarkdown(ctx, "Field of study? 📚");
+                    await sendMarkdown(ctx, "Field of study? 📚\n*Example:* Computer Science");
                     return;
                 } else if (eduStep === 'field') {
                     session.data.temp_edu.field = text;
                     session.data.edu_step = 'institution';
-                    await sendMarkdown(ctx, "Institution? 🏛️");
+                    await sendMarkdown(ctx, "Institution? 🏛️\n*Example:* University of Malawi");
                     return;
                 } else if (eduStep === 'institution') {
                     session.data.temp_edu.institution = text;
                     session.data.edu_step = 'year';
-                    await sendMarkdown(ctx, "Year of completion? 📅");
+                    await sendMarkdown(ctx, "Year of completion? 📅\n*Example:* 2020");
                     return;
                 } else if (eduStep === 'year') {
                     session.data.temp_edu.year = text;
@@ -509,19 +536,19 @@ class SmartDraftProcessor {
             case 'Skills':
                 cvData.skills = text.split(',').map(s => s.trim());
                 break;
-            case 'Referees':
+            case 'Referees (need 2)':
                 if (!cvData.referees) cvData.referees = [];
                 if (!session.data.temp_ref) session.data.temp_ref = {};
                 const refStep = session.data.ref_step || 'name';
                 if (refStep === 'name') {
                     session.data.temp_ref.name = text;
                     session.data.ref_step = 'position';
-                    await sendMarkdown(ctx, "Their position? 📌");
+                    await sendMarkdown(ctx, "Their position? 📌\n*Example:* Senior Manager");
                     return;
                 } else if (refStep === 'position') {
                     session.data.temp_ref.position = text;
                     session.data.ref_step = 'contact';
-                    await sendMarkdown(ctx, "Their contact? (phone or email) 📞");
+                    await sendMarkdown(ctx, "Their contact? (phone or email) 📞\n*Example:* +265 991 234 567 or jane@example.com");
                     return;
                 } else if (refStep === 'contact') {
                     session.data.temp_ref.contact = text;
@@ -529,7 +556,7 @@ class SmartDraftProcessor {
                     session.data.temp_ref = null;
                     session.data.ref_step = null;
                     if (cvData.referees.length < 2) {
-                        await sendMarkdown(ctx, `✓ Referee added. Need ${2 - cvData.referees.length} more. Next referee - Full name?`);
+                        await sendMarkdown(ctx, `✓ Referee added. Need ${2 - cvData.referees.length} more.\n\nNext referee - Full name? 👥`);
                         return;
                     } else {
                         await sendMarkdown(ctx, `✓ ${cvData.referees.length} referees added. Another?`, {
@@ -593,7 +620,11 @@ Would you like to include links to your work?
 
 *Why this matters:* Employers love seeing real work examples!
 
-Type your portfolio links (one per line) or type 'SKIP' to continue.`);
+Type your portfolio links (one per line) or type 'SKIP' to continue.
+
+*Example:* 
+https://github.com/johndoe
+https://johndoe.com/portfolio`);
     }
     parsePortfolioLinks(text) {
         if (text.toLowerCase() === 'skip') return [];
@@ -680,20 +711,18 @@ async function getOrCreateSession(clientId) {
 // ============ PERSISTENT KEYBOARD ============
 const mainMenuKeyboard = Markup.keyboard([
     [Markup.button.text("📄 New CV"), Markup.button.text("📝 Editable CV")],
-    [Markup.button.text("💌 Cover Letter"), Markup.button.text("✏️ Update CV")],
-    [Markup.button.text("📎 Upload Draft"), Markup.button.text("ℹ️ About")],
-    [Markup.button.text("📞 Contact"), Markup.button.text("🏠 Portal")]
+    [Markup.button.text("💌 Cover Letter"), Markup.button.text("📎 Editable Cover Letter")],
+    [Markup.button.text("✏️ Update CV"), Markup.button.text("📎 Upload Draft")],
+    [Markup.button.text("ℹ️ About"), Markup.button.text("📞 Contact"), Markup.button.text("🏠 Portal")]
 ]).resize().persistent();
 
 // ============ CORE HANDLERS ============
-// ============ UPDATED GREETING - NO SERVICE BUTTONS ============
+
+// ============ GREETING WITH CLICKABLE CATEGORY BUTTONS ============
 async function handleGreeting(ctx, client, session) {
     const name = ctx.from.first_name;
-    
-    // Get real testimonial (only if exists)
     const testimonial = getRandomTestimonial();
     
-    // Simple welcome with description, no service buttons
     let message = `👋 *Welcome to EasySuccor, ${name}!*
 
 We help you create professional CVs and cover letters that get noticed.
@@ -704,130 +733,27 @@ ${testimonial ? testimonial : ''}
 📄 Professional CV writing
 📝 Editable CV (Word format)
 💌 Cover letters tailored to your dream job
+📎 Editable Cover Letter (Word format)
 ✏️ CV updates and revisions
 
 *Ready to get started?*
 
-Type your category:
+Select your category below:`;
 
-🎓 *Student* - Currently in school
-📜 *Recent Graduate* - Graduated <2 years
-💼 *Professional* - Currently employed
-🌱 *Non-Working* - Career break
-🔄 *Returning Client* - Used us before
-
-Or type /help to learn more.`;
-
-    await sendMarkdown(ctx, message);
-    
-    // Set stage to category selection directly
-    await db.updateSession(session.id, 'selecting_category', null, session.data);
-}
-
-// ============ UPDATED MAIN MENU HANDLER ============
-async function handleMainMenu(ctx, client, session, text) {
-    // Handle category selection from text (not just callbacks)
-    const categoryMap = {
-        'student': 'student',
-        'recent graduate': 'recentgraduate',
-        'professional': 'professional',
-        'non-working': 'nonworkingprofessional',
-        'returning client': 'returningclient',
-        'returning': 'returningclient'
-    };
-    
-    const lowerText = text.toLowerCase();
-    for (const [key, value] of Object.entries(categoryMap)) {
-        if (lowerText.includes(key)) {
-            session.data.category = value;
-            session.data.service = 'new cv'; // Default service
-            session.data.build_method = 'from_scratch';
-            
-            // Show delivery options directly (skip service selection)
-            const basePrice = getBasePrice(session.data.category, session.data.service);
-            session.data.base_price = basePrice;
-            
-            await sendMarkdown(ctx, `✅ Category selected: *${text}*
-
-Base price: ${formatPrice(basePrice)}
-
-*Delivery speed?*`, {
-                reply_markup: { inline_keyboard: [
-                    [{ text: "🚚 Standard (6h)", callback_data: "delivery_standard" }],
-                    [{ text: "⚡ Express (2h) +3k", callback_data: "delivery_express" }],
-                    [{ text: "🏃 Rush (1h) +5k", callback_data: "delivery_rush" }]
-                ] }
-            });
-            await db.updateSession(session.id, 'selecting_delivery', null, session.data);
-            return;
-        }
-    }
-    
-    // Handle upload draft after category/service is selected
-    if (lowerText.includes('upload') || lowerText.includes('draft')) {
-        await sendMarkdown(ctx, `📎 *Upload Your Draft*
-
-Send me your existing CV or cover letter (PDF, DOCX, or image).
-
-I'll extract all the information and only ask for what's missing!
-
-*Supported formats:* PDF, DOCX, JPG, PNG`);
-        session.data.awaiting_draft_upload = true;
-        await db.updateSession(session.id, 'awaiting_draft_upload', 'draft', session.data);
-        return;
-    }
-    
-    // Handle other commands
-    if (text === 'ℹ️ About') {
-        await sendMarkdown(ctx, `📄 *EasySuccor - Professional CVs*
-
-Contact: +265 991 295 401
-WhatsApp: +265 881 193 707
-
-*Services:*
-• New CV - MK6,000 - MK10,000
-• Editable CV - MK8,000 - MK12,000
-• Cover Letter - MK5,000 - MK6,000
-• CV Update - MK3,000 - MK6,000
-
-*Delivery:* 6h (Standard), 2h (+3k), 1h (+5k)`);
-        return;
-    } else if (text === '📞 Contact') {
-        await sendMarkdown(ctx, `📞 *Contact*
-
-Airtel: 0991295401
-Mpamba: 0886928639
-Visa: 1005653618 (NBM)
-WhatsApp: +265 881 193 707`);
-        return;
-    } else if (text === '🏠 Portal') {
-        await showClientPortal(ctx, client);
-        return;
-    } else {
-        await sendMarkdown(ctx, `Please type your category:
-
-🎓 Student
-📜 Recent Graduate
-💼 Professional
-🌱 Non-Working
-🔄 Returning Client`);
-    }
-}
-
-async function showCategorySelection(ctx, session) {
-    await sendMarkdown(ctx, `Select your category:`, {
+    await sendMarkdown(ctx, message, {
         reply_markup: { inline_keyboard: [
-            [{ text: "🎓 Student - Currently in school", callback_data: "cat_student" }],
-            [{ text: "📜 Recent Graduate - Graduated <2 years", callback_data: "cat_recent" }],
-            [{ text: "💼 Professional - Currently employed", callback_data: "cat_professional" }],
-            [{ text: "🌱 Non-Working - Career break", callback_data: "cat_nonworking" }],
-            [{ text: "🔄 Returning Client - Used us before", callback_data: "cat_returning" }]
+            [{ text: "🎓 Student", callback_data: "cat_student" }],
+            [{ text: "📜 Recent Graduate", callback_data: "cat_recent" }],
+            [{ text: "💼 Professional", callback_data: "cat_professional" }],
+            [{ text: "🌱 Non-Working", callback_data: "cat_nonworking" }],
+            [{ text: "🔄 Returning Client", callback_data: "cat_returning" }]
         ] }
     });
+    
     await db.updateSession(session.id, 'selecting_category', null, session.data);
 }
 
-// ============ SIMPLIFIED CATEGORY SELECTION ============
+// ============ CATEGORY SELECTION - SHOWS SERVICE BUTTONS ============
 async function handleCategorySelection(ctx, client, session, data) {
     const categoryMap = {
         cat_student: 'student',
@@ -838,26 +764,31 @@ async function handleCategorySelection(ctx, client, session, data) {
     };
     
     session.data.category = categoryMap[data];
-    session.data.service = 'new cv'; // Default to new CV
-    session.data.build_method = 'from_scratch';
     
-    // Show delivery options directly (skip service selection)
-    const basePrice = getBasePrice(session.data.category, session.data.service);
-    session.data.base_price = basePrice;
+    let serviceButtons;
+    if (session.data.category === 'returningclient') {
+        serviceButtons = [
+            [{ text: "📝 Editable CV", callback_data: "service_editable" }],
+            [{ text: "✏️ Update CV", callback_data: "service_update" }],
+            [{ text: "💌 Cover Letter", callback_data: "service_cover" }],
+            [{ text: "📎 Editable Cover Letter", callback_data: "service_editable_cover" }]
+        ];
+    } else {
+        serviceButtons = [
+            [{ text: "📄 New CV", callback_data: "service_new" }],
+            [{ text: "📝 Editable CV", callback_data: "service_editable" }],
+            [{ text: "💌 Cover Letter", callback_data: "service_cover" }],
+            [{ text: "📎 Editable Cover Letter", callback_data: "service_editable_cover" }]
+        ];
+    }
     
-    await sendMarkdown(ctx, `✅ Category selected!
+    await sendMarkdown(ctx, `✅ Category selected: *${session.data.category}*
 
-Base price: ${formatPrice(basePrice)}
-
-*Delivery speed?*`, {
-        reply_markup: { inline_keyboard: [
-            [{ text: "🚚 Standard (6h)", callback_data: "delivery_standard" }],
-            [{ text: "⚡ Express (2h) +3k", callback_data: "delivery_express" }],
-            [{ text: "🏃 Rush (1h) +5k", callback_data: "delivery_rush" }]
-        ] }
+Now, please select your service:`, {
+        reply_markup: { inline_keyboard: serviceButtons }
     });
     
-    await db.updateSession(session.id, 'selecting_delivery', null, session.data);
+    await db.updateSession(session.id, 'selecting_service', null, session.data);
 }
 
 // ============ SERVICE SELECTION WITH DRAFT HELPER ============
@@ -872,23 +803,16 @@ async function handleServiceSelection(ctx, client, session, data) {
     
     session.data.service = serviceMap[data];
     
-    // Handle CV update separately (no draft upload needed)
     if (session.data.service === 'cv update') {
         await handleUpdateFlow(ctx, client, session);
         return;
     }
     
-    // Ask if they want to upload a draft to save time
     await sendMarkdown(ctx, `✅ *Service selected:* ${session.data.service}
 
 *Would you like to upload an existing draft to save time?*
 
-I can extract information from your existing CV or cover letter and only ask for what's missing.
-
-📎 *Upload Draft* - Send me your file (PDF, DOCX, or image)
-✍️ *Enter Manually* - I'll ask you all questions
-
-Choose an option:`, {
+I can extract information from your existing CV or cover letter and only ask for what's missing.`, {
         reply_markup: { inline_keyboard: [
             [{ text: "📎 Upload Draft", callback_data: "build_draft" }],
             [{ text: "✍️ Enter Manually", callback_data: "build_manual" }]
@@ -901,7 +825,6 @@ Choose an option:`, {
 // ============ HANDLE BUILD METHOD ============
 async function handleBuildMethod(ctx, client, session, data) {
     if (data === 'build_draft') {
-        // User wants to upload a draft
         session.data.build_method = 'draft';
         
         await sendMarkdown(ctx, `📎 *Upload Your Draft*
@@ -918,10 +841,8 @@ Type /skip to continue with manual entry.`);
         await db.updateSession(session.id, 'awaiting_draft_upload', 'draft', session.data);
         
     } else if (data === 'build_manual') {
-        // User wants to enter manually
         session.data.build_method = 'manual';
         
-        // Show delivery options
         const basePrice = getBasePrice(session.data.category, session.data.service);
         session.data.base_price = basePrice;
         
@@ -937,38 +858,7 @@ Type /skip to continue with manual entry.`);
         await db.updateSession(session.id, 'selecting_delivery', null, session.data);
     }
 }
-// ============ DRAFT UPLOAD HANDLER (in bot.on('document')) ============
-if (session.stage === 'awaiting_draft_upload' || session.data.awaiting_draft_upload) {
-    await sendMarkdown(ctx, `📄 *Processing your draft...* This may take a moment.`);
-    
-    const fileInfo = await ctx.telegram.getFile(document.file_id);
-    const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
-    
-    const success = await smartDraft.processDraftUpload(ctx, client, session, fileUrl, fileName);
-    
-    if (success) {
-        session.data.awaiting_draft_upload = false;
-        session.data.build_method = 'draft_completed';
-        
-        // AFTER draft processed, show delivery options
-        const basePrice = getBasePrice(session.data.category, session.data.service);
-        session.data.base_price = basePrice;
-        
-        await sendMarkdown(ctx, `✅ *Draft processed successfully!*
 
-Base price: ${formatPrice(basePrice)}
-
-*Delivery speed?*`, {
-            reply_markup: { inline_keyboard: [
-                [{ text: "🚚 Standard (6h)", callback_data: "delivery_standard" }],
-                [{ text: "⚡ Express (2h) +3k", callback_data: "delivery_express" }],
-                [{ text: "🏃 Rush (1h) +5k", callback_data: "delivery_rush" }]
-            ] }
-        });
-        await db.updateSession(session.id, 'selecting_delivery', null, session.data);
-    }
-    return;
-}
 // ============ DELIVERY SELECTION ============
 async function handleDeliverySelection(ctx, client, session, data) {
     const delivery = { 
@@ -983,27 +873,90 @@ async function handleDeliverySelection(ctx, client, session, data) {
     const totalAmount = calculateTotal(session.data.category, session.data.service, delivery);
     session.data.total_charge = formatPrice(totalAmount);
     
-    // For manual entry, collect portfolio then personal info
     if (session.data.build_method === 'manual') {
         await portfolioCollector.askForPortfolio(ctx);
         await db.updateSession(session.id, 'collecting_portfolio', 'portfolio', session.data);
-    } 
-    // For draft completed, start data collection (only missing fields)
-    else if (session.data.build_method === 'draft_completed') {
-        // Check if we have extracted data from draft
+    } else if (session.data.build_method === 'draft_completed') {
         if (session.data.cv_data && Object.keys(session.data.cv_data).length > 0) {
-            // Start collecting missing sections
             await smartDraft.collectNextMissingSection(ctx, client, session);
         } else {
-            // Fallback to manual
             await portfolioCollector.askForPortfolio(ctx);
             await db.updateSession(session.id, 'collecting_portfolio', 'portfolio', session.data);
         }
-    }
-    else {
-        // Fallback
+    } else {
         await portfolioCollector.askForPortfolio(ctx);
         await db.updateSession(session.id, 'collecting_portfolio', 'portfolio', session.data);
+    }
+}
+
+// ============ MAIN MENU HANDLER FOR KEYBOARD BUTTONS ============
+async function handleMainMenu(ctx, client, session, text) {
+    const serviceMap = {
+        '📄 New CV': 'service_new',
+        '📝 Editable CV': 'service_editable',
+        '💌 Cover Letter': 'service_cover',
+        '📎 Editable Cover Letter': 'service_editable_cover',
+        '✏️ Update CV': 'service_update',
+        '📎 Upload Draft': 'build_draft'
+    };
+    
+    if (serviceMap[text]) {
+        if (text === '📎 Upload Draft') {
+            if (!session.data.category) {
+                await sendMarkdown(ctx, `Please select your category first:`, {
+                    reply_markup: { inline_keyboard: [
+                        [{ text: "🎓 Student", callback_data: "cat_student" }],
+                        [{ text: "📜 Recent Graduate", callback_data: "cat_recent" }],
+                        [{ text: "💼 Professional", callback_data: "cat_professional" }],
+                        [{ text: "🌱 Non-Working", callback_data: "cat_nonworking" }],
+                        [{ text: "🔄 Returning Client", callback_data: "cat_returning" }]
+                    ] }
+                });
+                return;
+            }
+            await handleBuildMethod(ctx, client, session, 'build_draft');
+        } else {
+            await handleServiceSelection(ctx, client, session, serviceMap[text]);
+        }
+        return;
+    }
+    
+    if (text === 'ℹ️ About') {
+        await sendMarkdown(ctx, `📄 *EasySuccor - Professional CVs*
+
+Contact: +265 991 295 401
+WhatsApp: +265 881 193 707
+
+*Services:*
+• New CV - MK6,000 - MK10,000
+• Editable CV - MK8,000 - MK12,000
+• Cover Letter - MK5,000 - MK6,000
+• Editable Cover Letter - MK8,000
+• CV Update - MK3,000 - MK6,000
+
+*Delivery:* 6h (Standard), 2h (+3k), 1h (+5k)`);
+        return;
+    } else if (text === '📞 Contact') {
+        await sendMarkdown(ctx, `📞 *Contact*
+
+Airtel: 0991295401
+Mpamba: 0886928639
+Visa: 1005653618 (NBM)
+WhatsApp: +265 881 193 707`);
+        return;
+    } else if (text === '🏠 Portal') {
+        await showClientPortal(ctx, client);
+        return;
+    } else {
+        await sendMarkdown(ctx, `Please select a category to get started:`, {
+            reply_markup: { inline_keyboard: [
+                [{ text: "🎓 Student", callback_data: "cat_student" }],
+                [{ text: "📜 Recent Graduate", callback_data: "cat_recent" }],
+                [{ text: "💼 Professional", callback_data: "cat_professional" }],
+                [{ text: "🌱 Non-Working", callback_data: "cat_nonworking" }],
+                [{ text: "🔄 Returning Client", callback_data: "cat_returning" }]
+            ] }
+        });
     }
 }
 
@@ -1013,51 +966,130 @@ async function handlePortfolioCollection(ctx, client, session, text) {
     await startDataCollection(ctx, client, session);
 }
 
+// ============ UPDATED START DATA COLLECTION WITH NEW FIELDS ============
 async function startDataCollection(ctx, client, session) {
     session.data.cv_data = {
-        personal: {}, professional_summary: '', education: [], employment: [], skills: [],
-        certifications: [], languages: [], referees: [], portfolio: session.data.portfolio_links || []
+        personal: {
+            full_name: '',
+            email: '',
+            primary_phone: '',
+            alternative_phone: '',
+            whatsapp_phone: '',
+            location: '',
+            physical_address: '',
+            nationality: '',
+            special_documents: []
+        },
+        professional_summary: '',
+        education: [],
+        employment: [],
+        skills: [],
+        certifications: [],
+        languages: [],
+        projects: [],
+        achievements: [],
+        referees: [],
+        portfolio: session.data.portfolio_links || []
     };
     session.current_section = 'personal';
     session.data.collection_step = 'name';
+    session.data.special_docs_list = [];
     await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
 }
 
+// ============ UPDATED PERSONAL COLLECTION WITH NEW FIELDS ============
 async function handlePersonalCollection(ctx, client, session, text) {
     const step = session.data.collection_step;
     const personal = session.data.cv_data.personal;
     
-    if (step === 'name') { personal.full_name = text; session.data.collection_step = 'email'; await sendMarkdown(ctx, getQuestion('email')); }
-    else if (step === 'email') { personal.email = text; session.data.collection_step = 'phone'; await sendMarkdown(ctx, getQuestion('phone')); }
-    else if (step === 'phone') { personal.primary_phone = text; session.data.collection_step = 'alt_phone'; await sendMarkdown(ctx, "Alternative phone? (or 'Skip')"); }
-    else if (step === 'alt_phone') { personal.alternative_phone = text === 'Skip' ? null : text; session.data.collection_step = 'whatsapp'; await sendMarkdown(ctx, "WhatsApp for delivery? (or 'Same')"); }
-    else if (step === 'whatsapp') { personal.whatsapp_phone = text === 'Same' ? personal.primary_phone : text; session.data.collection_step = 'location'; await sendMarkdown(ctx, getQuestion('location')); }
+    if (step === 'name') {
+        personal.full_name = text;
+        session.data.collection_step = 'email';
+        await sendMarkdown(ctx, getQuestion('email'));
+    }
+    else if (step === 'email') {
+        personal.email = text;
+        session.data.collection_step = 'phone';
+        await sendMarkdown(ctx, getQuestion('phone'));
+    }
+    else if (step === 'phone') {
+        personal.primary_phone = text;
+        session.data.collection_step = 'alt_phone';
+        await sendMarkdown(ctx, "Alternative phone? (or 'Skip') 📞");
+    }
+    else if (step === 'alt_phone') {
+        personal.alternative_phone = text === 'Skip' ? null : text;
+        session.data.collection_step = 'whatsapp';
+        await sendMarkdown(ctx, "WhatsApp for delivery? (or 'Same') 📱");
+    }
+    else if (step === 'whatsapp') {
+        personal.whatsapp_phone = text === 'Same' ? personal.primary_phone : text;
+        session.data.collection_step = 'location';
+        await sendMarkdown(ctx, "Where are you based? (City, Country) 📍\n*Example:* Lilongwe, Malawi");
+    }
     else if (step === 'location') {
         personal.location = text;
-        session.current_section = 'summary';
-        session.data.collection_step = 'summary';
-        await sendMarkdown(ctx, `${getReaction()}\n\n${getQuestion('summary')}`);
-        await db.updateSession(session.id, 'collecting_summary', 'summary', session.data);
+        session.data.collection_step = 'physical_address';
+        await sendMarkdown(ctx, "What's your physical address? 🏠\n*Example:* House No. 123, Area 47, Lilongwe\n\nType 'Skip' to continue.");
     }
+    else if (step === 'physical_address') {
+        if (text.toLowerCase() !== 'skip') {
+            personal.physical_address = text;
+        }
+        session.data.collection_step = 'nationality';
+        await sendMarkdown(ctx, "What's your nationality? 🌍\n*Example:* Malawian\n\nType 'Skip' to continue.");
+    }
+    else if (step === 'nationality') {
+        if (text.toLowerCase() !== 'skip') {
+            personal.nationality = text;
+        }
+        session.data.collection_step = 'special_docs';
+        await sendMarkdown(ctx, `📋 *Special Documents (Optional)*
+
+Do you have any special documents? (e.g., Driver's License, Passport, Professional License, Work Permit)
+
+Type each document name and number, one per line.
+
+*Examples:*
+• Driver's License: MW123456
+• Passport: MW987654
+• Professional License: TEVETA/2024/001
+
+Type 'Skip' to continue or 'Done' when finished.`);
+        session.data.special_docs_list = [];
+    }
+    else if (step === 'special_docs') {
+        if (text.toLowerCase() === 'skip') {
+            personal.special_documents = [];
+            session.current_section = 'summary';
+            session.data.collection_step = 'summary';
+            await sendMarkdown(ctx, `${getReaction()}\n\n${getQuestion('summary')}`);
+            await db.updateSession(session.id, 'collecting_summary', 'summary', session.data);
+        } else if (text.toLowerCase() === 'done') {
+            personal.special_documents = session.data.special_docs_list || [];
+            session.current_section = 'summary';
+            session.data.collection_step = 'summary';
+            await sendMarkdown(ctx, `${getReaction()}\n\n${getQuestion('summary')}`);
+            await db.updateSession(session.id, 'collecting_summary', 'summary', session.data);
+        } else {
+            session.data.special_docs_list.push(text);
+            await sendMarkdown(ctx, `✓ Added. Any more special documents? (Type 'Done' when finished, or 'Skip' to skip this section)`);
+        }
+        return;
+    }
+    
     await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
 }
 
-// ============ FIXED SUMMARY COLLECTION ============
 async function handleSummaryCollection(ctx, client, session, text) {
-    // Store the summary
     session.data.cv_data.professional_summary = text;
-    
-    // Move to next section
     session.current_section = 'education';
     session.data.collection_step = 'level';
-    
-    // Send confirmation and next question
     await sendMarkdown(ctx, `✅ *Got it! Thanks for sharing.*
 
 Now let's add your education details.
 
 ${getQuestion('education')}`);
-    
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
 }
 
@@ -1066,9 +1098,9 @@ async function handleEducationCollection(ctx, client, session, text, callbackDat
     const education = session.data.cv_data.education;
     const currentEdu = session.data.current_edu || {};
     
-    if (step === 'level') { currentEdu.level = text; session.data.current_edu = currentEdu; session.data.collection_step = 'field'; await sendMarkdown(ctx, "Field of study? 📚"); }
-    else if (step === 'field') { currentEdu.field = text; session.data.collection_step = 'institution'; await sendMarkdown(ctx, "Institution? 🏛️"); }
-    else if (step === 'institution') { currentEdu.institution = text; session.data.collection_step = 'year'; await sendMarkdown(ctx, "Year of completion? 📅"); }
+    if (step === 'level') { currentEdu.level = text; session.data.current_edu = currentEdu; session.data.collection_step = 'field'; await sendMarkdown(ctx, "Field of study? 📚\n*Example:* Computer Science"); }
+    else if (step === 'field') { currentEdu.field = text; session.data.collection_step = 'institution'; await sendMarkdown(ctx, "Institution? 🏛️\n*Example:* University of Malawi"); }
+    else if (step === 'institution') { currentEdu.institution = text; session.data.collection_step = 'year'; await sendMarkdown(ctx, "Year of completion? 📅\n*Example:* 2020"); }
     else if (step === 'year') {
         currentEdu.year = text; education.push({ ...currentEdu }); session.data.current_edu = null; session.data.collection_step = 'add_more';
         await sendMarkdown(ctx, `${getReaction()} Another qualification?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "edu_yes" }, { text: "❌ No", callback_data: "edu_no" }]] } });
@@ -1090,9 +1122,9 @@ async function handleEmploymentCollection(ctx, client, session, text, callbackDa
     const employment = session.data.cv_data.employment;
     const currentJob = session.data.current_job || {};
     
-    if (step === 'title') { currentJob.title = text; session.data.current_job = currentJob; session.data.collection_step = 'company'; await sendMarkdown(ctx, "Company name? 🏢"); }
-    else if (step === 'company') { currentJob.company = text; session.data.collection_step = 'duration'; await sendMarkdown(ctx, "How long? (e.g., 2022-2024) 📅"); }
-    else if (step === 'duration') { currentJob.duration = text; session.data.collection_step = 'responsibilities'; currentJob.responsibilities = []; await sendMarkdown(ctx, `Key responsibilities? One per line. Type DONE when finished.\n\nExample:\n• Managed team of 5\n• Completed 50+ projects`); }
+    if (step === 'title') { currentJob.title = text; session.data.current_job = currentJob; session.data.collection_step = 'company'; await sendMarkdown(ctx, "Company name? 🏢\n*Example:* ABC Corporation"); }
+    else if (step === 'company') { currentJob.company = text; session.data.collection_step = 'duration'; await sendMarkdown(ctx, "Duration? 📅\n*Example:* Jan 2020 - Present (3 years)"); }
+    else if (step === 'duration') { currentJob.duration = text; session.data.collection_step = 'responsibilities'; currentJob.responsibilities = []; await sendMarkdown(ctx, `Key responsibilities? One per line. Type DONE when finished.\n\n*Example:*\n• Led a team of 5 developers\n• Increased efficiency by 30%\n\nType DONE when done.`); }
     else if (step === 'responsibilities') {
         if (text.toUpperCase() !== 'DONE') { currentJob.responsibilities.push(text); await sendMarkdown(ctx, `✓ Got it. Another? (type DONE when done)`); }
         else { employment.push({ ...currentJob }); session.data.current_job = null; session.data.collection_step = 'add_more'; await sendMarkdown(ctx, `${getReaction()} Another job?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "emp_yes" }, { text: "❌ No", callback_data: "emp_no" }]] } }); }
@@ -1130,9 +1162,9 @@ async function handleCertificationsCollection(ctx, client, session, text, callba
             await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
             return;
         }
-        currentCert.name = text; session.data.current_cert = currentCert; session.data.collection_step = 'issuer'; await sendMarkdown(ctx, "Issuing organization? 🏛️");
+        currentCert.name = text; session.data.current_cert = currentCert; session.data.collection_step = 'issuer'; await sendMarkdown(ctx, "Issuing organization? 🏛️\n*Example:* TEVETA");
     }
-    else if (step === 'issuer') { currentCert.issuer = text; session.data.collection_step = 'year'; await sendMarkdown(ctx, "Year obtained? 📅"); }
+    else if (step === 'issuer') { currentCert.issuer = text; session.data.collection_step = 'year'; await sendMarkdown(ctx, "Year obtained? 📅\n*Example:* 2022"); }
     else if (step === 'year') {
         currentCert.year = text; certifications.push({ ...currentCert }); session.data.current_cert = null; session.data.collection_step = 'add_more';
         await sendMarkdown(ctx, `${getReaction()} Another certification?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "cert_yes" }, { text: "❌ No", callback_data: "cert_no" }, { text: "⏭️ Skip", callback_data: "cert_skip" }]] } });
@@ -1190,9 +1222,9 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
     
     if (step === 'name') {
         if (text === 'Skip') { await sendMarkdown(ctx, `⚠️ Need at least ${minReferees} referees! Referee ${refereeCount + 1} - Full name?`); return; }
-        currentRef.name = text; session.data.current_ref = currentRef; session.data.collection_step = 'position'; await sendMarkdown(ctx, `Referee ${refereeCount + 1} - Their position? 📌`);
+        currentRef.name = text; session.data.current_ref = currentRef; session.data.collection_step = 'position'; await sendMarkdown(ctx, `Referee ${refereeCount + 1} - Their position? 📌\n*Example:* Senior Manager`);
     }
-    else if (step === 'position') { currentRef.position = text; session.data.collection_step = 'contact'; await sendMarkdown(ctx, `Referee ${refereeCount + 1} - Contact? (phone preferred) 📞`); }
+    else if (step === 'position') { currentRef.position = text; session.data.collection_step = 'contact'; await sendMarkdown(ctx, `Referee ${refereeCount + 1} - Contact? (phone or email) 📞\n*Example:* +265 991 234 567 or jane@example.com`); }
     else if (step === 'contact') {
         currentRef.contact = text; referees.push({ ...currentRef }); session.data.current_ref = null;
         if (referees.length < minReferees) {
@@ -1269,6 +1301,9 @@ async function finalizeOrder(ctx, client, session) {
     if (personal?.email) await db.updateClient(client.id, { email: personal.email });
     if (personal?.primary_phone) await db.updateClient(client.id, { phone: personal.primary_phone });
     if (personal?.location) await db.updateClient(client.id, { location: personal.location });
+    if (personal?.physical_address) await db.updateClient(client.id, { physical_address: personal.physical_address });
+    if (personal?.nationality) await db.updateClient(client.id, { nationality: personal.nationality });
+    if (personal?.special_documents) await db.updateClient(client.id, { special_documents: JSON.stringify(personal.special_documents) });
     
     await cvVersioning.saveVersion(orderId, session.data.cv_data, 1, 'Initial CV creation');
     
@@ -1288,7 +1323,6 @@ async function finalizeOrder(ctx, client, session) {
     await sendMarkdown(ctx, `${random(RESPONSES.encouragements.final)(name)}\n\n📋 Order: \`${orderId}\`\n🚚 Delivery: ${session.data.delivery_time}\n💰 Total: ${session.data.total_charge}\n\n${paymentOptions.message}`);
     await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
     
-    // Schedule feedback request after 7 days
     setTimeout(async () => {
         await collectFeedback(ctx, client, orderId);
     }, 7 * 24 * 60 * 60 * 1000);
@@ -1322,7 +1356,7 @@ async function initiatePaymentFlow(ctx, client, session, choice) {
 
 async function showClientPortal(ctx, client) {
     const orders = await db.getClientOrders(client.id);
-    let message = `🏠 *YOUR PORTAL*\n\n👤 ${client.first_name}\n📞 ${client.phone || 'Not set'}\n📧 ${client.email || 'Not set'}\n📦 Orders: ${client.total_orders || 0}\n\n📄 *Documents:*\n`;
+    let message = `🏠 *YOUR PORTAL*\n\n👤 ${client.first_name}\n📞 ${client.phone || 'Not set'}\n📧 ${client.email || 'Not set'}\n📍 ${client.location || 'Not set'}\n🌍 ${client.nationality || 'Not set'}\n📦 Orders: ${client.total_orders || 0}\n\n📄 *Documents:*\n`;
     
     if (orders.length > 0) {
         message += orders.slice(0, 5).map(o => `• ${o.service} - ${new Date(o.created_at).toLocaleDateString()}`).join('\n');
@@ -1496,37 +1530,52 @@ Contact: +265 991 295 401`);
 
 // ============ FILE UPLOAD HANDLERS ============
 bot.on('document', async (ctx) => {
-    const client = await getOrCreateClient(ctx);
-    const session = await getOrCreateSession(client.id);
-    const document = ctx.message.document;
-    const fileName = document.file_name;
-    
-    if (session.stage === 'awaiting_vacancy_upload') {
-        const fileInfo = await ctx.telegram.getFile(document.file_id);
-        const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
-        const vacancyData = await aiAnalyzer.extractVacancyFromFile(fileUrl, fileName);
-        session.data.vacancy_data = vacancyData;
-        session.data.awaiting_vacancy = false;
-        await sendMarkdown(ctx, `📄 Processed! Found ${vacancyData.position || 'position'}.\n\nApplying for? (or 'SAME')`);
-        await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
-    } else if (session.stage === 'awaiting_draft_upload' || session.data.awaiting_draft_upload) {
-        await sendMarkdown(ctx, `📄 Processing your draft... This may take a moment.`);
-        const fileInfo = await ctx.telegram.getFile(document.file_id);
-        const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
+    try {
+        const client = await getOrCreateClient(ctx);
+        const session = await getOrCreateSession(client.id);
+        const document = ctx.message.document;
+        const fileName = document.file_name;
         
-        const success = await smartDraft.processDraftUpload(ctx, client, session, fileUrl, fileName);
-        if (success) {
-            session.data.awaiting_draft_upload = false;
-            await db.updateSession(session.id, session.stage, session.current_section, session.data);
+        if (session.stage === 'awaiting_vacancy_upload') {
+            const fileInfo = await ctx.telegram.getFile(document.file_id);
+            const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
+            const vacancyData = await aiAnalyzer.extractVacancyFromFile(fileUrl, fileName);
+            session.data.vacancy_data = vacancyData;
+            session.data.awaiting_vacancy = false;
+            await sendMarkdown(ctx, `📄 Processed! Found ${vacancyData.position || 'position'}.\n\nApplying for? (or 'SAME')`);
+            await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
+        } 
+        else if (session.stage === 'awaiting_draft_upload' || session.data.awaiting_draft_upload) {
+            await sendMarkdown(ctx, `📄 Processing your draft... This may take a moment.`);
+            const fileInfo = await ctx.telegram.getFile(document.file_id);
+            const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
+            
+            const success = await smartDraft.processDraftUpload(ctx, client, session, fileUrl, fileName);
+            if (success) {
+                session.data.awaiting_draft_upload = false;
+                session.data.build_method = 'draft_completed';
+                
+                const basePrice = getBasePrice(session.data.category, session.data.service);
+                session.data.base_price = basePrice;
+                
+                await sendMarkdown(ctx, `✅ *Draft processed successfully!*\n\nBase price: ${formatPrice(basePrice)}\n\n*Delivery speed?*`, {
+                    reply_markup: { inline_keyboard: [
+                        [{ text: "🚚 Standard (6h)", callback_data: "delivery_standard" }],
+                        [{ text: "⚡ Express (2h) +3k", callback_data: "delivery_express" }],
+                        [{ text: "🏃 Rush (1h) +5k", callback_data: "delivery_rush" }]
+                    ] }
+                });
+                await db.updateSession(session.id, 'selecting_delivery', null, session.data);
+            }
+        } 
+        else {
+            await sendMarkdown(ctx, `📎 *Draft Upload*\n\nYou can upload an existing CV or cover letter and I'll extract everything!\n\nJust send me the file (PDF, DOCX, or image).`);
+            session.data.awaiting_draft_upload = true;
+            await db.updateSession(session.id, 'awaiting_draft_upload', 'draft', session.data);
         }
-    } else {
-        await sendMarkdown(ctx, `📎 *Draft Upload*
-
-You can upload an existing CV or cover letter and I'll extract everything!
-
-Just send me the file (PDF, DOCX, or image).`);
-        session.data.awaiting_draft_upload = true;
-        await db.updateSession(session.id, 'awaiting_draft_upload', 'draft', session.data);
+    } catch (error) {
+        console.error('Document handler error:', error);
+        await sendMarkdown(ctx, `⚠️ Something went wrong processing your file. Please try again.`);
     }
 });
 
@@ -1551,12 +1600,22 @@ bot.on('photo', async (ctx) => {
         const success = await smartDraft.processDraftUpload(ctx, client, session, fileUrl, 'image.jpg');
         if (success) {
             session.data.awaiting_draft_upload = false;
-            await db.updateSession(session.id, session.stage, session.current_section, session.data);
+            session.data.build_method = 'draft_completed';
+            
+            const basePrice = getBasePrice(session.data.category, session.data.service);
+            session.data.base_price = basePrice;
+            
+            await sendMarkdown(ctx, `✅ *Draft processed successfully!*\n\nBase price: ${formatPrice(basePrice)}\n\n*Delivery speed?*`, {
+                reply_markup: { inline_keyboard: [
+                    [{ text: "🚚 Standard (6h)", callback_data: "delivery_standard" }],
+                    [{ text: "⚡ Express (2h) +3k", callback_data: "delivery_express" }],
+                    [{ text: "🏃 Rush (1h) +5k", callback_data: "delivery_rush" }]
+                ] }
+            });
+            await db.updateSession(session.id, 'selecting_delivery', null, session.data);
         }
     } else {
-        await sendMarkdown(ctx, `📎 *Upload Draft*
-
-You can upload an image of your CV/cover letter and I'll extract the information!`);
+        await sendMarkdown(ctx, `📎 *Upload Draft*\n\nYou can upload an image of your CV/cover letter and I'll extract the information!`);
         session.data.awaiting_draft_upload = true;
         await db.updateSession(session.id, 'awaiting_draft_upload', 'draft', session.data);
     }
@@ -1568,7 +1627,6 @@ bot.on('text', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const session = await getOrCreateSession(client.id);
     
-    // Add timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Handler timeout')), 30000);
     });
@@ -1624,23 +1682,24 @@ bot.on('callback_query', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const session = await getOrCreateSession(client.id);
     
-    // Category selection
     if (data.startsWith('cat_')) {
         await handleCategorySelection(ctx, client, session, data);
     }
-    // Delivery selection
+    else if (data.startsWith('service_')) {
+        await handleServiceSelection(ctx, client, session, data);
+    }
+    else if (data === 'build_draft' || data === 'build_manual') {
+        await handleBuildMethod(ctx, client, session, data);
+    }
     else if (data.startsWith('delivery_')) {
         await handleDeliverySelection(ctx, client, session, data);
     }
-    // Education - Add more
     else if (data === 'edu_yes' || data === 'edu_no') {
         await handleEducationCollection(ctx, client, session, data === 'edu_yes' ? 'Yes' : 'No', data);
     }
-    // Employment - Add more
     else if (data === 'emp_yes' || data === 'emp_no') {
         await handleEmploymentCollection(ctx, client, session, data === 'emp_yes' ? 'Yes' : 'No', data);
     }
-    // Certifications
     else if (data === 'cert_yes' || data === 'cert_no' || data === 'cert_skip') { 
         if (data === 'cert_skip') {
             await handleCertificationsCollection(ctx, client, session, 'Skip', data); 
@@ -1648,7 +1707,6 @@ bot.on('callback_query', async (ctx) => {
             await handleCertificationsCollection(ctx, client, session, data === 'cert_yes' ? 'Yes' : 'No', data); 
         }
     }
-    // Languages
     else if (data === 'lang_yes' || data === 'lang_no' || data === 'lang_skip') { 
         if (data === 'lang_skip') {
             await handleLanguagesCollection(ctx, client, session, 'Skip', data); 
@@ -1656,7 +1714,6 @@ bot.on('callback_query', async (ctx) => {
             await handleLanguagesCollection(ctx, client, session, data === 'lang_yes' ? 'Yes' : 'No', data); 
         }
     }
-    // Work Experience - Add more (from missing collection)
     else if (data === 'more_work_yes' || data === 'more_work_no') {
         if (data === 'more_work_yes') {
             session.data.collection_step = 'title';
@@ -1670,7 +1727,6 @@ bot.on('callback_query', async (ctx) => {
             await db.updateSession(session.id, 'collecting_skills', 'skills', session.data);
         }
     }
-    // Education - Add more (from missing collection)
     else if (data === 'more_edu_yes' || data === 'more_edu_no') {
         if (data === 'more_edu_yes') {
             session.data.collection_step = 'level';
@@ -1686,7 +1742,6 @@ bot.on('callback_query', async (ctx) => {
             await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
         }
     }
-    // Referees - Add more (from missing collection)
     else if (data === 'more_ref_yes' || data === 'more_ref_no') {
         if (data === 'more_ref_yes') {
             session.data.collection_step = 'name';
@@ -1697,22 +1752,20 @@ bot.on('callback_query', async (ctx) => {
             await finalizeOrder(ctx, client, session);
         }
     }
-    // Language proficiency levels
     else if (data.startsWith('prof_')) {
         await handleLanguagesCollection(ctx, client, session, '', data);
     }
-    // Fallback for any unhandled callback
     else {
         console.log(`Unhandled callback data: ${data}`);
         await sendMarkdown(ctx, `⚠️ Something went wrong. Please type /start to restart.`);
     }
 });
+
 // ============ START BOT ============
 async function startBot() {
     await db.initDatabase();
     await loadTestimonialsCache();
     
-    // Set commands with error handling
     try {
         await bot.telegram.setMyCommands([
             { command: 'start', description: 'Start the bot' },
@@ -1732,42 +1785,36 @@ async function startBot() {
         console.log('⚠️ Could not set commands:', cmdError.message);
     }
     
-    // Check if running on Render (production)
     const IS_PRODUCTION = process.env.RENDER === 'true' || process.env.NODE_ENV === 'production';
     const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://easysuccor-bot.onrender.com';
     
     if (IS_PRODUCTION) {
-        // Use webhook in production
         const webhookPath = '/webhook';
         const fullWebhookUrl = `${WEBHOOK_URL}${webhookPath}`;
         
         await bot.telegram.setWebhook(fullWebhookUrl);
         console.log(`✅ Webhook set to ${fullWebhookUrl}`);
         
-        // Setup webhook endpoint on your express app
         app.post(webhookPath, (req, res) => {
             bot.handleUpdate(req.body, res);
         });
         
         console.log('✅ Bot running with webhook (production mode)');
     } else {
-        // Use polling in development
         bot.launch();
         console.log('✅ Bot running with polling (development mode)');
     }
     
     console.log('========================================');
     console.log('  🤖 EasySuccor Bot Running');
+    console.log('  ✅ All choices are clickable buttons');
+    console.log('  ✅ Editable Cover Letter included');
     console.log('  ✅ Smart Draft Upload - Auto-extracts data');
-    console.log('  ✅ Only asks for missing sections');
-    console.log('  ✅ Admin batch upload available');
-    console.log('  ✅ Returning client detection');
+    console.log('  ✅ Physical address, nationality, special documents collected');
     console.log('  ✅ Real testimonials (no fake data)');
-    console.log('  ✅ Feedback collection system');
     console.log('========================================');
 }
 
-// Graceful shutdown
 let IS_PRODUCTION = false;
 process.once('SIGINT', () => {
     if (!IS_PRODUCTION) bot.stop('SIGINT');

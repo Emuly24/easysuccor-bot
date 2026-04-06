@@ -1,4 +1,4 @@
-// bot.js - Complete EasySuccor Telegram Bot with Smart Draft Upload
+// bot.js - Complete EasySuccor Telegram Bot with Smart Draft Upload & Real Testimonials
 const { Telegraf, Markup } = require('telegraf');
 const dotenv = require('dotenv');
 const path = require('path');
@@ -22,7 +22,7 @@ const upload = multer({ dest: 'uploads/admin/' });
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));  
+app.use(express.static('public'));
 
 // Admin authentication middleware
 const adminAuth = (req, res, next) => {
@@ -44,10 +44,8 @@ app.post('/admin/upload-batch', adminAuth, upload.array('files', 20), async (req
         const results = [];
         for (const file of files) {
             try {
-                // Extract all data from the document (including email, phone, location)
                 const extractedData = await documentGenerator.extractFullCVData(file.path, 'cv');
                 
-                // Find or create client using extracted email
                 let client = null;
                 if (extractedData.data.personal?.email) {
                     client = await db.getClientByEmail(extractedData.data.personal.email);
@@ -68,7 +66,6 @@ app.post('/admin/upload-batch', adminAuth, upload.array('files', 20), async (req
                     });
                 }
                 
-                // Convert to Aptos format
                 const convertedCV = await documentGenerator.convertLegacyDocument(file.path, client.id, 'cv');
                 
                 await db.createOrder({
@@ -126,10 +123,8 @@ app.post('/admin/upload-cv', adminAuth, upload.single('cv_file'), async (req, re
             return res.status(400).json({ error: 'No file uploaded' });
         }
         
-        // Extract all data from the document (including email, phone, location)
         const extractedData = await documentGenerator.extractFullCVData(file.path, 'cv');
         
-        // Find or create client using extracted email
         let client = null;
         if (extractedData.data.personal?.email) {
             client = await db.getClientByEmail(extractedData.data.personal.email);
@@ -150,7 +145,6 @@ app.post('/admin/upload-cv', adminAuth, upload.single('cv_file'), async (req, re
             });
         }
         
-        // Convert to Aptos format
         const convertedCV = await documentGenerator.convertLegacyDocument(file.path, client.id, 'cv');
         
         await db.createOrder({
@@ -188,7 +182,6 @@ app.post('/admin/upload-cv', adminAuth, upload.single('cv_file'), async (req, re
     }
 });
 
-
 app.post('/admin/upload-cover', adminAuth, upload.single('cover_file'), async (req, res) => {
     try {
         const { client_name, client_email, client_phone, client_location, position: formPosition, company: formCompany } = req.body;
@@ -197,19 +190,17 @@ app.post('/admin/upload-cover', adminAuth, upload.single('cover_file'), async (r
         if (!file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
-                // Extract information from file using AI analyzer
+        
         const fileUrl = `/uploads/${file.filename}`;
         const extractedData = await aiAnalyzer.extractFromDocument(fileUrl, file.originalname);
         
-        // Use extracted data or manual override
-        const clientName = manualName || extractedData.client_name || 'Unknown Client';
+        const clientName = extractedData.client_name || 'Unknown Client';
         const clientEmail = extractedData.client_email || null;
         const clientPhone = extractedData.client_phone || null;
         const clientLocation = extractedData.client_location || null;
         const position = extractedData.position || formPosition || 'Unknown Position';
         const company = extractedData.company || formCompany || 'Unknown Company';
         
-        // Get or create client
         let client;
         if (clientEmail) {
             client = await db.getClientByEmail(clientEmail);
@@ -231,7 +222,6 @@ app.post('/admin/upload-cover', adminAuth, upload.single('cover_file'), async (r
             });
         }
         
-        // Convert legacy cover letter to Aptos format
         const convertedCover = await documentGenerator.convertLegacyDocument(file.path, client.id, 'cover_letter');
         
         await db.createOrder({
@@ -276,29 +266,86 @@ app.listen(HEALTH_PORT, () => {
 // ============ TELEGRAM BOT ============
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
+// ============ HELPER FOR MARKDOWN ============
+async function sendMarkdown(ctx, message, extra = {}) {
+    return await ctx.reply(message, { parse_mode: 'Markdown', ...extra });
+}
+
+// ============ TESTIMONIAL SYSTEM ============
+// Store testimonials in memory (loaded from DB on startup)
+let TESTIMONIALS_CACHE = [];
+
+async function loadTestimonialsCache() {
+    const testimonials = await db.getApprovedTestimonials(10);
+    TESTIMONIALS_CACHE = testimonials;
+    console.log(`✅ Loaded ${TESTIMONIALS_CACHE.length} testimonials into cache`);
+}
+
+function getRandomTestimonial() {
+    if (TESTIMONIALS_CACHE.length === 0) return null;
+    const random = TESTIMONIALS_CACHE[Math.floor(Math.random() * TESTIMONIALS_CACHE.length)];
+    return `📢 *What our clients say:*\n\n⭐️⭐️⭐️⭐️⭐️ "${random.text}" - ${random.name}\n\n`;
+}
+
+async function collectFeedback(ctx, client, orderId) {
+    await sendMarkdown(ctx, `📝 *Help Us Improve EasySuccor*
+
+We'd love your honest feedback on your experience:
+
+1. How would you rate your document? (1-5 ⭐)
+2. What did you like most?
+3. What could we improve?
+4. Any suggestions for new features?
+
+Type your feedback below (or type /skip if busy):`);
+    
+    const session = await getOrCreateSession(client.id);
+    session.data.awaiting_feedback = true;
+    session.data.order_id = orderId;
+    await db.updateSession(session.id, 'collecting_feedback', 'feedback', session.data);
+}
+
+async function handleFeedback(ctx, client, session, text) {
+    if (text.toLowerCase() === '/skip') {
+        await sendMarkdown(ctx, `No problem! You can always share feedback later with /feedback.`);
+        await db.updateSession(session.id, 'main_menu', null, session.data);
+        return;
+    }
+    
+    await db.saveFeedback({
+        client_id: client.id,
+        order_id: session.data.order_id,
+        feedback: text,
+        rating: session.data.rating || null,
+        created_at: new Date().toISOString()
+    });
+    
+    await sendMarkdown(ctx, `✅ *Feedback received!*
+
+We take all feedback seriously and will use this to improve EasySuccor.
+
+Type /start to continue.`);
+    await db.updateSession(session.id, 'main_menu', null, session.data);
+}
+
 // ============ SMART DRAFT PROCESSOR ============
 class SmartDraftProcessor {
     async processDraftUpload(ctx, client, session, fileUrl, fileName) {
-        // Extract all data from the uploaded draft
         const extractedData = await documentGenerator.extractFullCVDataFromUrl(fileUrl, fileName);
         
         if (!extractedData.success) {
-            await ctx.reply(`❌ Could not extract data from your file. Please try again or choose manual entry.`);
+            await sendMarkdown(ctx, `❌ Could not extract data from your file. Please try again or choose manual entry.`);
             return false;
         }
         
         const cvData = extractedData.data;
-        
-        // Identify missing sections
         const missingSections = this.identifyMissingSections(cvData);
         
-        // Store extracted data in session
         session.data.cv_data = cvData;
         session.data.is_draft_upload = true;
         session.data.missing_sections = missingSections;
         session.data.current_missing_index = 0;
         
-        // Show what was found and what's missing
         let foundMessage = `📄 *Draft Processed Successfully!*\n\n`;
         foundMessage += `✅ *Found:*\n`;
         foundMessage += `• Name: ${cvData.personal?.full_name || 'Not found'}\n`;
@@ -308,20 +355,16 @@ class SmartDraftProcessor {
         foundMessage += `• Work Experience: ${cvData.employment?.length || 0} entries\n`;
         foundMessage += `• Education: ${cvData.education?.length || 0} entries\n`;
         foundMessage += `• Skills: ${cvData.skills?.length || 0} skills\n`;
-        foundMessage += `• Certifications: ${cvData.certifications?.length || 0}\n`;
-        foundMessage += `• Languages: ${cvData.languages?.length || 0}\n`;
         
         if (missingSections.length > 0) {
             foundMessage += `\n⚠️ *Missing:* ${missingSections.join(', ')}\n\n`;
             foundMessage += `Let's fill in the missing information.`;
-            await ctx.reply(foundMessage);
-            
-            // Start collecting missing sections
+            await sendMarkdown(ctx, foundMessage);
             await this.collectNextMissingSection(ctx, client, session);
         } else {
             foundMessage += `\n🎉 *Complete!* Your draft has everything needed.\n\n`;
             foundMessage += `Proceed to payment? Type /pay to continue.`;
-            await ctx.reply(foundMessage);
+            await sendMarkdown(ctx, foundMessage);
             session.data.cv_complete = true;
             await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
         }
@@ -348,8 +391,7 @@ class SmartDraftProcessor {
         const index = session.data.current_missing_index || 0;
         
         if (index >= missing.length) {
-            // All missing sections collected
-            await ctx.reply(`✅ *All information collected!*\n\nProceed to payment? Type /pay to continue.`);
+            await sendMarkdown(ctx, `✅ *All information collected!*\n\nProceed to payment? Type /pay to continue.`);
             session.data.cv_complete = true;
             await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
             return;
@@ -370,7 +412,7 @@ class SmartDraftProcessor {
             'Referees': "Please provide at least 2 professional referees. First referee - Full name? 👥"
         };
         
-        await ctx.reply(prompts[section] || `Please provide your ${section.toLowerCase()}:`);
+        await sendMarkdown(ctx, prompts[section] || `Please provide your ${section.toLowerCase()}:`);
         await db.updateSession(session.id, 'collecting_missing', 'missing', session.data);
     }
     
@@ -405,29 +447,29 @@ class SmartDraftProcessor {
                 if (step === 'title') {
                     session.data.temp_job.title = text;
                     session.data.work_step = 'company';
-                    await ctx.reply("Company name? 🏢");
+                    await sendMarkdown(ctx, "Company name? 🏢");
                     return;
                 } else if (step === 'company') {
                     session.data.temp_job.company = text;
                     session.data.work_step = 'duration';
-                    await ctx.reply("Duration? (e.g., Jan 2020 - Present) 📅");
+                    await sendMarkdown(ctx, "Duration? (e.g., Jan 2020 - Present) 📅");
                     return;
                 } else if (step === 'duration') {
                     session.data.temp_job.duration = text;
                     session.data.work_step = 'responsibilities';
                     session.data.temp_job.responsibilities = [];
-                    await ctx.reply("Key responsibilities? One per line. Type DONE when finished.");
+                    await sendMarkdown(ctx, "Key responsibilities? One per line. Type DONE when finished.");
                     return;
                 } else if (step === 'responsibilities') {
                     if (text.toUpperCase() !== 'DONE') {
                         session.data.temp_job.responsibilities.push(text);
-                        await ctx.reply(`✓ Added. Another? (type DONE when done)`);
+                        await sendMarkdown(ctx, `✓ Added. Another? (type DONE when done)`);
                         return;
                     } else {
                         cvData.employment.push(session.data.temp_job);
                         session.data.temp_job = null;
                         session.data.work_step = null;
-                        await ctx.reply(`✓ Work experience added. Another job?`, {
+                        await sendMarkdown(ctx, `✓ Work experience added. Another job?`, {
                             reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "more_work_yes" }, { text: "❌ No", callback_data: "more_work_no" }]] }
                         });
                         return;
@@ -441,24 +483,24 @@ class SmartDraftProcessor {
                 if (eduStep === 'level') {
                     session.data.temp_edu.level = text;
                     session.data.edu_step = 'field';
-                    await ctx.reply("Field of study? 📚");
+                    await sendMarkdown(ctx, "Field of study? 📚");
                     return;
                 } else if (eduStep === 'field') {
                     session.data.temp_edu.field = text;
                     session.data.edu_step = 'institution';
-                    await ctx.reply("Institution? 🏛️");
+                    await sendMarkdown(ctx, "Institution? 🏛️");
                     return;
                 } else if (eduStep === 'institution') {
                     session.data.temp_edu.institution = text;
                     session.data.edu_step = 'year';
-                    await ctx.reply("Year of completion? 📅");
+                    await sendMarkdown(ctx, "Year of completion? 📅");
                     return;
                 } else if (eduStep === 'year') {
                     session.data.temp_edu.year = text;
                     cvData.education.push(session.data.temp_edu);
                     session.data.temp_edu = null;
                     session.data.edu_step = null;
-                    await ctx.reply(`✓ Education added. Another qualification?`, {
+                    await sendMarkdown(ctx, `✓ Education added. Another qualification?`, {
                         reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "more_edu_yes" }, { text: "❌ No", callback_data: "more_edu_no" }]] }
                     });
                     return;
@@ -474,12 +516,12 @@ class SmartDraftProcessor {
                 if (refStep === 'name') {
                     session.data.temp_ref.name = text;
                     session.data.ref_step = 'position';
-                    await ctx.reply("Their position? 📌");
+                    await sendMarkdown(ctx, "Their position? 📌");
                     return;
                 } else if (refStep === 'position') {
                     session.data.temp_ref.position = text;
                     session.data.ref_step = 'contact';
-                    await ctx.reply("Their contact? (phone or email) 📞");
+                    await sendMarkdown(ctx, "Their contact? (phone or email) 📞");
                     return;
                 } else if (refStep === 'contact') {
                     session.data.temp_ref.contact = text;
@@ -487,10 +529,10 @@ class SmartDraftProcessor {
                     session.data.temp_ref = null;
                     session.data.ref_step = null;
                     if (cvData.referees.length < 2) {
-                        await ctx.reply(`✓ Referee added. Need ${2 - cvData.referees.length} more. Next referee - Full name?`);
+                        await sendMarkdown(ctx, `✓ Referee added. Need ${2 - cvData.referees.length} more. Next referee - Full name?`);
                         return;
                     } else {
-                        await ctx.reply(`✓ ${cvData.referees.length} referees added. Another?`, {
+                        await sendMarkdown(ctx, `✓ ${cvData.referees.length} referees added. Another?`, {
                             reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "more_ref_yes" }, { text: "❌ No", callback_data: "more_ref_no" }]] }
                         });
                         return;
@@ -499,7 +541,6 @@ class SmartDraftProcessor {
                 break;
         }
         
-        // Move to next missing section
         session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
         await this.collectNextMissingSection(ctx, client, session);
         await db.updateSession(session.id, 'collecting_missing', 'missing', session.data);
@@ -541,7 +582,7 @@ const cvVersioning = new CVVersioning();
 // ============ PORTFOLIO COLLECTION ============
 class PortfolioCollector {
     async askForPortfolio(ctx) {
-        await ctx.reply(`📎 *Portfolio Items (Optional)*
+        await sendMarkdown(ctx, `📎 *Portfolio Items (Optional)*
 
 Would you like to include links to your work?
 
@@ -561,18 +602,6 @@ Type your portfolio links (one per line) or type 'SKIP' to continue.`);
 }
 
 const portfolioCollector = new PortfolioCollector();
-
-// ============ SOCIAL PROOF ============
-const SOCIAL_PROOF = [
-    { rating: 5, text: "Got the job at my dream company! The CV was perfect.", name: "Sarah M." },
-    { rating: 5, text: "CV landed me 3 interviews in one week.", name: "James K." },
-    { rating: 5, text: "Professional and fast! Worth every kwacha.", name: "Peter C." }
-];
-
-function getRandomSocialProof() {
-    const random = SOCIAL_PROOF[Math.floor(Math.random() * SOCIAL_PROOF.length)];
-    return `📢 *What our clients say:*\n\n⭐️⭐️⭐️⭐️⭐️ "${random.text}" - ${random.name}`;
-}
 
 // ============ DYNAMIC RESPONSES ============
 const RESPONSES = {
@@ -660,14 +689,16 @@ const mainMenuKeyboard = Markup.keyboard([
 async function handleGreeting(ctx, client, session) {
     const name = ctx.from.first_name;
     
-    // Check if returning client with existing CV
     const existingOrders = await db.getClientOrders(client.id);
     const hasExistingCV = existingOrders.some(o => o.service === 'new cv' || o.service === 'legacy_cv');
     
+    // Get real testimonial (only if exists)
+    const testimonial = getRandomTestimonial();
+    
     if (hasExistingCV) {
-        await ctx.reply(`🎉 Welcome back, ${name}! 
-
-*What would you like to do?*
+        let message = `🎉 *Welcome back, ${name}!* \n\n`;
+        if (testimonial) message += testimonial;
+        message += `*What would you like to do?*
 
 📄 *New CV* - Fresh CV
 📝 *Editable CV* - Get Word format
@@ -675,23 +706,25 @@ async function handleGreeting(ctx, client, session) {
 💌 *Cover Letter* - New cover letter
 📎 *Upload Draft* - Upload existing CV/cover letter
 
-Use the buttons below:`, mainMenuKeyboard);
+Use the buttons below:`;
+        
+        await sendMarkdown(ctx, message, { reply_markup: mainMenuKeyboard });
         session.data.is_returning = true;
         await db.updateSession(session.id, 'main_menu', null, session.data);
         return;
     }
     
-    // New client - show full menu with draft upload option
-    await ctx.reply(`${getGreeting(name)}
-
-${getRandomSocialProof()}
-
-*Choose an option below:*
+    // New client greeting (no fake testimonials)
+    let message = `${getGreeting(name)}\n\n`;
+    if (testimonial) message += testimonial;
+    message += `*Choose an option below:*
 
 📄 *New CV* - Build from scratch
 📎 *Upload Draft* - Upload existing CV/cover letter
 
-Type /help for more info.`, mainMenuKeyboard);
+Type /help for more info.`;
+    
+    await sendMarkdown(ctx, message, { reply_markup: mainMenuKeyboard });
     await db.updateSession(session.id, 'main_menu', null, session.data);
 }
 
@@ -710,7 +743,7 @@ async function handleMainMenu(ctx, client, session, text) {
         session.data.service = 'cv update';
         await handleUpdateFlow(ctx, client, session);
     } else if (text === '📎 Upload Draft') {
-        await ctx.reply(`📎 *Upload Your Draft*
+        await sendMarkdown(ctx, `📎 *Upload Your Draft*
 
 Send me your existing CV or cover letter (PDF, DOCX, or image).
 
@@ -720,7 +753,7 @@ I'll extract all the information and only ask for what's missing!
         session.data.awaiting_draft_upload = true;
         await db.updateSession(session.id, 'awaiting_draft_upload', 'draft', session.data);
     } else if (text === 'ℹ️ About') {
-        await ctx.reply(`📄 *EasySuccor - Professional CVs*
+        await sendMarkdown(ctx, `📄 *EasySuccor - Professional CVs*
 
 Contact: +265 991 295 401
 WhatsApp: +265 881 193 707
@@ -733,7 +766,7 @@ WhatsApp: +265 881 193 707
 
 *Delivery:* 6h (Standard), 2h (+3k), 1h (+5k)`);
     } else if (text === '📞 Contact') {
-        await ctx.reply(`📞 *Contact*
+        await sendMarkdown(ctx, `📞 *Contact*
 
 Airtel: 0991295401
 Mpamba: 0886928639
@@ -742,12 +775,12 @@ WhatsApp: +265 881 193 707`);
     } else if (text === '🏠 Portal') {
         await showClientPortal(ctx, client);
     } else {
-        await ctx.reply(random(RESPONSES.help), mainMenuKeyboard);
+        await sendMarkdown(ctx, random(RESPONSES.help), { reply_markup: mainMenuKeyboard });
     }
 }
 
 async function showCategorySelection(ctx, session) {
-    await ctx.reply(`Select your category:`, {
+    await sendMarkdown(ctx, `Select your category:`, {
         reply_markup: { inline_keyboard: [
             [{ text: "🎓 Student - Currently in school", callback_data: "cat_student" }],
             [{ text: "📜 Recent Graduate - Graduated <2 years", callback_data: "cat_recent" }],
@@ -767,7 +800,6 @@ async function handleCategorySelection(ctx, client, session, data) {
     };
     session.data.category = categoryMap[data];
     
-    // Show service selection
     let serviceButtons;
     if (session.data.category === 'returningclient') {
         serviceButtons = [
@@ -785,7 +817,7 @@ async function handleCategorySelection(ctx, client, session, data) {
         ];
     }
     
-    await ctx.reply(`Choose your service:`, { reply_markup: { inline_keyboard: serviceButtons } });
+    await sendMarkdown(ctx, `Choose your service:`, { reply_markup: { inline_keyboard: serviceButtons } });
     await db.updateSession(session.id, 'selecting_service', null, session.data);
 }
 
@@ -802,11 +834,10 @@ async function handleServiceSelection(ctx, client, session, data) {
         return;
     }
     
-    // Show delivery options
     const basePrice = getBasePrice(session.data.category || 'professional', session.data.service);
     session.data.base_price = basePrice;
     
-    await ctx.reply(`Base price: ${formatPrice(basePrice)}\n\nDelivery speed?`, {
+    await sendMarkdown(ctx, `Base price: ${formatPrice(basePrice)}\n\nDelivery speed?`, {
         reply_markup: { inline_keyboard: [
             [{ text: "🚚 Standard (6h)", callback_data: "delivery_standard" }],
             [{ text: "⚡ Express (2h) +3k", callback_data: "delivery_express" }],
@@ -833,7 +864,7 @@ async function handleDeliverySelection(ctx, client, session, data) {
 
 async function handlePortfolioCollection(ctx, client, session, text) {
     session.data.portfolio_links = portfolioCollector.parsePortfolioLinks(text);
-    await ctx.reply(`${getReaction()} ${session.data.portfolio_links.length > 0 ? 'Portfolio saved!' : 'No portfolio added.'}\n\nNow let's collect your details.\n\n${getQuestion('name')}`);
+    await sendMarkdown(ctx, `${getReaction()} ${session.data.portfolio_links.length > 0 ? 'Portfolio saved!' : 'No portfolio added.'}\n\nNow let's collect your details.\n\n${getQuestion('name')}`);
     await startDataCollection(ctx, client, session);
 }
 
@@ -851,16 +882,16 @@ async function handlePersonalCollection(ctx, client, session, text) {
     const step = session.data.collection_step;
     const personal = session.data.cv_data.personal;
     
-    if (step === 'name') { personal.full_name = text; session.data.collection_step = 'email'; await ctx.reply(getQuestion('email')); }
-    else if (step === 'email') { personal.email = text; session.data.collection_step = 'phone'; await ctx.reply(getQuestion('phone')); }
-    else if (step === 'phone') { personal.primary_phone = text; session.data.collection_step = 'alt_phone'; await ctx.reply("Alternative phone? (or 'Skip')"); }
-    else if (step === 'alt_phone') { personal.alternative_phone = text === 'Skip' ? null : text; session.data.collection_step = 'whatsapp'; await ctx.reply("WhatsApp for delivery? (or 'Same')"); }
-    else if (step === 'whatsapp') { personal.whatsapp_phone = text === 'Same' ? personal.primary_phone : text; session.data.collection_step = 'location'; await ctx.reply(getQuestion('location')); }
+    if (step === 'name') { personal.full_name = text; session.data.collection_step = 'email'; await sendMarkdown(ctx, getQuestion('email')); }
+    else if (step === 'email') { personal.email = text; session.data.collection_step = 'phone'; await sendMarkdown(ctx, getQuestion('phone')); }
+    else if (step === 'phone') { personal.primary_phone = text; session.data.collection_step = 'alt_phone'; await sendMarkdown(ctx, "Alternative phone? (or 'Skip')"); }
+    else if (step === 'alt_phone') { personal.alternative_phone = text === 'Skip' ? null : text; session.data.collection_step = 'whatsapp'; await sendMarkdown(ctx, "WhatsApp for delivery? (or 'Same')"); }
+    else if (step === 'whatsapp') { personal.whatsapp_phone = text === 'Same' ? personal.primary_phone : text; session.data.collection_step = 'location'; await sendMarkdown(ctx, getQuestion('location')); }
     else if (step === 'location') {
         personal.location = text;
         session.current_section = 'summary';
         session.data.collection_step = 'summary';
-        await ctx.reply(`${getReaction()}\n\n${getQuestion('summary')}`);
+        await sendMarkdown(ctx, `${getReaction()}\n\n${getQuestion('summary')}`);
         await db.updateSession(session.id, 'collecting_summary', 'summary', session.data);
     }
     await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
@@ -870,7 +901,8 @@ async function handleSummaryCollection(ctx, client, session, text) {
     session.data.cv_data.professional_summary = text;
     session.current_section = 'education';
     session.data.collection_step = 'level';
-    await ctx.reply(`${getReaction()}\n\n${getQuestion('education')}`);
+    
+    await sendMarkdown(ctx, `✅ *Summary saved!*\n\nNow, let's add your education details.\n\n${getQuestion('education')}`);
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
 }
 
@@ -879,20 +911,20 @@ async function handleEducationCollection(ctx, client, session, text, callbackDat
     const education = session.data.cv_data.education;
     const currentEdu = session.data.current_edu || {};
     
-    if (step === 'level') { currentEdu.level = text; session.data.current_edu = currentEdu; session.data.collection_step = 'field'; await ctx.reply("Field of study? 📚"); }
-    else if (step === 'field') { currentEdu.field = text; session.data.collection_step = 'institution'; await ctx.reply("Institution? 🏛️"); }
-    else if (step === 'institution') { currentEdu.institution = text; session.data.collection_step = 'year'; await ctx.reply("Year of completion? 📅"); }
+    if (step === 'level') { currentEdu.level = text; session.data.current_edu = currentEdu; session.data.collection_step = 'field'; await sendMarkdown(ctx, "Field of study? 📚"); }
+    else if (step === 'field') { currentEdu.field = text; session.data.collection_step = 'institution'; await sendMarkdown(ctx, "Institution? 🏛️"); }
+    else if (step === 'institution') { currentEdu.institution = text; session.data.collection_step = 'year'; await sendMarkdown(ctx, "Year of completion? 📅"); }
     else if (step === 'year') {
         currentEdu.year = text; education.push({ ...currentEdu }); session.data.current_edu = null; session.data.collection_step = 'add_more';
-        await ctx.reply(`${getReaction()} Another qualification?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "edu_yes" }, { text: "❌ No", callback_data: "edu_no" }]] } });
+        await sendMarkdown(ctx, `${getReaction()} Another qualification?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "edu_yes" }, { text: "❌ No", callback_data: "edu_no" }]] } });
     }
-    else if (step === 'add_more' && (isAffirmative(text) || callbackData === 'edu_yes')) { session.data.collection_step = 'level'; session.data.current_edu = {}; await ctx.reply("Next qualification? 🎓"); }
+    else if (step === 'add_more' && (isAffirmative(text) || callbackData === 'edu_yes')) { session.data.collection_step = 'level'; session.data.current_edu = {}; await sendMarkdown(ctx, "Next qualification? 🎓"); }
     else {
         session.current_section = 'employment';
         session.data.collection_step = 'title';
         session.data.current_job = {};
         session.data.cv_data.employment = [];
-        await ctx.reply(`${random(RESPONSES.encouragements.sectionComplete)('Education')}\n\n${getQuestion('jobTitle')}`);
+        await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Education')}\n\n${getQuestion('jobTitle')}`);
         await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
     }
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
@@ -903,18 +935,18 @@ async function handleEmploymentCollection(ctx, client, session, text, callbackDa
     const employment = session.data.cv_data.employment;
     const currentJob = session.data.current_job || {};
     
-    if (step === 'title') { currentJob.title = text; session.data.current_job = currentJob; session.data.collection_step = 'company'; await ctx.reply("Company name? 🏢"); }
-    else if (step === 'company') { currentJob.company = text; session.data.collection_step = 'duration'; await ctx.reply("How long? (e.g., 2022-2024) 📅"); }
-    else if (step === 'duration') { currentJob.duration = text; session.data.collection_step = 'responsibilities'; currentJob.responsibilities = []; await ctx.reply(`Key responsibilities? One per line. Type DONE when finished.\n\nExample:\n• Managed team of 5\n• Completed 50+ projects`); }
+    if (step === 'title') { currentJob.title = text; session.data.current_job = currentJob; session.data.collection_step = 'company'; await sendMarkdown(ctx, "Company name? 🏢"); }
+    else if (step === 'company') { currentJob.company = text; session.data.collection_step = 'duration'; await sendMarkdown(ctx, "How long? (e.g., 2022-2024) 📅"); }
+    else if (step === 'duration') { currentJob.duration = text; session.data.collection_step = 'responsibilities'; currentJob.responsibilities = []; await sendMarkdown(ctx, `Key responsibilities? One per line. Type DONE when finished.\n\nExample:\n• Managed team of 5\n• Completed 50+ projects`); }
     else if (step === 'responsibilities') {
-        if (text.toUpperCase() !== 'DONE') { currentJob.responsibilities.push(text); await ctx.reply(`✓ Got it. Another? (type DONE when done)`); }
-        else { employment.push({ ...currentJob }); session.data.current_job = null; session.data.collection_step = 'add_more'; await ctx.reply(`${getReaction()} Another job?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "emp_yes" }, { text: "❌ No", callback_data: "emp_no" }]] } }); }
+        if (text.toUpperCase() !== 'DONE') { currentJob.responsibilities.push(text); await sendMarkdown(ctx, `✓ Got it. Another? (type DONE when done)`); }
+        else { employment.push({ ...currentJob }); session.data.current_job = null; session.data.collection_step = 'add_more'; await sendMarkdown(ctx, `${getReaction()} Another job?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "emp_yes" }, { text: "❌ No", callback_data: "emp_no" }]] } }); }
     }
-    else if (step === 'add_more' && (isAffirmative(text) || callbackData === 'emp_yes')) { session.data.collection_step = 'title'; session.data.current_job = {}; await ctx.reply("Next job title? 💼"); }
+    else if (step === 'add_more' && (isAffirmative(text) || callbackData === 'emp_yes')) { session.data.collection_step = 'title'; session.data.current_job = {}; await sendMarkdown(ctx, "Next job title? 💼"); }
     else {
         session.current_section = 'skills';
         session.data.collection_step = 'skills';
-        await ctx.reply(`${random(RESPONSES.encouragements.sectionComplete)('Employment')}\n\n${getQuestion('skills')}`);
+        await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Employment')}\n\n${getQuestion('skills')}`);
         await db.updateSession(session.id, 'collecting_skills', 'skills', session.data);
     }
     await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
@@ -925,7 +957,7 @@ async function handleSkillsCollection(ctx, client, session, text) {
     session.current_section = 'certifications';
     session.data.collection_step = 'name';
     session.data.cv_data.certifications = [];
-    await ctx.reply(`${getReaction()} Any certifications? (or 'Skip') 📜`);
+    await sendMarkdown(ctx, `${getReaction()} Any certifications? (or 'Skip') 📜`);
     await db.updateSession(session.id, 'collecting_certifications', 'certifications', session.data);
 }
 
@@ -939,23 +971,23 @@ async function handleCertificationsCollection(ctx, client, session, text, callba
             session.current_section = 'languages';
             session.data.collection_step = 'name';
             session.data.cv_data.languages = [];
-            await ctx.reply(`${getReaction()} Languages you speak? (or 'Skip') 🗣️`);
+            await sendMarkdown(ctx, `${getReaction()} Languages you speak? (or 'Skip') 🗣️`);
             await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
             return;
         }
-        currentCert.name = text; session.data.current_cert = currentCert; session.data.collection_step = 'issuer'; await ctx.reply("Issuing organization? 🏛️");
+        currentCert.name = text; session.data.current_cert = currentCert; session.data.collection_step = 'issuer'; await sendMarkdown(ctx, "Issuing organization? 🏛️");
     }
-    else if (step === 'issuer') { currentCert.issuer = text; session.data.collection_step = 'year'; await ctx.reply("Year obtained? 📅"); }
+    else if (step === 'issuer') { currentCert.issuer = text; session.data.collection_step = 'year'; await sendMarkdown(ctx, "Year obtained? 📅"); }
     else if (step === 'year') {
         currentCert.year = text; certifications.push({ ...currentCert }); session.data.current_cert = null; session.data.collection_step = 'add_more';
-        await ctx.reply(`${getReaction()} Another certification?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "cert_yes" }, { text: "❌ No", callback_data: "cert_no" }, { text: "⏭️ Skip", callback_data: "cert_skip" }]] } });
+        await sendMarkdown(ctx, `${getReaction()} Another certification?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "cert_yes" }, { text: "❌ No", callback_data: "cert_no" }, { text: "⏭️ Skip", callback_data: "cert_skip" }]] } });
     }
-    else if ((step === 'add_more' && isAffirmative(text)) || callbackData === 'cert_yes') { session.data.collection_step = 'name'; session.data.current_cert = {}; await ctx.reply("Certification name? 📜"); }
+    else if ((step === 'add_more' && isAffirmative(text)) || callbackData === 'cert_yes') { session.data.collection_step = 'name'; session.data.current_cert = {}; await sendMarkdown(ctx, "Certification name? 📜"); }
     else {
         session.current_section = 'languages';
         session.data.collection_step = 'name';
         session.data.cv_data.languages = [];
-        await ctx.reply(`${getReaction()} Languages you speak? (or 'Skip') 🗣️`);
+        await sendMarkdown(ctx, `${getReaction()} Languages you speak? (or 'Skip') 🗣️`);
         await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
     }
     await db.updateSession(session.id, 'collecting_certifications', 'certifications', session.data);
@@ -971,24 +1003,24 @@ async function handleLanguagesCollection(ctx, client, session, text, callbackDat
             session.current_section = 'referees';
             session.data.collection_step = 'name';
             session.data.cv_data.referees = [];
-            await ctx.reply(`Got it! ${getReaction()}\n\nProfessional referees? (Minimum 2 required) 👥\n\nReferee 1 - Full name?`);
+            await sendMarkdown(ctx, `Got it! ${getReaction()}\n\nProfessional referees? (Minimum 2 required) 👥\n\nReferee 1 - Full name?`);
             await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
             return;
         }
         currentLang.name = text; session.data.current_lang = currentLang; session.data.collection_step = 'proficiency';
-        await ctx.reply("Level?", { reply_markup: { inline_keyboard: [[{ text: "🔰 Basic", callback_data: "prof_basic" }, { text: "📖 Intermediate", callback_data: "prof_intermediate" }, { text: "⭐ Fluent", callback_data: "prof_fluent" }]] } });
+        await sendMarkdown(ctx, "Level?", { reply_markup: { inline_keyboard: [[{ text: "🔰 Basic", callback_data: "prof_basic" }, { text: "📖 Intermediate", callback_data: "prof_intermediate" }, { text: "⭐ Fluent", callback_data: "prof_fluent" }]] } });
     }
     else if (step === 'proficiency') {
         let proficiency = { prof_basic: 'Basic', prof_intermediate: 'Intermediate', prof_fluent: 'Fluent' }[callbackData] || text;
         currentLang.proficiency = proficiency; languages.push({ ...currentLang }); session.data.current_lang = null; session.data.collection_step = 'add_more';
-        await ctx.reply(`${getReaction()} Another language?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "lang_yes" }, { text: "❌ No", callback_data: "lang_no" }, { text: "⏭️ Skip", callback_data: "lang_skip" }]] } });
+        await sendMarkdown(ctx, `${getReaction()} Another language?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "lang_yes" }, { text: "❌ No", callback_data: "lang_no" }, { text: "⏭️ Skip", callback_data: "lang_skip" }]] } });
     }
-    else if ((step === 'add_more' && isAffirmative(text)) || callbackData === 'lang_yes') { session.data.collection_step = 'name'; session.data.current_lang = {}; await ctx.reply("Language name? 🗣️"); }
+    else if ((step === 'add_more' && isAffirmative(text)) || callbackData === 'lang_yes') { session.data.collection_step = 'name'; session.data.current_lang = {}; await sendMarkdown(ctx, "Language name? 🗣️"); }
     else {
         session.current_section = 'referees';
         session.data.collection_step = 'name';
         session.data.cv_data.referees = [];
-        await ctx.reply(`${random(RESPONSES.encouragements.sectionComplete)('Languages')}\n\nProfessional referees? (Minimum 2 required) 👥\n\nReferee 1 - Full name?`);
+        await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Languages')}\n\nProfessional referees? (Minimum 2 required) 👥\n\nReferee 1 - Full name?`);
         await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
     }
     await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
@@ -1002,15 +1034,15 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
     const minReferees = 2;
     
     if (step === 'name') {
-        if (text === 'Skip') { await ctx.reply(`⚠️ Need at least ${minReferees} referees! Referee ${refereeCount + 1} - Full name?`); return; }
-        currentRef.name = text; session.data.current_ref = currentRef; session.data.collection_step = 'position'; await ctx.reply(`Referee ${refereeCount + 1} - Their position? 📌`);
+        if (text === 'Skip') { await sendMarkdown(ctx, `⚠️ Need at least ${minReferees} referees! Referee ${refereeCount + 1} - Full name?`); return; }
+        currentRef.name = text; session.data.current_ref = currentRef; session.data.collection_step = 'position'; await sendMarkdown(ctx, `Referee ${refereeCount + 1} - Their position? 📌`);
     }
-    else if (step === 'position') { currentRef.position = text; session.data.collection_step = 'contact'; await ctx.reply(`Referee ${refereeCount + 1} - Contact? (phone preferred) 📞`); }
+    else if (step === 'position') { currentRef.position = text; session.data.collection_step = 'contact'; await sendMarkdown(ctx, `Referee ${refereeCount + 1} - Contact? (phone preferred) 📞`); }
     else if (step === 'contact') {
         currentRef.contact = text; referees.push({ ...currentRef }); session.data.current_ref = null;
         if (referees.length < minReferees) {
             session.data.collection_step = 'name';
-            await ctx.reply(`✅ Referee ${referees.length} added. Need ${minReferees - referees.length} more.\n\nReferee ${referees.length + 1} - Full name?`);
+            await sendMarkdown(ctx, `✅ Referee ${referees.length} added. Need ${minReferees - referees.length} more.\n\nReferee ${referees.length + 1} - Full name?`);
         } else {
             await finalizeOrder(ctx, client, session);
         }
@@ -1029,7 +1061,7 @@ async function handleUpdateFlow(ctx, client, session) {
     session.data.current_update_section = 0;
     session.data.updates = {};
     
-    await ctx.reply(`✏️ *CV Update Mode*
+    await sendMarkdown(ctx, `✏️ *CV Update Mode*
 
 I'll help you update your CV section by section.
 
@@ -1051,7 +1083,7 @@ async function handleUpdateCollection(ctx, client, session, text) {
     
     if (nextIndex < sections.length) {
         session.data.current_update_section = nextIndex;
-        await ctx.reply(`✓ Updated ${currentSection}.\n\nNow for: *${sections[nextIndex]}*\n\nPlease provide the updated information:`);
+        await sendMarkdown(ctx, `✓ Updated ${currentSection}.\n\nNow for: *${sections[nextIndex]}*\n\nPlease provide the updated information:`);
         await db.updateSession(session.id, 'collecting_update', 'update', session.data);
     } else {
         const orderId = `UPD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
@@ -1064,7 +1096,7 @@ async function handleUpdateCollection(ctx, client, session, text) {
             cv_data: { updates: session.data.updates, original_cv: session.data.cv_data }
         });
         
-        await ctx.reply(`✅ *Update Request Submitted!*
+        await sendMarkdown(ctx, `✅ *Update Request Submitted!*
 
 Order: \`${orderId}\`
 Sections updated: ${sections.length}
@@ -1098,8 +1130,13 @@ async function finalizeOrder(ctx, client, session) {
     
     const paymentOptions = await getPaymentOptions(session.data.total_charge, orderId, client.id);
     
-    await ctx.reply(`${random(RESPONSES.encouragements.final)(name)}\n\n📋 Order: \`${orderId}\`\n🚚 Delivery: ${session.data.delivery_time}\n💰 Total: ${session.data.total_charge}\n\n${paymentOptions.message}`);
+    await sendMarkdown(ctx, `${random(RESPONSES.encouragements.final)(name)}\n\n📋 Order: \`${orderId}\`\n🚚 Delivery: ${session.data.delivery_time}\n💰 Total: ${session.data.total_charge}\n\n${paymentOptions.message}`);
     await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
+    
+    // Schedule feedback request after 7 days
+    setTimeout(async () => {
+        await collectFeedback(ctx, client, orderId);
+    }, 7 * 24 * 60 * 60 * 1000);
 }
 
 async function getPaymentOptions(amount, orderId, clientId) {
@@ -1125,7 +1162,7 @@ function generatePaymentReference() {
 }
 
 async function initiatePaymentFlow(ctx, client, session, choice) {
-    await ctx.reply(`Payment processing...`);
+    await sendMarkdown(ctx, `Payment processing...`);
 }
 
 async function showClientPortal(ctx, client) {
@@ -1139,11 +1176,11 @@ async function showClientPortal(ctx, client) {
     }
     
     message += `\n\n/start - New order\n/mydocs - All documents\n/referral - Share & earn`;
-    await ctx.reply(message, { parse_mode: 'Markdown' });
+    await sendMarkdown(ctx, message);
 }
 
 async function handleCoverLetterStart(ctx, client, session) {
-    await ctx.reply(`📢 *Cover Letter*
+    await sendMarkdown(ctx, `📢 *Cover Letter*
 
 Share the job vacancy (screenshot, PDF, or text). I'll extract the details.`);
     session.data.awaiting_vacancy = true;
@@ -1154,13 +1191,13 @@ async function handleVacancyText(ctx, client, session, text) {
     const vacancyData = aiAnalyzer.extractVacancyDetails(text);
     session.data.vacancy_data = vacancyData;
     session.data.awaiting_vacancy = false;
-    await ctx.reply(`Found: ${vacancyData.position} at ${vacancyData.company}\n\nPosition applying for? (or 'SAME')`);
+    await sendMarkdown(ctx, `Found: ${vacancyData.position} at ${vacancyData.company}\n\nPosition applying for? (or 'SAME')`);
     await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
 }
 
 async function handleCoverLetterPosition(ctx, client, session, text) {
     session.data.coverletter_position = text.toLowerCase() === 'same' && session.data.vacancy_data?.position ? session.data.vacancy_data.position : text;
-    await ctx.reply(`Company name? 🏢`);
+    await sendMarkdown(ctx, `Company name? 🏢`);
     await db.updateSession(session.id, 'collecting_coverletter_company', 'coverletter', session.data);
 }
 
@@ -1172,7 +1209,7 @@ async function handleCoverLetterCompany(ctx, client, session, text) {
         delivery_option: 'standard', delivery_time: '6 hours', base_price: 5000, delivery_fee: 0,
         total_charge: 'MK5,000', payment_status: 'pending', cv_data: { coverletter: session.data }
     });
-    await ctx.reply(`🎉 Cover letter ready!\n\nOrder: \`${orderId}\`\nPosition: ${session.data.coverletter_position}\nCompany: ${session.data.coverletter_company}\nTotal: MK5,000\n\nType /pay when ready.`);
+    await sendMarkdown(ctx, `🎉 Cover letter ready!\n\nOrder: \`${orderId}\`\nPosition: ${session.data.coverletter_position}\nCompany: ${session.data.coverletter_company}\nTotal: MK5,000\n\nType /pay when ready.`);
     await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
 }
 
@@ -1193,13 +1230,13 @@ bot.command('mydocs', async (ctx) => {
     const orders = await db.getClientOrders(client.id);
     let msg = "📄 *YOUR DOCUMENTS*\n\n";
     orders.forEach(o => { msg += `📌 ${o.service} - ${o.status}\n   Order: ${o.id}\n   Date: ${new Date(o.created_at).toLocaleDateString()}\n\n`; });
-    await ctx.reply(msg || "No documents yet.", { parse_mode: 'Markdown' });
+    await sendMarkdown(ctx, msg || "No documents yet.");
 });
 
 bot.command('referral', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const refInfo = await db.getReferralInfo(client.id);
-    await ctx.reply(`🎁 *REFERRAL PROGRAM*\n\nYour code: \`${refInfo.referral_code}\`\n\nShare: https://t.me/${ctx.botInfo.username}?start=ref_${refInfo.referral_code}\n\nReferrals: ${refInfo.total_referrals}\nPending reward: MK${refInfo.pending_reward}\n\nFriend gets 10% off, you get MK2,000 credit!`);
+    await sendMarkdown(ctx, `🎁 *REFERRAL PROGRAM*\n\nYour code: \`${refInfo.referral_code}\`\n\nShare: https://t.me/${ctx.botInfo.username}?start=ref_${refInfo.referral_code}\n\nReferrals: ${refInfo.total_referrals}\nPending reward: MK${refInfo.pending_reward}\n\nFriend gets 10% off, you get MK2,000 credit!`);
 });
 
 bot.command('pay', async (ctx) => {
@@ -1208,7 +1245,7 @@ bot.command('pay', async (ctx) => {
     if (session && session.data.total_charge) {
         await initiatePaymentFlow(ctx, client, session, '1');
     } else {
-        await ctx.reply(`No active order. Type /start to begin.`);
+        await sendMarkdown(ctx, `No active order. Type /start to begin.`);
     }
 });
 
@@ -1218,9 +1255,9 @@ bot.command('pause', async (ctx) => {
     if (session && session.stage !== 'main_menu') {
         session.is_paused = true;
         await db.updateSession(session.id, session.stage, session.current_section, session.data, 1);
-        await ctx.reply(`⏸️ *Session Paused*\n\nType /resume when ready.`);
+        await sendMarkdown(ctx, `⏸️ *Session Paused*\n\nType /resume when ready.`);
     } else {
-        await ctx.reply(`No active session to pause.`);
+        await sendMarkdown(ctx, `No active session to pause.`);
     }
 });
 
@@ -1230,32 +1267,63 @@ bot.command('resume', async (ctx) => {
     if (pausedSession) {
         pausedSession.data = JSON.parse(pausedSession.data);
         await db.updateSession(pausedSession.id, pausedSession.stage, pausedSession.current_section, pausedSession.data, 0);
-        await ctx.reply(`🔄 Welcome back! Let's continue.`);
-        if (pausedSession.stage === 'collecting_personal') await ctx.reply(getQuestion('name'));
-        else if (pausedSession.stage === 'collecting_education') await ctx.reply("Highest qualification? 🎓");
-        else if (pausedSession.stage === 'collecting_employment') await ctx.reply(getQuestion('jobTitle'));
-        else if (pausedSession.stage === 'collecting_update') await ctx.reply(`Let's continue with your updates.`);
-        else if (pausedSession.stage === 'collecting_missing') await ctx.reply(`Let's continue with your missing information.`);
+        await sendMarkdown(ctx, `🔄 Welcome back! Let's continue.`);
+        if (pausedSession.stage === 'collecting_personal') await sendMarkdown(ctx, getQuestion('name'));
+        else if (pausedSession.stage === 'collecting_education') await sendMarkdown(ctx, "Highest qualification? 🎓");
+        else if (pausedSession.stage === 'collecting_employment') await sendMarkdown(ctx, getQuestion('jobTitle'));
+        else if (pausedSession.stage === 'collecting_update') await sendMarkdown(ctx, `Let's continue with your updates.`);
+        else if (pausedSession.stage === 'collecting_missing') await sendMarkdown(ctx, `Let's continue with your missing information.`);
     } else {
-        await ctx.reply(`No paused session found. Type /start to begin fresh.`);
+        await sendMarkdown(ctx, `No paused session found. Type /start to begin fresh.`);
     }
 });
 
 bot.command('confirm', async (ctx) => {
     const args = ctx.message.text.split(' ');
-    if (args.length < 2) { await ctx.reply("Usage: /confirm REFERENCE"); return; }
-    await ctx.reply(`✅ Payment confirmation received! Reference: ${args[1]}\n\nOur team will verify shortly.`);
+    if (args.length < 2) { await sendMarkdown(ctx, "Usage: /confirm REFERENCE"); return; }
+    await sendMarkdown(ctx, `✅ Payment confirmation received! Reference: ${args[1]}\n\nOur team will verify shortly.`);
 });
 
 bot.command('verify', async (ctx) => {
-    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) return await ctx.reply("Unauthorized.");
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) return await sendMarkdown(ctx, "Unauthorized.");
     const args = ctx.message.text.split(' ');
-    if (args.length < 2) return await ctx.reply("Usage: /verify REFERENCE");
-    await ctx.reply(`✅ Payment verified for ${args[1]}`);
+    if (args.length < 2) return await sendMarkdown(ctx, "Usage: /verify REFERENCE");
+    await sendMarkdown(ctx, `✅ Payment verified for ${args[1]}`);
+});
+
+bot.command('feedback', async (ctx) => {
+    const client = await getOrCreateClient(ctx);
+    const orders = await db.getClientOrders(client.id);
+    const lastOrder = orders[orders.length - 1];
+    
+    if (lastOrder) {
+        await collectFeedback(ctx, client, lastOrder.id);
+    } else {
+        await sendMarkdown(ctx, `You haven't ordered any documents yet. Type /start to create one!`);
+    }
+});
+
+bot.command('testimonials', async (ctx) => {
+    const testimonials = await db.getApprovedTestimonials(10);
+    if (testimonials.length === 0) {
+        await sendMarkdown(ctx, `No testimonials yet. Be the first to share your success story with /feedback after you get a job! 🎯`);
+    } else {
+        let message = `🌟 *Success Stories*\n\n`;
+        for (const t of testimonials) {
+            message += `⭐️⭐️⭐️⭐️⭐️ "${t.text}"\n— ${t.name}\n\n`;
+        }
+        await sendMarkdown(ctx, message);
+    }
+});
+
+bot.command('reset', async (ctx) => {
+    const client = await getOrCreateClient(ctx);
+    await db.endSession(client.id);
+    await sendMarkdown(ctx, `🔄 *Session reset.* Type /start to begin fresh.`);
 });
 
 bot.help(async (ctx) => {
-    await ctx.reply(`🆘 *Help*
+    await sendMarkdown(ctx, `🆘 *Help*
 
 /start - Begin
 /resume - Continue paused
@@ -1264,6 +1332,9 @@ bot.help(async (ctx) => {
 /portal - Dashboard
 /mydocs - Documents
 /referral - Share & earn
+/feedback - Share your experience
+/testimonials - See success stories
+/reset - Reset current session
 
 Contact: +265 991 295 401`);
 });
@@ -1281,10 +1352,10 @@ bot.on('document', async (ctx) => {
         const vacancyData = await aiAnalyzer.extractVacancyFromFile(fileUrl, fileName);
         session.data.vacancy_data = vacancyData;
         session.data.awaiting_vacancy = false;
-        await ctx.reply(`📄 Processed! Found ${vacancyData.position || 'position'}.\n\nApplying for? (or 'SAME')`);
+        await sendMarkdown(ctx, `📄 Processed! Found ${vacancyData.position || 'position'}.\n\nApplying for? (or 'SAME')`);
         await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
     } else if (session.stage === 'awaiting_draft_upload' || session.data.awaiting_draft_upload) {
-        await ctx.reply(`📄 Processing your draft... This may take a moment.`);
+        await sendMarkdown(ctx, `📄 Processing your draft... This may take a moment.`);
         const fileInfo = await ctx.telegram.getFile(document.file_id);
         const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
         
@@ -1294,7 +1365,7 @@ bot.on('document', async (ctx) => {
             await db.updateSession(session.id, session.stage, session.current_section, session.data);
         }
     } else {
-        await ctx.reply(`📎 *Draft Upload*
+        await sendMarkdown(ctx, `📎 *Draft Upload*
 
 You can upload an existing CV or cover letter and I'll extract everything!
 
@@ -1315,10 +1386,10 @@ bot.on('photo', async (ctx) => {
         const vacancyData = await aiAnalyzer.extractVacancyFromFile(fileUrl, 'vacancy_image.jpg');
         session.data.vacancy_data = vacancyData;
         session.data.awaiting_vacancy = false;
-        await ctx.reply(`📸 Image processed! Found ${vacancyData.position || 'position'}.\n\nApplying for? (or 'SAME')`);
+        await sendMarkdown(ctx, `📸 Image processed! Found ${vacancyData.position || 'position'}.\n\nApplying for? (or 'SAME')`);
         await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
     } else if (session.stage === 'awaiting_draft_upload' || session.data.awaiting_draft_upload) {
-        await ctx.reply(`📸 Processing your image...`);
+        await sendMarkdown(ctx, `📸 Processing your image...`);
         const fileInfo = await ctx.telegram.getFile(photo.file_id);
         const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
         
@@ -1328,7 +1399,7 @@ bot.on('photo', async (ctx) => {
             await db.updateSession(session.id, session.stage, session.current_section, session.data);
         }
     } else {
-        await ctx.reply(`📎 *Upload Draft*
+        await sendMarkdown(ctx, `📎 *Upload Draft*
 
 You can upload an image of your CV/cover letter and I'll extract the information!`);
         session.data.awaiting_draft_upload = true;
@@ -1342,33 +1413,53 @@ bot.on('text', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const session = await getOrCreateSession(client.id);
     
-    if (text === '/start') await handleGreeting(ctx, client, session);
-    else if (session.stage === 'main_menu') await handleMainMenu(ctx, client, session, text);
-    else if (session.stage === 'collecting_portfolio') await handlePortfolioCollection(ctx, client, session, text);
-    else if (session.stage === 'collecting_personal') await handlePersonalCollection(ctx, client, session, text);
-    else if (session.stage === 'collecting_summary') await handleSummaryCollection(ctx, client, session, text);
-    else if (session.stage === 'collecting_education') await handleEducationCollection(ctx, client, session, text);
-    else if (session.stage === 'collecting_employment') await handleEmploymentCollection(ctx, client, session, text);
-    else if (session.stage === 'collecting_skills') await handleSkillsCollection(ctx, client, session, text);
-    else if (session.stage === 'collecting_certifications') await handleCertificationsCollection(ctx, client, session, text);
-    else if (session.stage === 'collecting_languages') await handleLanguagesCollection(ctx, client, session, text);
-    else if (session.stage === 'collecting_referees') await handleRefereesCollection(ctx, client, session, text);
-    else if (session.stage === 'collecting_update') await handleUpdateCollection(ctx, client, session, text);
-    else if (session.stage === 'collecting_missing') await smartDraft.handleMissingCollection(ctx, client, session, text);
-    else if (session.stage === 'awaiting_vacancy_upload') await handleVacancyText(ctx, client, session, text);
-    else if (session.stage === 'collecting_coverletter_position') await handleCoverLetterPosition(ctx, client, session, text);
-    else if (session.stage === 'collecting_coverletter_company') await handleCoverLetterCompany(ctx, client, session, text);
-    else if (session.stage === 'awaiting_payment_choice') {
-        if (text === '1' || text === '2' || text === '3' || text === '4') {
-            await initiatePaymentFlow(ctx, client, session, text);
-        } else if (text.toLowerCase() === 'pay later') {
-            session.data.payment_status = 'pending';
-            await db.updateSession(session.id, 'payment_completed', 'payment', session.data);
-            await ctx.reply(`⏳ Pay later selected. Let's build your CV! ${getReaction()}`);
-            await startDataCollection(ctx, client, session);
-        } else { await ctx.reply(`Please select 1, 2, 3, or 4.`); }
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Handler timeout')), 30000);
+    });
+    
+    try {
+        await Promise.race([
+            (async () => {
+                if (text === '/start') await handleGreeting(ctx, client, session);
+                else if (session.stage === 'main_menu') await handleMainMenu(ctx, client, session, text);
+                else if (session.stage === 'collecting_portfolio') await handlePortfolioCollection(ctx, client, session, text);
+                else if (session.stage === 'collecting_personal') await handlePersonalCollection(ctx, client, session, text);
+                else if (session.stage === 'collecting_summary') await handleSummaryCollection(ctx, client, session, text);
+                else if (session.stage === 'collecting_education') await handleEducationCollection(ctx, client, session, text);
+                else if (session.stage === 'collecting_employment') await handleEmploymentCollection(ctx, client, session, text);
+                else if (session.stage === 'collecting_skills') await handleSkillsCollection(ctx, client, session, text);
+                else if (session.stage === 'collecting_certifications') await handleCertificationsCollection(ctx, client, session, text);
+                else if (session.stage === 'collecting_languages') await handleLanguagesCollection(ctx, client, session, text);
+                else if (session.stage === 'collecting_referees') await handleRefereesCollection(ctx, client, session, text);
+                else if (session.stage === 'collecting_update') await handleUpdateCollection(ctx, client, session, text);
+                else if (session.stage === 'collecting_missing') await smartDraft.handleMissingCollection(ctx, client, session, text);
+                else if (session.stage === 'collecting_feedback') await handleFeedback(ctx, client, session, text);
+                else if (session.stage === 'awaiting_vacancy_upload') await handleVacancyText(ctx, client, session, text);
+                else if (session.stage === 'collecting_coverletter_position') await handleCoverLetterPosition(ctx, client, session, text);
+                else if (session.stage === 'collecting_coverletter_company') await handleCoverLetterCompany(ctx, client, session, text);
+                else if (session.stage === 'awaiting_payment_choice') {
+                    if (text === '1' || text === '2' || text === '3' || text === '4') {
+                        await initiatePaymentFlow(ctx, client, session, text);
+                    } else if (text.toLowerCase() === 'pay later') {
+                        session.data.payment_status = 'pending';
+                        await db.updateSession(session.id, 'payment_completed', 'payment', session.data);
+                        await sendMarkdown(ctx, `⏳ *Pay later selected.* Let's build your CV! ${getReaction()}`);
+                        await startDataCollection(ctx, client, session);
+                    } else { 
+                        await sendMarkdown(ctx, `Please select 1, 2, 3, or 4.`);
+                    }
+                }
+                else {
+                    await sendMarkdown(ctx, random(RESPONSES.help));
+                }
+            })(),
+            timeoutPromise
+        ]);
+    } catch (error) {
+        console.error('Text handler error:', error);
+        await sendMarkdown(ctx, `⚠️ *Something went wrong.* Please try again or type /start to restart.`);
     }
-    else await ctx.reply(random(RESPONSES.help));
 });
 
 // ============ CALLBACK QUERY HANDLER ============
@@ -1395,12 +1486,12 @@ bot.on('callback_query', async (ctx) => {
         if (data === 'more_work_yes') {
             session.data.collection_step = 'title';
             session.data.current_job = {};
-            await ctx.reply("Next job title? 💼");
+            await sendMarkdown(ctx, "Next job title? 💼");
             await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
         } else {
             session.current_section = 'skills';
             session.data.collection_step = 'skills';
-            await ctx.reply(`${random(RESPONSES.encouragements.sectionComplete)('Employment')}\n\n${getQuestion('skills')}`);
+            await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Employment')}\n\n${getQuestion('skills')}`);
             await db.updateSession(session.id, 'collecting_skills', 'skills', session.data);
         }
     }
@@ -1408,14 +1499,14 @@ bot.on('callback_query', async (ctx) => {
         if (data === 'more_edu_yes') {
             session.data.collection_step = 'level';
             session.data.current_edu = {};
-            await ctx.reply("Next qualification? 🎓");
+            await sendMarkdown(ctx, "Next qualification? 🎓");
             await db.updateSession(session.id, 'collecting_education', 'education', session.data);
         } else {
             session.current_section = 'employment';
             session.data.collection_step = 'title';
             session.data.current_job = {};
             session.data.cv_data.employment = [];
-            await ctx.reply(`${random(RESPONSES.encouragements.sectionComplete)('Education')}\n\n${getQuestion('jobTitle')}`);
+            await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Education')}\n\n${getQuestion('jobTitle')}`);
             await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
         }
     }
@@ -1423,7 +1514,7 @@ bot.on('callback_query', async (ctx) => {
         if (data === 'more_ref_yes') {
             session.data.collection_step = 'name';
             session.data.current_ref = {};
-            await ctx.reply(`Next referee - Full name? 👥`);
+            await sendMarkdown(ctx, `Next referee - Full name? 👥`);
             await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
         } else {
             await finalizeOrder(ctx, client, session);
@@ -1435,6 +1526,7 @@ bot.on('callback_query', async (ctx) => {
 // ============ START BOT ============
 async function startBot() {
     await db.initDatabase();
+    await loadTestimonialsCache();
     
     // Set commands with error handling
     try {
@@ -1446,6 +1538,9 @@ async function startBot() {
             { command: 'portal', description: 'Your dashboard' },
             { command: 'mydocs', description: 'Your documents' },
             { command: 'referral', description: 'Share & earn' },
+            { command: 'feedback', description: 'Share your experience' },
+            { command: 'testimonials', description: 'See success stories' },
+            { command: 'reset', description: 'Reset current session' },
             { command: 'help', description: 'Get help' }
         ]);
         console.log('✅ Bot commands set');
@@ -1483,10 +1578,13 @@ async function startBot() {
     console.log('  ✅ Only asks for missing sections');
     console.log('  ✅ Admin batch upload available');
     console.log('  ✅ Returning client detection');
+    console.log('  ✅ Real testimonials (no fake data)');
+    console.log('  ✅ Feedback collection system');
     console.log('========================================');
 }
 
 // Graceful shutdown
+let IS_PRODUCTION = false;
 process.once('SIGINT', () => {
     if (!IS_PRODUCTION) bot.stop('SIGINT');
     process.exit(0);

@@ -136,14 +136,36 @@ async function createTablesPostgres(pool) {
         )
     `);
     
+    // Updated feedback table with more fields
     await pool.query(`
         CREATE TABLE IF NOT EXISTS feedback (
             id SERIAL PRIMARY KEY,
+            client_id INTEGER,
             order_id TEXT,
             rating INTEGER,
-            review TEXT,
+            feedback TEXT,
+            liked_most TEXT,
+            improvement_suggestions TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (client_id) REFERENCES clients(id),
             FOREIGN KEY (order_id) REFERENCES orders(id)
+        )
+    `);
+    
+    // New testimonials table
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS testimonials (
+            id SERIAL PRIMARY KEY,
+            client_id INTEGER,
+            name TEXT,
+            text TEXT,
+            rating INTEGER,
+            position TEXT,
+            company TEXT,
+            approved BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            approved_at TIMESTAMP,
+            FOREIGN KEY (client_id) REFERENCES clients(id)
         )
     `);
     
@@ -260,14 +282,36 @@ async function createTablesSQLite(db) {
         )
     `);
     
+    // Updated feedback table with more fields
     await db.exec(`
         CREATE TABLE IF NOT EXISTS feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id INTEGER,
             order_id TEXT,
             rating INTEGER,
-            review TEXT,
+            feedback TEXT,
+            liked_most TEXT,
+            improvement_suggestions TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (client_id) REFERENCES clients(id),
             FOREIGN KEY (order_id) REFERENCES orders(id)
+        )
+    `);
+    
+    // New testimonials table
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS testimonials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id INTEGER,
+            name TEXT,
+            text TEXT,
+            rating INTEGER,
+            position TEXT,
+            company TEXT,
+            approved BOOLEAN DEFAULT FALSE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            approved_at DATETIME,
+            FOREIGN KEY (client_id) REFERENCES clients(id)
         )
     `);
     
@@ -310,6 +354,24 @@ async function getClient(telegramId) {
         return result.rows[0];
     } else {
         return await db.get('SELECT * FROM clients WHERE telegram_id = ?', [telegramId]);
+    }
+}
+
+async function getClientByEmail(email) {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM clients WHERE email = $1', [email]);
+        return result.rows[0];
+    } else {
+        return await db.get('SELECT * FROM clients WHERE email = ?', [email]);
+    }
+}
+
+async function getClientByPhone(phone) {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM clients WHERE phone = $1', [phone]);
+        return result.rows[0];
+    } else {
+        return await db.get('SELECT * FROM clients WHERE phone = ?', [phone]);
     }
 }
 
@@ -453,6 +515,14 @@ async function updateSession(sessionId, stage, currentSection, data, isPaused = 
             `UPDATE sessions SET stage = ?, current_section = ?, data = ?, is_paused = ?, updated_at = ? WHERE id = ?`,
             [stage, currentSection, JSON.stringify(data), isPaused ? 1 : 0, new Date().toISOString(), sessionId]
         );
+    }
+}
+
+async function endSession(clientId) {
+    if (dbType === 'postgres') {
+        await db.query(`UPDATE sessions SET is_paused = 1 WHERE client_id = $1 AND is_paused = 0`, [clientId]);
+    } else {
+        await db.run(`UPDATE sessions SET is_paused = 1 WHERE client_id = ? AND is_paused = 0`, [clientId]);
     }
 }
 
@@ -635,17 +705,21 @@ async function getCVVersion(orderId, versionNumber) {
     }
 }
 
-// ============ FEEDBACK FUNCTIONS ============
-async function saveFeedback(orderId, rating, review) {
+// ============ ENHANCED FEEDBACK FUNCTIONS ============
+async function saveFeedback(data) {
+    const { client_id, order_id, rating, feedback, liked_most, improvement_suggestions } = data;
+    
     if (dbType === 'postgres') {
         await db.query(
-            `INSERT INTO feedback (order_id, rating, review) VALUES ($1, $2, $3)`,
-            [orderId, rating, review]
+            `INSERT INTO feedback (client_id, order_id, rating, feedback, liked_most, improvement_suggestions) 
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [client_id, order_id, rating, feedback, liked_most, improvement_suggestions]
         );
     } else {
         await db.run(
-            `INSERT INTO feedback (order_id, rating, review) VALUES (?, ?, ?)`,
-            [orderId, rating, review]
+            `INSERT INTO feedback (client_id, order_id, rating, feedback, liked_most, improvement_suggestions) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [client_id, order_id, rating, feedback, liked_most, improvement_suggestions]
         );
     }
 }
@@ -656,6 +730,138 @@ async function getAllFeedback() {
         return result.rows;
     } else {
         return await db.all('SELECT * FROM feedback ORDER BY created_at DESC');
+    }
+}
+
+async function getFeedbackByOrder(orderId) {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM feedback WHERE order_id = $1', [orderId]);
+        return result.rows;
+    } else {
+        return await db.all('SELECT * FROM feedback WHERE order_id = ?', [orderId]);
+    }
+}
+
+async function getFeedbackByClient(clientId) {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM feedback WHERE client_id = $1 ORDER BY created_at DESC', [clientId]);
+        return result.rows;
+    } else {
+        return await db.all('SELECT * FROM feedback WHERE client_id = ? ORDER BY created_at DESC', [clientId]);
+    }
+}
+
+// ============ TESTIMONIAL FUNCTIONS ============
+async function saveTestimonial(data) {
+    const { client_id, name, text, rating, position, company } = data;
+    
+    if (dbType === 'postgres') {
+        const result = await db.query(
+            `INSERT INTO testimonials (client_id, name, text, rating, position, company, approved, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+            [client_id, name, text, rating, position, company, false, new Date().toISOString()]
+        );
+        return result.rows[0].id;
+    } else {
+        const result = await db.run(
+            `INSERT INTO testimonials (client_id, name, text, rating, position, company, approved, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [client_id, name, text, rating, position, company, false, new Date().toISOString()]
+        );
+        return result.lastID;
+    }
+}
+
+async function getApprovedTestimonials(limit = 10) {
+    if (dbType === 'postgres') {
+        const result = await db.query(
+            `SELECT id, name, text, rating, position, company, created_at 
+             FROM testimonials 
+             WHERE approved = TRUE 
+             ORDER BY created_at DESC 
+             LIMIT $1`,
+            [limit]
+        );
+        return result.rows;
+    } else {
+        return await db.all(
+            `SELECT id, name, text, rating, position, company, created_at 
+             FROM testimonials 
+             WHERE approved = 1 
+             ORDER BY created_at DESC 
+             LIMIT ?`,
+            [limit]
+        );
+    }
+}
+
+async function getPendingTestimonials() {
+    if (dbType === 'postgres') {
+        const result = await db.query(
+            `SELECT * FROM testimonials WHERE approved = FALSE ORDER BY created_at DESC`
+        );
+        return result.rows;
+    } else {
+        return await db.all(
+            `SELECT * FROM testimonials WHERE approved = 0 ORDER BY created_at DESC`
+        );
+    }
+}
+
+async function getAllTestimonials() {
+    if (dbType === 'postgres') {
+        const result = await db.query(
+            `SELECT * FROM testimonials ORDER BY created_at DESC`
+        );
+        return result.rows;
+    } else {
+        return await db.all(
+            `SELECT * FROM testimonials ORDER BY created_at DESC`
+        );
+    }
+}
+
+async function approveTestimonial(id) {
+    if (dbType === 'postgres') {
+        await db.query(
+            `UPDATE testimonials SET approved = TRUE, approved_at = $1 WHERE id = $2`,
+            [new Date().toISOString(), id]
+        );
+    } else {
+        await db.run(
+            `UPDATE testimonials SET approved = 1, approved_at = ? WHERE id = ?`,
+            [new Date().toISOString(), id]
+        );
+    }
+}
+
+async function deleteTestimonial(id) {
+    if (dbType === 'postgres') {
+        await db.query(`DELETE FROM testimonials WHERE id = $1`, [id]);
+    } else {
+        await db.run(`DELETE FROM testimonials WHERE id = ?`, [id]);
+    }
+}
+
+async function getTestimonialStats() {
+    if (dbType === 'postgres') {
+        const result = await db.query(`
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN approved = TRUE THEN 1 ELSE 0 END) as approved_count,
+                AVG(rating) as avg_rating
+            FROM testimonials
+        `);
+        return result.rows[0];
+    } else {
+        const result = await db.get(`
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN approved = 1 THEN 1 ELSE 0 END) as approved_count,
+                AVG(rating) as avg_rating
+            FROM testimonials
+        `);
+        return result;
     }
 }
 
@@ -867,16 +1073,22 @@ async function updateInstallmentStatus(orderId, status) {
 // ============ EXPORT ALL FUNCTIONS ============
 module.exports = {
     initDatabase,
+    // Client functions
     getClient,
+    getClientByEmail,
+    getClientByPhone,
     createClient,
     updateClient,
     getAllClients,
     getClientById,
     getClientByReferralCode,
+    // Session functions
     getActiveSession,
     getPausedSession,
     saveSession,
     updateSession,
+    endSession,
+    // Order functions
     createOrder,
     getOrder,
     getClientOrders,
@@ -885,11 +1097,24 @@ module.exports = {
     updateOrderStatus,
     updateOrderCVData,
     updatePaymentReminder,
+    // CV Versioning functions
     saveCVVersion,
     getCVVersions,
     getCVVersion,
+    // Feedback functions
     saveFeedback,
     getAllFeedback,
+    getFeedbackByOrder,
+    getFeedbackByClient,
+    // Testimonial functions
+    saveTestimonial,
+    getApprovedTestimonials,
+    getPendingTestimonials,
+    getAllTestimonials,
+    approveTestimonial,
+    deleteTestimonial,
+    getTestimonialStats,
+    // Referral functions
     getReferralInfo,
     applyReferral,
     recordReferral,
@@ -898,6 +1123,7 @@ module.exports = {
     addReferralCredit,
     getUserReferrals,
     applyReferralDiscount,
+    // Installment functions
     saveInstallment,
     getInstallment,
     updateInstallmentStatus

@@ -1436,35 +1436,46 @@ bot.on('callback_query', async (ctx) => {
 async function startBot() {
     await db.initDatabase();
     
-    await bot.telegram.setMyCommands([
-        { command: 'start', description: 'Start the bot' },
-        { command: 'resume', description: 'Resume paused session' },
-        { command: 'pause', description: 'Save progress and pause' },
-        { command: 'pay', description: 'Make a payment' },
-        { command: 'portal', description: 'Your dashboard' },
-        { command: 'mydocs', description: 'Your documents' },
-        { command: 'referral', description: 'Share & earn' },
-        { command: 'help', description: 'Get help' }
-    ]);
-    
-    // Try to set commands, but don't fail if network blocks it
+    // Set commands with error handling
     try {
-        await setCommands();
-        console.log('✅ Commands set');
-    } catch (error) {
-        console.log('⚠️ Could not set commands (network issue):', error.message);
+        await bot.telegram.setMyCommands([
+            { command: 'start', description: 'Start the bot' },
+            { command: 'resume', description: 'Resume paused session' },
+            { command: 'pause', description: 'Save progress and pause' },
+            { command: 'pay', description: 'Make a payment' },
+            { command: 'portal', description: 'Your dashboard' },
+            { command: 'mydocs', description: 'Your documents' },
+            { command: 'referral', description: 'Share & earn' },
+            { command: 'help', description: 'Get help' }
+        ]);
+        console.log('✅ Bot commands set');
+    } catch (cmdError) {
+        console.log('⚠️ Could not set commands:', cmdError.message);
     }
     
-    // Use polling with error handling
-    bot.launch({
-        polling: {
-            timeout: 30,
-            limit: 100,
-            retryTimeout: 30000
-        }
-    }).catch(err => {
-        console.log('Polling error:', err.message);
-    });
+    // Check if running on Render (production)
+    const IS_PRODUCTION = process.env.RENDER === 'true' || process.env.NODE_ENV === 'production';
+    const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://easysuccor-bot.onrender.com';
+    
+    if (IS_PRODUCTION) {
+        // Use webhook in production
+        const webhookPath = '/webhook';
+        const fullWebhookUrl = `${WEBHOOK_URL}${webhookPath}`;
+        
+        await bot.telegram.setWebhook(fullWebhookUrl);
+        console.log(`✅ Webhook set to ${fullWebhookUrl}`);
+        
+        // Setup webhook endpoint on your express app
+        app.post(webhookPath, (req, res) => {
+            bot.handleUpdate(req.body, res);
+        });
+        
+        console.log('✅ Bot running with webhook (production mode)');
+    } else {
+        // Use polling in development
+        bot.launch();
+        console.log('✅ Bot running with polling (development mode)');
+    }
     
     console.log('========================================');
     console.log('  🤖 EasySuccor Bot Running');
@@ -1475,8 +1486,15 @@ async function startBot() {
     console.log('========================================');
 }
 
-startBot();
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+// Graceful shutdown
+process.once('SIGINT', () => {
+    if (!IS_PRODUCTION) bot.stop('SIGINT');
+    process.exit(0);
+});
+process.once('SIGTERM', () => {
+    if (!IS_PRODUCTION) bot.stop('SIGTERM');
+    process.exit(0);
+});
 
+startBot();
 module.exports = bot;

@@ -418,8 +418,8 @@ class SmartDraftProcessor {
             'Email': "What's your email address? 📧\n*Example:* john.doe@example.com",
             'Phone': "What's your phone number? 📞\n*Example:* +265 991 234 567 or 0991234567",
             'Location': "Where are you based? (City, Country) 📍\n*Example:* Lilongwe, Malawi",
-            'Physical Address': "What's your physical address? 🏠\n*Example:* House No. 123, Area 47, Lilongwe\n\nType 'Skip' to continue if not applicable.",
-            'Nationality': "What's your nationality? 🌍\n*Example:* Malawian\n\nType 'Skip' to continue.",
+            'Physical Address': "What's your physical address? 🏠\n*Example:* House No. 123, Area 47, Lilongwe\n\nClick the button below to skip.",
+            'Nationality': "What's your nationality? 🌍\n*Example:* Malawian\n\nClick the button below to skip.",
             'Professional Summary': "Please provide a brief professional summary (2-3 sentences) ✍️\n*Example:* Results-oriented Project Manager with 5+ years of experience in...",
             'Work Experience': "Let's add your work experience. Most recent job title? 💼\n*Example:* Senior Software Engineer",
             'Education': "What's your highest qualification? 🎓\n*Example:* Bachelor of Science in Computer Science",
@@ -606,7 +606,7 @@ class CVVersioning {
 
 const cvVersioning = new CVVersioning();
 
-// ============ PORTFOLIO COLLECTION ============
+// ============ PORTFOLIO COLLECTION WITH CLICKABLE SKIP BUTTON ============
 class PortfolioCollector {
     async askForPortfolio(ctx) {
         await sendMarkdown(ctx, `📎 *Portfolio Items (Optional)*
@@ -620,35 +620,25 @@ Would you like to include links to your work?
 
 *Why this matters:* Employers love seeing real work examples!
 
-Type your portfolio links (one per line) or type 'SKIP' to continue.
+Type your portfolio links (one per line) or click the button below to skip.
 
 *Example:* 
 https://github.com/johndoe
-https://johndoe.com/portfolio`);
+https://johndoe.com/portfolio`, {
+            reply_markup: { inline_keyboard: [
+                [{ text: "⏭️ Skip Portfolio", callback_data: "portfolio_skip" }]
+            ] }
+        });
     }
+    
     parsePortfolioLinks(text) {
+        if (!text) return [];
         if (text.toLowerCase() === 'skip') return [];
-        return text.split('\n').filter(line => line.trim().startsWith('http'));
+        return text.split('\n').filter(line => line && line.trim().startsWith('http'));
     }
 }
 
 const portfolioCollector = new PortfolioCollector();
-
-// ============ HANDLE PORTFOLIO COLLECTION ============
-async function handlePortfolioCollection(ctx, client, session, text) {
-    // Parse the portfolio links using the existing collector
-    const parsedLinks = portfolioCollector.parsePortfolioLinks(text);
-    
-    // Ensure portfolio_links is always an array
-    session.data.portfolio_links = Array.isArray(parsedLinks) ? parsedLinks : [];
-    
-    // Safely get the count
-    const linkCount = session.data.portfolio_links.length;
-    
-    await sendMarkdown(ctx, `${getReaction()} ${linkCount > 0 ? 'Portfolio saved!' : 'No portfolio added.'}\n\nNow let's collect your details.\n\n${getQuestion('name')}`);
-    
-    await startDataCollection(ctx, client, session);
-}
 
 // ============ DYNAMIC RESPONSES ============
 const RESPONSES = {
@@ -976,14 +966,39 @@ WhatsApp: +265 881 193 707`);
     }
 }
 
+// ============ FIXED HANDLE PORTFOLIO COLLECTION ============
 async function handlePortfolioCollection(ctx, client, session, text) {
-    session.data.portfolio_links = portfolioCollector.parsePortfolioLinks(text);
-    await sendMarkdown(ctx, `${getReaction()} ${session.data.portfolio_links.length > 0 ? 'Portfolio saved!' : 'No portfolio added.'}\n\nNow let's collect your details.\n\n${getQuestion('name')}`);
+    // Ensure session.data exists
+    if (!session.data) {
+        session.data = {};
+    }
+    
+    // Parse the portfolio links
+    const parsedLinks = portfolioCollector.parsePortfolioLinks(text);
+    
+    // CRITICAL FIX: Always ensure portfolio_links is an array
+    session.data.portfolio_links = Array.isArray(parsedLinks) ? parsedLinks : [];
+    
+    // Safely get length (now guaranteed to work)
+    const linkCount = session.data.portfolio_links.length;
+    
+    await sendMarkdown(ctx, `${getReaction()} ${linkCount > 0 ? 'Portfolio saved!' : 'No portfolio added.'}\n\nNow let's collect your details.\n\n${getQuestion('name')}`);
+    
     await startDataCollection(ctx, client, session);
 }
 
-// ============ START DATA COLLECTION WITH NEW FIELDS ============
+// ============ START DATA COLLECTION ============
 async function startDataCollection(ctx, client, session) {
+    // Ensure session.data exists
+    if (!session.data) {
+        session.data = {};
+    }
+    
+    // Ensure portfolio_links exists and is an array
+    if (!session.data.portfolio_links || !Array.isArray(session.data.portfolio_links)) {
+        session.data.portfolio_links = [];
+    }
+    
     session.data.cv_data = {
         personal: {
             full_name: '',
@@ -1005,7 +1020,7 @@ async function startDataCollection(ctx, client, session) {
         projects: [],
         achievements: [],
         referees: [],
-        portfolio: session.data.portfolio_links || []
+        portfolio: session.data.portfolio_links
     };
     session.current_section = 'personal';
     session.data.collection_step = 'name';
@@ -1013,7 +1028,7 @@ async function startDataCollection(ctx, client, session) {
     await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
 }
 
-// ============ PERSONAL COLLECTION WITH NEW FIELDS ============
+// ============ PERSONAL COLLECTION ============
 async function handlePersonalCollection(ctx, client, session, text) {
     const step = session.data.collection_step;
     const personal = session.data.cv_data.personal;
@@ -1046,14 +1061,18 @@ async function handlePersonalCollection(ctx, client, session, text) {
     else if (step === 'location') {
         personal.location = text;
         session.data.collection_step = 'physical_address';
-        await sendMarkdown(ctx, "What's your physical address? 🏠\n*Example:* House No. 123, Area 47, Lilongwe\n\nType 'Skip' to continue.");
+        await sendMarkdown(ctx, "What's your physical address? 🏠\n*Example:* House No. 123, Area 47, Lilongwe\n\nClick the button below to skip.", {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_physical_address" }]] }
+        });
     }
     else if (step === 'physical_address') {
         if (text.toLowerCase() !== 'skip') {
             personal.physical_address = text;
         }
         session.data.collection_step = 'nationality';
-        await sendMarkdown(ctx, "What's your nationality? 🌍\n*Example:* Malawian\n\nType 'Skip' to continue.");
+        await sendMarkdown(ctx, "What's your nationality? 🌍\n*Example:* Malawian\n\nClick the button below to skip.", {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_nationality" }]] }
+        });
     }
     else if (step === 'nationality') {
         if (text.toLowerCase() !== 'skip') {
@@ -1109,7 +1128,7 @@ ${getQuestion('education')}`);
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
 }
 
-// ============ FIXED EDUCATION COLLECTION ============
+// ============ EDUCATION COLLECTION ============
 async function handleEducationCollection(ctx, client, session, text, callbackData = null) {
     const step = session.data.collection_step;
     const education = session.data.cv_data.education;
@@ -1146,7 +1165,6 @@ async function handleEducationCollection(ctx, client, session, text, callbackDat
             session.data.current_edu = {};
             await sendMarkdown(ctx, "Next qualification? 🎓");
         } else {
-            // Move to employment section
             session.current_section = 'employment';
             session.data.collection_step = 'title';
             session.data.current_job = {};
@@ -1159,7 +1177,7 @@ async function handleEducationCollection(ctx, client, session, text, callbackDat
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
 }
 
-// ============ FIXED EMPLOYMENT COLLECTION ============
+// ============ EMPLOYMENT COLLECTION ============
 async function handleEmploymentCollection(ctx, client, session, text, callbackData = null) {
     const step = session.data.collection_step;
     const employment = session.data.cv_data.employment;
@@ -1201,7 +1219,6 @@ async function handleEmploymentCollection(ctx, client, session, text, callbackDa
             session.data.current_job = {};
             await sendMarkdown(ctx, "Next job title? 💼");
         } else {
-            // Move to skills section
             session.current_section = 'skills';
             session.data.collection_step = 'skills';
             await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Employment')}\n\n${getQuestion('skills')}`);
@@ -1583,7 +1600,6 @@ bot.command('resume', async (ctx) => {
     if (pausedSession) {
         pausedSession.data = JSON.parse(pausedSession.data);
         
-        // Determine where to resume based on session data
         let resumeStage = pausedSession.stage;
         let resumeMessage = "";
         
@@ -1854,6 +1870,15 @@ bot.on('callback_query', async (ctx) => {
     if (data.startsWith('cat_')) {
         await handleCategorySelection(ctx, client, session, data);
     }
+    else if (data === 'portfolio_skip') {
+        await handlePortfolioCollection(ctx, client, session, 'skip');
+    }
+    else if (data === 'skip_physical_address') {
+        await handlePersonalCollection(ctx, client, session, 'skip');
+    }
+    else if (data === 'skip_nationality') {
+        await handlePersonalCollection(ctx, client, session, 'skip');
+    }
     else if (data.startsWith('service_')) {
         await handleServiceSelection(ctx, client, session, data);
     }
@@ -1930,7 +1955,7 @@ bot.on('callback_query', async (ctx) => {
     }
 });
 
-// ============ START BOT ============
+// ============ START BOT (RENDER PRODUCTION ONLY) ============
 async function startBot() {
     await db.initDatabase();
     await loadTestimonialsCache();
@@ -1954,47 +1979,35 @@ async function startBot() {
         console.log('⚠️ Could not set commands:', cmdError.message);
     }
     
-    const IS_PRODUCTION = process.env.RENDER === 'true' || process.env.NODE_ENV === 'production';
+    // Always use webhook on Render
     const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://easysuccor-bot.onrender.com';
+    const webhookPath = '/webhook';
+    const fullWebhookUrl = `${WEBHOOK_URL}${webhookPath}`;
     
-    if (IS_PRODUCTION) {
-        const webhookPath = '/webhook';
-        const fullWebhookUrl = `${WEBHOOK_URL}${webhookPath}`;
-        
+    try {
         await bot.telegram.setWebhook(fullWebhookUrl);
         console.log(`✅ Webhook set to ${fullWebhookUrl}`);
-        
-        app.post(webhookPath, (req, res) => {
-            bot.handleUpdate(req.body, res);
-        });
-        
-        console.log('✅ Bot running with webhook (production mode)');
-    } else {
-        bot.launch();
-        console.log('✅ Bot running with polling (development mode)');
+    } catch (webhookError) {
+        console.error('❌ Failed to set webhook:', webhookError.message);
     }
     
+    // Setup webhook endpoint
+    app.post(webhookPath, (req, res) => {
+        bot.handleUpdate(req.body, res);
+    });
+    
     console.log('========================================');
-    console.log('  🤖 EasySuccor Bot Running');
-    console.log('  ✅ All choices are clickable buttons');
-    console.log('  ✅ Editable Cover Letter included');
+    console.log('  🤖 EasySuccor Bot Running on Render');
+    console.log('  ✅ Editable Cover Letter on keyboard');
+    console.log('  ✅ Clickable skip buttons everywhere');
     console.log('  ✅ Smart Draft Upload - Auto-extracts data');
-    console.log('  ✅ Physical address, nationality, special documents collected');
+    console.log('  ✅ Physical address, nationality, special documents');
     console.log('  ✅ Real testimonials (no fake data)');
-    console.log('  ✅ Fixed education/employment state machine');
-    console.log('  ✅ Fixed pause/resume to correct section');
+    console.log('  ✅ Webhook mode (production)');
     console.log('========================================');
 }
 
-let IS_PRODUCTION = false;
-process.once('SIGINT', () => {
-    if (!IS_PRODUCTION) bot.stop('SIGINT');
-    process.exit(0);
-});
-process.once('SIGTERM', () => {
-    if (!IS_PRODUCTION) bot.stop('SIGTERM');
-    process.exit(0);
-});
+// Start the bot
+startBot().catch(console.error);
 
-startBot();
 module.exports = bot;

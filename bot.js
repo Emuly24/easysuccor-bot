@@ -1407,8 +1407,9 @@ async function handleEducationCollection(ctx, client, session, text, callbackDat
     const updatedSession = await db.getActiveSession(client.id);
     console.log(`[EDUCATION] After update - stage: ${updatedSession.stage}, collection_step: ${updatedSession.data?.collection_step}`);
 }
-    
+ 
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
+}
 }
 
 // ============ EMPLOYMENT COLLECTION ============

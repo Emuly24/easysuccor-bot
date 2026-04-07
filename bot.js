@@ -1396,54 +1396,151 @@ async function handleEducationCollection(ctx, client, session, text, callbackDat
 
 // ============ EMPLOYMENT COLLECTION ============
 async function handleEmploymentCollection(ctx, client, session, text, callbackData = null) {
-    const cvData = ensureCVData(session);
-    const step = session.data.collection_step;
-    const employment = cvData.employment;
-    const currentJob = session.data.current_job || {};
+    // DEBUG LOGGING - Add this to track where it's failing
+    console.log(`[DEBUG] EmploymentCollection - Step: ${session.data.collection_step}, Text: "${text?.substring(0, 50)}", Callback: ${callbackData}`);
     
+    const cvData = ensureCVData(session);
+    let step = session.data.collection_step;
+    const employment = cvData.employment;
+    let currentJob = session.data.current_job || {};
+    
+    // STATE VALIDATION - Fix stuck states
+    if (!step) {
+        console.error(`[ERROR] No collection_step found! Resetting employment collection`);
+        session.data.collection_step = 'title';
+        session.data.current_job = {};
+        await sendMarkdown(ctx, "Let's start over with your work experience.\n\nMost recent job title? 💼");
+        await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+        return;
+    }
+    
+    // SMART PARSING - Handle "Intern at Google" format
+    if (step === 'title' && text && text.toLowerCase().includes(' at ')) {
+        const atIndex = text.toLowerCase().lastIndexOf(' at ');
+        const title = text.substring(0, atIndex).trim();
+        const company = text.substring(atIndex + 4).trim();
+        
+        console.log(`[DEBUG] Parsed combined input: title="${title}", company="${company}"`);
+        
+        if (title && company) {
+            currentJob.title = title;
+            currentJob.company = company;
+            session.data.current_job = currentJob;
+            session.data.collection_step = 'duration';
+            await sendMarkdown(ctx, `✓ Title: ${title}\n✓ Company: ${company}\n\nDuration? 📅\n*Example:* Jan 2020 - Present (3 years)`);
+            await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+            return;
+        }
+    }
+    
+    // EMPTY VALIDATION - Prevent empty submissions
+    if (step === 'title' && (!text || text.trim() === '')) {
+        await sendMarkdown(ctx, "❌ Job title cannot be empty. Please enter a valid job title.\n\n*Example:* Software Engineer, Intern, Project Manager");
+        return;
+    }
+    
+    if (step === 'company' && (!text || text.trim() === '')) {
+        await sendMarkdown(ctx, "❌ Company name cannot be empty. Please enter the company name.\n\n*Example:* ABC Corporation, Google, UNDP");
+        return;
+    }
+    
+    if (step === 'duration' && (!text || text.trim() === '')) {
+        await sendMarkdown(ctx, "❌ Duration cannot be empty. Please enter the duration.\n\n*Example:* Jan 2020 - Present (3 years)");
+        return;
+    }
+    
+    // MAIN COLLECTION LOGIC
     if (step === 'title') {
         currentJob.title = text;
         session.data.current_job = currentJob;
         session.data.collection_step = 'company';
+        
+        console.log(`[DEBUG] Title saved: "${text}", moving to company step`);
+        
         await sendMarkdown(ctx, "Company name? 🏢\n*Example:* ABC Corporation");
     }
     else if (step === 'company') {
         currentJob.company = text;
+        session.data.current_job = currentJob;
         session.data.collection_step = 'duration';
+        
+        console.log(`[DEBUG] Company saved: "${text}", moving to duration step`);
+        
         await sendMarkdown(ctx, "Duration? 📅\n*Example:* Jan 2020 - Present (3 years)");
     }
     else if (step === 'duration') {
         currentJob.duration = text;
+        session.data.current_job = currentJob;
         session.data.collection_step = 'responsibilities';
         currentJob.responsibilities = [];
-        await sendMarkdown(ctx, `Key responsibilities? One per line. Type DONE when finished.\n\n*Example:*\n• Led a team of 5 developers\n• Increased efficiency by 30%\n\nType DONE when done.`);
+        
+        console.log(`[DEBUG] Duration saved: "${text}", moving to responsibilities step`);
+        
+        await sendMarkdown(ctx, `📋 *Key Responsibilities*
+
+List your main responsibilities, one per line.
+
+*Example:*
+• Led a team of 5 developers
+• Increased efficiency by 30%
+• Managed client relationships
+
+Type \`DONE\` when finished, or \`SKIP\` if no responsibilities to add.`);
     }
     else if (step === 'responsibilities') {
-        if (text.toUpperCase() !== 'DONE') {
-            currentJob.responsibilities.push(text);
-            await sendMarkdown(ctx, `✓ Added. Another responsibility? (type DONE when done)`);
-        } else {
+        const upperText = text.toUpperCase();
+        
+        // Handle SKIP command
+        if (upperText === 'SKIP') {
+            console.log(`[DEBUG] User skipped responsibilities`);
             employment.push({ ...currentJob });
             session.data.current_job = null;
             session.data.collection_step = 'add_more';
-            await sendMarkdown(ctx, `${getReaction()} Another job?`, {
+            await sendMarkdown(ctx, `${getReaction()} Job saved! Another job?`, {
                 reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "emp_yes" }, { text: "❌ No", callback_data: "emp_no" }]] }
             });
+        }
+        // Handle DONE command
+        else if (upperText === 'DONE') {
+            if (currentJob.responsibilities.length === 0) {
+                await sendMarkdown(ctx, `⚠️ You haven't added any responsibilities. Type \`SKIP\` to continue without responsibilities, or add at least one responsibility.`);
+                return;
+            }
+            
+            console.log(`[DEBUG] Responsibilities complete (${currentJob.responsibilities.length} items), saving job`);
+            employment.push({ ...currentJob });
+            session.data.current_job = null;
+            session.data.collection_step = 'add_more';
+            await sendMarkdown(ctx, `${getReaction()} ✓ Job saved successfully! Another job?`, {
+                reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "emp_yes" }, { text: "❌ No", callback_data: "emp_no" }]] }
+            });
+        }
+        // Add responsibility
+        else {
+            currentJob.responsibilities.push(text);
+            session.data.current_job = currentJob;
+            console.log(`[DEBUG] Added responsibility (${currentJob.responsibilities.length} total): "${text.substring(0, 50)}"`);
+            await sendMarkdown(ctx, `✓ Added. Another responsibility? (type \`DONE\` when finished, \`SKIP\` to skip remaining)`);
         }
     }
     else if (step === 'add_more') {
         if (callbackData === 'emp_yes') {
             session.data.collection_step = 'title';
             session.data.current_job = {};
-            await sendMarkdown(ctx, "Next job title? 💼");
+            console.log(`[DEBUG] User wants to add another job, resetting to title step`);
+            await sendMarkdown(ctx, "Next job title? 💼\n*Example:* Senior Developer, Marketing Manager");
         } else {
+            // Move to skills section
             session.current_section = 'skills';
             session.data.collection_step = 'skills';
+            console.log(`[DEBUG] Employment collection complete, moving to skills section`);
             await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Employment')}\n\n${getQuestion('skills')}`);
             await db.updateSession(session.id, 'collecting_skills', 'skills', session.data);
+            return; // Early return to avoid double update
         }
     }
     
+    // Save session after each step
     await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
 }
 

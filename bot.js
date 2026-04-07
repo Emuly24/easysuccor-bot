@@ -1354,62 +1354,111 @@ ${getQuestion('education')}`);
 
 // ============ EDUCATION COLLECTION ============
 async function handleEducationCollection(ctx, client, session, text, callbackData = null) {
-    const cvData = ensureCVData(session);
-    const step = session.data.collection_step;
-    const education = cvData.education;
-    const currentEdu = session.data.current_edu || {};
+    console.log(`[EDUCATION] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
     
+    const cvData = ensureCVData(session);
+    let step = session.data.collection_step;
+    const education = cvData.education;
+    
+    // Initialize current_edu if not exists
+    if (!session.data.current_edu) {
+        session.data.current_edu = {};
+    }
+    const currentEdu = session.data.current_edu;
+    
+    // ============ STEP 1: LEVEL (highest qualification) ============
     if (step === 'level') {
         currentEdu.level = text;
         session.data.current_edu = currentEdu;
         session.data.collection_step = 'field';
-        await sendMarkdown(ctx, "Field of study? 📚\n*Example:* Computer Science");
+        
+        console.log(`[EDUCATION] Level saved: "${text}", moving to field`);
+        
+        await sendMarkdown(ctx, "✅ Got it!\n\n**Field of study?** 📚\n*Example:* Computer Science, Business Administration, Metallurgy");
+        await db.updateSession(session.id, 'collecting_education', 'education', session.data);
+        return;
     }
-    else if (step === 'field') {
+    
+    // ============ STEP 2: FIELD ============
+    if (step === 'field') {
         currentEdu.field = text;
+        session.data.current_edu = currentEdu;
         session.data.collection_step = 'institution';
-        await sendMarkdown(ctx, "Institution? 🏛️\n*Example:* University of Malawi");
+        
+        console.log(`[EDUCATION] Field saved: "${text}", moving to institution`);
+        
+        await sendMarkdown(ctx, "✅ Got it!\n\n**Institution name?** 🏛️\n*Example:* University of Malawi, Lilongwe Technical College");
+        await db.updateSession(session.id, 'collecting_education', 'education', session.data);
+        return;
     }
-    else if (step === 'institution') {
+    
+    // ============ STEP 3: INSTITUTION ============
+    if (step === 'institution') {
         currentEdu.institution = text;
+        session.data.current_edu = currentEdu;
         session.data.collection_step = 'year';
-        await sendMarkdown(ctx, "Year of completion? 📅\n*Example:* 2020");
+        
+        console.log(`[EDUCATION] Institution saved: "${text}", moving to year`);
+        
+        await sendMarkdown(ctx, "✅ Got it!\n\n**Year of completion?** 📅\n*Example:* 2020, 2025 (expected)");
+        await db.updateSession(session.id, 'collecting_education', 'education', session.data);
+        return;
     }
-    else if (step === 'year') {
+    
+    // ============ STEP 4: YEAR ============
+    if (step === 'year') {
         currentEdu.year = text;
+        
+        // Save this education entry
         education.push({ ...currentEdu });
-        session.data.current_edu = null;
+        session.data.current_edu = {};
         session.data.collection_step = 'add_more';
-        await sendMarkdown(ctx, `${getReaction()} Another qualification?`, {
-            reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "edu_yes" }, { text: "❌ No", callback_data: "edu_no" }]] }
+        
+        console.log(`[EDUCATION] Year saved: "${text}", education added. Total education entries: ${education.length}`);
+        
+        await sendMarkdown(ctx, `✅ Education saved! Another qualification?`, {
+            reply_markup: { inline_keyboard: [
+                [{ text: "✅ Yes, add another", callback_data: "edu_yes" }],
+                [{ text: "❌ No, continue", callback_data: "edu_no" }]
+            ] }
         });
+        await db.updateSession(session.id, 'collecting_education', 'education', session.data);
+        return;
     }
-    else if (step === 'add_more') {
+    
+    // ============ STEP 5: ADD MORE QUALIFICATIONS ============
+    if (step === 'add_more') {
         if (callbackData === 'edu_yes') {
+            // Add another education
             session.data.collection_step = 'level';
             session.data.current_edu = {};
-            await sendMarkdown(ctx, "Next qualification? 🎓");
+            
+            console.log(`[EDUCATION] Adding another qualification, resetting to level`);
+            
+            await sendMarkdown(ctx, "Great! What's your next qualification? 🎓\n*Example:* Master's Degree, Diploma, Certificate");
+            await db.updateSession(session.id, 'collecting_education', 'education', session.data);
+            return;
         } else {
-    // Move to employment section
-    session.current_section = 'employment';
-    session.data.collection_step = 'title';
-    session.data.current_job = {};
-    session.data.cv_data.employment = [];
+            // Move to employment
+            session.current_section = 'employment';
+            session.data.collection_step = 'title';
+            session.data.current_job = {};
+            session.data.cv_data.employment = [];
+            
+            console.log(`[EDUCATION] Education complete! Moving to employment section`);
+            console.log(`[EDUCATION] Setting stage to: collecting_employment, collection_step: title`);
+            
+            await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Education')}\n\n${getQuestion('jobTitle')}`);
+            await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+            return;
+        }
+    }
     
-    console.log(`[EDUCATION] Moving to employment section`);
-    console.log(`[EDUCATION] Setting stage to: collecting_employment`);
-    console.log(`[EDUCATION] Setting collection_step to: title`);
-    
-    await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Education')}\n\n${getQuestion('jobTitle')}`);
-    await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
-    
-    // Verify the update
-    const updatedSession = await db.getActiveSession(client.id);
-    console.log(`[EDUCATION] After update - stage: ${updatedSession.stage}, collection_step: ${updatedSession.data?.collection_step}`);
-}
- 
+    // ============ FALLBACK ============
+    console.log(`[EDUCATION] UNKNOWN STEP: ${step}, resetting to level`);
+    session.data.collection_step = 'level';
+    await sendMarkdown(ctx, "Let's start over. What's your highest qualification? 🎓");
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
-}
 }
 
 // ============ EMPLOYMENT COLLECTION ============
@@ -2325,8 +2374,9 @@ else if (data === 'cancel_action') {
         await db.updateSession(session.id, 'main_menu', null, session.data);
     }
     else if (data === 'edu_yes' || data === 'edu_no') {
-        await handleEducationCollection(ctx, client, session, '', data);
-    }
+    console.log(`[CALLBACK] Education callback: ${data}`);
+    await handleEducationCollection(ctx, client, session, '', data);
+}
     else if (data === 'emp_yes' || data === 'emp_no') {
         await handleEmploymentCollection(ctx, client, session, '', data);
     }

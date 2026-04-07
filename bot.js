@@ -632,14 +632,51 @@ https://johndoe.com/portfolio`, {
     }
     
     parsePortfolioLinks(text) {
-        if (!text) return [];
-        if (text.toLowerCase() === 'skip') return [];
+        // This method is no longer critical but keep for compatibility
+        if (!text || text.toLowerCase() === 'skip') return [];
         return text.split('\n').filter(line => line && line.trim().startsWith('http'));
     }
 }
-
-const portfolioCollector = new PortfolioCollector();
-
+// ============ START DATA COLLECTION ============
+async function startDataCollection(ctx, client, session) {
+    // Ensure session.data exists
+    if (!session.data) {
+        session.data = {};
+    }
+    
+    // Ensure portfolio_links exists and is an array
+    if (!session.data.portfolio_links || !Array.isArray(session.data.portfolio_links)) {
+        session.data.portfolio_links = [];
+    }
+    
+    session.data.cv_data = {
+        personal: {
+            full_name: '',
+            email: '',
+            primary_phone: '',
+            alternative_phone: '',
+            whatsapp_phone: '',
+            location: '',
+            physical_address: '',
+            nationality: '',
+            special_documents: []
+        },
+        professional_summary: '',
+        education: [],
+        employment: [],
+        skills: [],
+        certifications: [],
+        languages: [],
+        projects: [],
+        achievements: [],
+        referees: [],
+        portfolio: session.data.portfolio_links
+    };
+    session.current_section = 'personal';
+    session.data.collection_step = 'name';
+    session.data.special_docs_list = [];
+    await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
+}
 // ============ DYNAMIC RESPONSES ============
 const RESPONSES = {
     greetings: [
@@ -1013,76 +1050,6 @@ async function handlePortfolioCollection(ctx, client, session, text) {
         await sendMarkdown(ctx, `Let's continue with your details.\n\n${getQuestion('name')}`);
         await startDataCollection(ctx, client, session);
     }
-}
-class PortfolioCollector {
-    async askForPortfolio(ctx) {
-        await sendMarkdown(ctx, `📎 *Portfolio Items (Optional)*
-
-Would you like to include links to your work?
-
-• GitHub repositories
-• Behance/Dribbble portfolio
-• Personal website
-• Case studies
-
-*Why this matters:* Employers love seeing real work examples!
-
-Type your portfolio links (one per line) or click the button below to skip.
-
-*Example:* 
-https://github.com/johndoe
-https://johndoe.com/portfolio`, {
-            reply_markup: { inline_keyboard: [
-                [{ text: "⏭️ Skip Portfolio", callback_data: "portfolio_skip" }]
-            ] }
-        });
-    }
-    
-    parsePortfolioLinks(text) {
-        // This method is no longer critical but keep for compatibility
-        if (!text || text.toLowerCase() === 'skip') return [];
-        return text.split('\n').filter(line => line && line.trim().startsWith('http'));
-    }
-}
-// ============ START DATA COLLECTION ============
-async function startDataCollection(ctx, client, session) {
-    // Ensure session.data exists
-    if (!session.data) {
-        session.data = {};
-    }
-    
-    // Ensure portfolio_links exists and is an array
-    if (!session.data.portfolio_links || !Array.isArray(session.data.portfolio_links)) {
-        session.data.portfolio_links = [];
-    }
-    
-    session.data.cv_data = {
-        personal: {
-            full_name: '',
-            email: '',
-            primary_phone: '',
-            alternative_phone: '',
-            whatsapp_phone: '',
-            location: '',
-            physical_address: '',
-            nationality: '',
-            special_documents: []
-        },
-        professional_summary: '',
-        education: [],
-        employment: [],
-        skills: [],
-        certifications: [],
-        languages: [],
-        projects: [],
-        achievements: [],
-        referees: [],
-        portfolio: session.data.portfolio_links
-    };
-    session.current_section = 'personal';
-    session.data.collection_step = 'name';
-    session.data.special_docs_list = [];
-    await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
 }
 
 // ============ PERSONAL COLLECTION ============

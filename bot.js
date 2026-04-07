@@ -281,6 +281,84 @@ async function sendMarkdown(ctx, message, extra = {}) {
     return await ctx.reply(message, { parse_mode: 'Markdown', ...extra });
 }
 
+// ============ SAFE CV DATA ACCESS HELPER ============
+function ensureCVData(session) {
+    if (!session.data) {
+        session.data = {};
+    }
+    if (!session.data.cv_data) {
+        session.data.cv_data = {
+            personal: {
+                full_name: '',
+                email: '',
+                primary_phone: '',
+                alternative_phone: '',
+                whatsapp_phone: '',
+                location: '',
+                physical_address: '',
+                nationality: '',
+                special_documents: []
+            },
+            professional_summary: '',
+            education: [],
+            employment: [],
+            skills: [],
+            certifications: [],
+            languages: [],
+            projects: [],
+            achievements: [],
+            referees: [],
+            portfolio: []
+        };
+    }
+    if (!session.data.cv_data.personal) {
+        session.data.cv_data.personal = {
+            full_name: '',
+            email: '',
+            primary_phone: '',
+            alternative_phone: '',
+            whatsapp_phone: '',
+            location: '',
+            physical_address: '',
+            nationality: '',
+            special_documents: []
+        };
+    }
+    if (!session.data.cv_data.education) session.data.cv_data.education = [];
+    if (!session.data.cv_data.employment) session.data.cv_data.employment = [];
+    if (!session.data.cv_data.skills) session.data.cv_data.skills = [];
+    if (!session.data.cv_data.certifications) session.data.cv_data.certifications = [];
+    if (!session.data.cv_data.languages) session.data.cv_data.languages = [];
+    if (!session.data.cv_data.referees) session.data.cv_data.referees = [];
+    if (!session.data.cv_data.projects) session.data.cv_data.projects = [];
+    if (!session.data.cv_data.achievements) session.data.cv_data.achievements = [];
+    
+    return session.data.cv_data;
+}
+
+// ============ SAFE COVER LETTER DATA ACCESS HELPER ============
+function ensureCoverLetterData(session) {
+    if (!session.data) {
+        session.data = {};
+    }
+    if (!session.data.coverletter) {
+        session.data.coverletter = {};
+    }
+    if (session.data.coverletter_position === undefined) {
+        session.data.coverletter_position = '';
+    }
+    if (session.data.coverletter_company === undefined) {
+        session.data.coverletter_company = '';
+    }
+    if (session.data.vacancy_data === undefined) {
+        session.data.vacancy_data = null;
+    }
+    if (session.data.awaiting_vacancy === undefined) {
+        session.data.awaiting_vacancy = false;
+    }
+    return session.data;
+}
+
 // ============ TESTIMONIAL SYSTEM ============
 let TESTIMONIALS_CACHE = [];
 
@@ -810,7 +888,6 @@ async function handleServiceSelection(ctx, client, session, data) {
     session.data.service = serviceMap[data];
     
     if (session.data.service === 'cv update') {
-        // Use intelligent update system
         await handleIntelligentUpdate(ctx, client, session);
         return;
     }
@@ -831,7 +908,6 @@ I can extract information from your existing CV or cover letter and only ask for
 
 // ============ INTELLIGENT UPDATE HANDLER ============
 async function handleIntelligentUpdate(ctx, client, session) {
-    // Get the client's latest CV
     const orders = await db.getClientOrders(client.id);
     const latestCV = orders.find(o => o.service === 'new cv' || o.service === 'editable cv');
     
@@ -867,7 +943,6 @@ async function handleUpdateRequest(ctx, client, session, text, fileUrl = null, f
         let vacancyData = null;
         let userRequest = text;
         
-        // If file was uploaded, extract vacancy details
         if (fileUrl) {
             await sendMarkdown(ctx, `📄 Processing your file...`);
             
@@ -886,7 +961,6 @@ I'll tailor your CV for this role.`);
             }
         }
         
-        // Process the intelligent update
         const result = await intelligentUpdate.processUpdate(
             session.data.existing_cv,
             userRequest,
@@ -906,7 +980,6 @@ Or type /cancel to go back.`);
             return;
         }
         
-        // Show proposed changes
         let changeSummary = `📝 *Proposed Changes:*\n\n`;
         for (const change of result.changes_summary) {
             changeSummary += `• ${change}\n`;
@@ -938,10 +1011,7 @@ Or type /cancel to go back.`);
 }
 
 async function handleApproveUpdate(ctx, client, session) {
-    // Save the updated CV
     const updatedCV = session.data.proposed_cv;
-    
-    // Create new order for the update
     const orderId = `UPD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     
     await db.createOrder({
@@ -1155,37 +1225,17 @@ async function handlePortfolioCollection(ctx, client, session, text) {
 
 // ============ START DATA COLLECTION ============
 async function startDataCollection(ctx, client, session) {
-    if (!session.data) {
-        session.data = {};
-    }
+    // Ensure CV data exists using helper
+    const cvData = ensureCVData(session);
     
+    // Ensure portfolio_links exists
     if (!session.data.portfolio_links || !Array.isArray(session.data.portfolio_links)) {
         session.data.portfolio_links = [];
     }
     
-    session.data.cv_data = {
-        personal: {
-            full_name: '',
-            email: '',
-            primary_phone: '',
-            alternative_phone: '',
-            whatsapp_phone: '',
-            location: '',
-            physical_address: '',
-            nationality: '',
-            special_documents: []
-        },
-        professional_summary: '',
-        education: [],
-        employment: [],
-        skills: [],
-        certifications: [],
-        languages: [],
-        projects: [],
-        achievements: [],
-        referees: [],
-        portfolio: session.data.portfolio_links
-    };
+    // Update portfolio in cv_data
+    cvData.portfolio = session.data.portfolio_links;
+    
     session.current_section = 'personal';
     session.data.collection_step = 'name';
     session.data.special_docs_list = [];
@@ -1194,8 +1244,9 @@ async function startDataCollection(ctx, client, session) {
 
 // ============ PERSONAL COLLECTION ============
 async function handlePersonalCollection(ctx, client, session, text) {
+    const cvData = ensureCVData(session);
+    const personal = cvData.personal;
     const step = session.data.collection_step;
-    const personal = session.data.cv_data.personal;
     
     if (step === 'name') {
         personal.full_name = text;
@@ -1281,7 +1332,8 @@ Type 'Skip' to continue or 'Done' when finished.`);
 }
 
 async function handleSummaryCollection(ctx, client, session, text) {
-    session.data.cv_data.professional_summary = text;
+    const cvData = ensureCVData(session);
+    cvData.professional_summary = text;
     session.current_section = 'education';
     session.data.collection_step = 'level';
     await sendMarkdown(ctx, `✅ *Got it! Thanks for sharing.*
@@ -1294,8 +1346,9 @@ ${getQuestion('education')}`);
 
 // ============ EDUCATION COLLECTION ============
 async function handleEducationCollection(ctx, client, session, text, callbackData = null) {
+    const cvData = ensureCVData(session);
     const step = session.data.collection_step;
-    const education = session.data.cv_data.education;
+    const education = cvData.education;
     const currentEdu = session.data.current_edu || {};
     
     if (step === 'level') {
@@ -1332,7 +1385,7 @@ async function handleEducationCollection(ctx, client, session, text, callbackDat
             session.current_section = 'employment';
             session.data.collection_step = 'title';
             session.data.current_job = {};
-            session.data.cv_data.employment = [];
+            cvData.employment = [];
             await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Education')}\n\n${getQuestion('jobTitle')}`);
             await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
         }
@@ -1343,8 +1396,9 @@ async function handleEducationCollection(ctx, client, session, text, callbackDat
 
 // ============ EMPLOYMENT COLLECTION ============
 async function handleEmploymentCollection(ctx, client, session, text, callbackData = null) {
+    const cvData = ensureCVData(session);
     const step = session.data.collection_step;
-    const employment = session.data.cv_data.employment;
+    const employment = cvData.employment;
     const currentJob = session.data.current_job || {};
     
     if (step === 'title') {
@@ -1394,24 +1448,26 @@ async function handleEmploymentCollection(ctx, client, session, text, callbackDa
 }
 
 async function handleSkillsCollection(ctx, client, session, text) {
-    session.data.cv_data.skills = text.split(',').map(s => s.trim());
+    const cvData = ensureCVData(session);
+    cvData.skills = text.split(',').map(s => s.trim());
     session.current_section = 'certifications';
     session.data.collection_step = 'name';
-    session.data.cv_data.certifications = [];
+    cvData.certifications = [];
     await sendMarkdown(ctx, `${getReaction()} Any certifications? (or 'Skip') 📜`);
     await db.updateSession(session.id, 'collecting_certifications', 'certifications', session.data);
 }
 
 async function handleCertificationsCollection(ctx, client, session, text, callbackData = null) {
+    const cvData = ensureCVData(session);
     const step = session.data.collection_step;
-    const certifications = session.data.cv_data.certifications;
+    const certifications = cvData.certifications;
     const currentCert = session.data.current_cert || {};
     
     if (step === 'name') {
         if (text === 'Skip' || callbackData === 'cert_skip') {
             session.current_section = 'languages';
             session.data.collection_step = 'name';
-            session.data.cv_data.languages = [];
+            cvData.languages = [];
             await sendMarkdown(ctx, `${getReaction()} Languages you speak? (or 'Skip') 🗣️`);
             await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
             return;
@@ -1443,7 +1499,7 @@ async function handleCertificationsCollection(ctx, client, session, text, callba
         } else {
             session.current_section = 'languages';
             session.data.collection_step = 'name';
-            session.data.cv_data.languages = [];
+            cvData.languages = [];
             await sendMarkdown(ctx, `${getReaction()} Languages you speak? (or 'Skip') 🗣️`);
             await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
         }
@@ -1453,15 +1509,16 @@ async function handleCertificationsCollection(ctx, client, session, text, callba
 }
 
 async function handleLanguagesCollection(ctx, client, session, text, callbackData = null) {
+    const cvData = ensureCVData(session);
     const step = session.data.collection_step;
-    const languages = session.data.cv_data.languages;
+    const languages = cvData.languages;
     const currentLang = session.data.current_lang || {};
     
     if (step === 'name') {
         if (text === 'Skip' || callbackData === 'lang_skip') {
             session.current_section = 'referees';
             session.data.collection_step = 'name';
-            session.data.cv_data.referees = [];
+            cvData.referees = [];
             await sendMarkdown(ctx, `Got it! ${getReaction()}\n\nProfessional referees? (Minimum 2 required) 👥\n\nReferee 1 - Full name?`);
             await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
             return;
@@ -1499,7 +1556,7 @@ async function handleLanguagesCollection(ctx, client, session, text, callbackDat
         } else {
             session.current_section = 'referees';
             session.data.collection_step = 'name';
-            session.data.cv_data.referees = [];
+            cvData.referees = [];
             await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Languages')}\n\nProfessional referees? (Minimum 2 required) 👥\n\nReferee 1 - Full name?`);
             await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
         }
@@ -1509,8 +1566,9 @@ async function handleLanguagesCollection(ctx, client, session, text, callbackDat
 }
 
 async function handleRefereesCollection(ctx, client, session, text, callbackData = null) {
+    const cvData = ensureCVData(session);
     const step = session.data.collection_step;
-    const referees = session.data.cv_data.referees;
+    const referees = cvData.referees;
     const currentRef = session.data.current_ref || {};
     const refereeCount = referees.length;
     const minReferees = 2;
@@ -1546,19 +1604,18 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
 }
 
 async function handleUpdateFlow(ctx, client, session) {
-    // This is now handled by handleIntelligentUpdate
     await handleIntelligentUpdate(ctx, client, session);
 }
 
 async function handleUpdateCollection(ctx, client, session, text) {
-    // This is now handled by handleUpdateRequest
     await handleUpdateRequest(ctx, client, session, text);
 }
 
 async function finalizeOrder(ctx, client, session) {
-    const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-    const personal = session.data.cv_data.personal;
+    const cvData = ensureCVData(session);
+    const personal = cvData.personal;
     const name = personal?.full_name || ctx.from.first_name;
+    const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     
     if (personal?.email) await db.updateClient(client.id, { email: personal.email });
     if (personal?.primary_phone) await db.updateClient(client.id, { phone: personal.primary_phone });
@@ -1567,16 +1624,16 @@ async function finalizeOrder(ctx, client, session) {
     if (personal?.nationality) await db.updateClient(client.id, { nationality: personal.nationality });
     if (personal?.special_documents) await db.updateClient(client.id, { special_documents: JSON.stringify(personal.special_documents) });
     
-    await cvVersioning.saveVersion(orderId, session.data.cv_data, 1, 'Initial CV creation');
+    await cvVersioning.saveVersion(orderId, cvData, 1, 'Initial CV creation');
     
-    const cvResult = await documentGenerator.generateCV(session.data.cv_data, null, 'docx', session.data.vacancy_data || null, session.data.certificates_data || null);
+    const cvResult = await documentGenerator.generateCV(cvData, null, 'docx', session.data.vacancy_data || null, session.data.certificates_data || null);
     
     await db.createOrder({
         id: orderId, client_id: client.id, service: session.data.service, category: session.data.category || 'professional',
         delivery_option: session.data.delivery_option, delivery_time: session.data.delivery_time,
         base_price: session.data.base_price, delivery_fee: DELIVERY_PRICES[session.data.delivery_option] || 0,
         total_charge: session.data.total_charge, payment_status: session.data.payment_status || 'pending',
-        cv_data: session.data.cv_data, portfolio_links: JSON.stringify(session.data.portfolio_links || [])
+        cv_data: cvData, portfolio_links: JSON.stringify(session.data.portfolio_links || [])
     });
     session.data.order_id = orderId;
     
@@ -1630,7 +1687,9 @@ async function showClientPortal(ctx, client) {
     await sendMarkdown(ctx, message);
 }
 
+// ============ COVER LETTER HANDLERS WITH SAFE DATA ACCESS ============
 async function handleCoverLetterStart(ctx, client, session) {
+    ensureCoverLetterData(session);
     await sendMarkdown(ctx, `📢 *Cover Letter*
 
 Share the job vacancy (screenshot, PDF, or text). I'll extract the details.`);
@@ -1639,27 +1698,74 @@ Share the job vacancy (screenshot, PDF, or text). I'll extract the details.`);
 }
 
 async function handleVacancyText(ctx, client, session, text) {
-    const vacancyData = aiAnalyzer.extractVacancyDetails(text);
-    session.data.vacancy_data = vacancyData;
-    session.data.awaiting_vacancy = false;
-    await sendMarkdown(ctx, `Found: ${vacancyData.position} at ${vacancyData.company}\n\nPosition applying for? (or 'SAME')`);
-    await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
+    ensureCoverLetterData(session);
+    try {
+        const vacancyData = aiAnalyzer.extractVacancyDetails(text);
+        session.data.vacancy_data = vacancyData;
+        session.data.awaiting_vacancy = false;
+        await sendMarkdown(ctx, `Found: ${vacancyData.position} at ${vacancyData.company}\n\nPosition applying for? (or 'SAME')`);
+        await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
+    } catch (error) {
+        console.error('Vacancy extraction error:', error);
+        await sendMarkdown(ctx, `⚠️ Could not extract vacancy details. Please type the position you're applying for.`);
+        session.data.awaiting_vacancy = false;
+        await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
+    }
 }
 
 async function handleCoverLetterPosition(ctx, client, session, text) {
+    ensureCoverLetterData(session);
     session.data.coverletter_position = text.toLowerCase() === 'same' && session.data.vacancy_data?.position ? session.data.vacancy_data.position : text;
     await sendMarkdown(ctx, `Company name? 🏢`);
     await db.updateSession(session.id, 'collecting_coverletter_company', 'coverletter', session.data);
 }
 
 async function handleCoverLetterCompany(ctx, client, session, text) {
+    ensureCoverLetterData(session);
     session.data.coverletter_company = text;
+    
+    // Validate required fields
+    if (!session.data.coverletter_position || session.data.coverletter_position === 'Not specified') {
+        await sendMarkdown(ctx, `⚠️ I need the position you're applying for. Please tell me the job title.`);
+        return;
+    }
+    
     const orderId = `CL_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    
+    // Get CV data if available (for personal info)
+    const cvData = session.data.cv_data || {};
+    
+    // Create cover letter using document generator
+    const coverResult = await documentGenerator.generateCoverLetter(
+        { 
+            position: session.data.coverletter_position, 
+            company: session.data.coverletter_company 
+        },
+        cvData,
+        null,
+        false
+    );
+    
     await db.createOrder({
-        id: orderId, client_id: client.id, service: 'cover letter', category: session.data.category || 'professional',
-        delivery_option: 'standard', delivery_time: '6 hours', base_price: 5000, delivery_fee: 0,
-        total_charge: 'MK5,000', payment_status: 'pending', cv_data: { coverletter: session.data }
+        id: orderId,
+        client_id: client.id,
+        service: 'cover letter',
+        category: session.data.category || 'professional',
+        delivery_option: 'standard',
+        delivery_time: '6 hours',
+        base_price: 5000,
+        delivery_fee: 0,
+        total_charge: 'MK5,000',
+        payment_status: 'pending',
+        cv_data: { 
+            coverletter: {
+                position: session.data.coverletter_position,
+                company: session.data.coverletter_company,
+                vacancy: session.data.vacancy_data
+            }
+        }
     });
+    
     await sendMarkdown(ctx, `🎉 Cover letter ready!\n\nOrder: \`${orderId}\`\nPosition: ${session.data.coverletter_position}\nCompany: ${session.data.coverletter_company}\nTotal: MK5,000\n\nType /pay when ready.`);
     await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
 }
@@ -1761,6 +1867,8 @@ bot.command('resume', async (ctx) => {
             resumeMessage = "Let's continue with your missing information.";
         } else if (resumeStage === 'awaiting_update_request') {
             resumeMessage = "You were updating your CV. Please tell me what changes you want.";
+        } else if (resumeStage === 'awaiting_vacancy_upload') {
+            resumeMessage = "You were creating a cover letter. Please share the job vacancy.";
         } else {
             resumeMessage = "Let's continue where we left off.";
         }
@@ -2126,7 +2234,6 @@ async function startBot() {
         console.log('⚠️ Could not set commands:', cmdError.message);
     }
     
-    // Always use webhook on Render
     const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://easysuccor-bot.onrender.com';
     const webhookPath = '/webhook';
     const fullWebhookUrl = `${WEBHOOK_URL}${webhookPath}`;
@@ -2138,7 +2245,6 @@ async function startBot() {
         console.error('❌ Failed to set webhook:', webhookError.message);
     }
     
-    // Setup webhook endpoint
     app.post(webhookPath, (req, res) => {
         bot.handleUpdate(req.body, res);
     });
@@ -2150,12 +2256,11 @@ async function startBot() {
     console.log('  ✅ Smart Draft Upload - Auto-extracts data');
     console.log('  ✅ Physical address, nationality, special documents');
     console.log('  ✅ Intelligent CV Update - Natural language processing');
+    console.log('  ✅ Safe CV and Cover Letter data handling');
     console.log('  ✅ Real testimonials (no fake data)');
     console.log('  ✅ Webhook mode (production)');
     console.log('========================================');
 }
 
-// Start the bot
 startBot().catch(console.error);
-
 module.exports = bot;

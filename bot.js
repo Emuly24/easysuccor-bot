@@ -1649,101 +1649,209 @@ async function handleCertificationsCollection(ctx, client, session, text, callba
     await db.updateSession(session.id, 'collecting_certifications', 'certifications', session.data);
 }
 
+// ============ FIXED LANGUAGES COLLECTION ============
 async function handleLanguagesCollection(ctx, client, session, text, callbackData = null) {
-    const cvData = ensureCVData(session);
-    const step = session.data.collection_step;
-    const languages = cvData.languages;
-    const currentLang = session.data.current_lang || {};
+    console.log(`[LANGUAGES] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
     
+    const cvData = ensureCVData(session);
+    let step = session.data.collection_step;
+    const languages = cvData.languages;
+    
+    // Initialize current_lang if not exists
+    if (!session.data.current_lang) {
+        session.data.current_lang = {};
+    }
+    const currentLang = session.data.current_lang;
+    
+    // ============ STEP 1: LANGUAGE NAME ============
     if (step === 'name') {
+        // Check if user wants to skip
         if (text === 'Skip' || callbackData === 'lang_skip') {
+            console.log(`[LANGUAGES] User skipped languages, moving to referees`);
             session.current_section = 'referees';
             session.data.collection_step = 'name';
-            cvData.referees = [];
-            await sendMarkdown(ctx, `Got it! ${getReaction()}\n\nProfessional referees? (Minimum 2 required) 👥\n\nReferee 1 - Full name?`);
+            session.data.cv_data.referees = [];
+            await sendMarkdown(ctx, `Got it! ${getReaction()}\n\nNow let's add professional referees. (Minimum 2 required) 👥\n\n**Referee 1 - Full name?**`);
             await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
             return;
         }
+        
         currentLang.name = text;
         session.data.current_lang = currentLang;
         session.data.collection_step = 'proficiency';
-        await sendMarkdown(ctx, "Level?", {
+        
+        console.log(`[LANGUAGES] Language name saved: "${text}", moving to proficiency`);
+        
+        await sendMarkdown(ctx, "What's your proficiency level?", {
             reply_markup: { inline_keyboard: [
                 [{ text: "🔰 Basic", callback_data: "prof_basic" }],
                 [{ text: "📖 Intermediate", callback_data: "prof_intermediate" }],
                 [{ text: "⭐ Fluent", callback_data: "prof_fluent" }]
             ] }
         });
+        await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
+        return;
     }
-    else if (step === 'proficiency') {
-        let proficiency = { prof_basic: 'Basic', prof_intermediate: 'Intermediate', prof_fluent: 'Fluent' }[callbackData] || text;
+    
+    // ============ STEP 2: PROFICIENCY LEVEL ============
+    if (step === 'proficiency') {
+        let proficiency = 'Basic';
+        if (callbackData === 'prof_basic') proficiency = 'Basic';
+        else if (callbackData === 'prof_intermediate') proficiency = 'Intermediate';
+        else if (callbackData === 'prof_fluent') proficiency = 'Fluent';
+        else proficiency = text;
+        
         currentLang.proficiency = proficiency;
         languages.push({ ...currentLang });
         session.data.current_lang = null;
         session.data.collection_step = 'add_more';
-        await sendMarkdown(ctx, `${getReaction()} Another language?`, {
+        
+        console.log(`[LANGUAGES] Language saved: ${currentLang.name} (${proficiency}), total languages: ${languages.length}`);
+        
+        await sendMarkdown(ctx, `${getReaction()} Language saved! Another language?`, {
             reply_markup: { inline_keyboard: [
                 [{ text: "✅ Yes", callback_data: "lang_yes" }],
                 [{ text: "❌ No", callback_data: "lang_no" }],
-                [{ text: "⏭️ Skip", callback_data: "lang_skip" }]
+                [{ text: "⏭️ Skip All", callback_data: "lang_skip" }]
             ] }
         });
+        await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
+        return;
     }
-    else if (step === 'add_more') {
+    
+    // ============ STEP 3: ADD MORE LANGUAGES ============
+    if (step === 'add_more') {
         if (callbackData === 'lang_yes') {
+            // Add another language
             session.data.collection_step = 'name';
             session.data.current_lang = {};
-            await sendMarkdown(ctx, "Language name? 🗣️");
+            
+            console.log(`[LANGUAGES] Adding another language`);
+            
+            await sendMarkdown(ctx, "What's the next language? 🗣️");
+            await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
+            return;
         } else {
+            // Move to referees
             session.current_section = 'referees';
             session.data.collection_step = 'name';
-            cvData.referees = [];
-            await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Languages')}\n\nProfessional referees? (Minimum 2 required) 👥\n\nReferee 1 - Full name?`);
+            session.data.cv_data.referees = [];
+            
+            console.log(`[LANGUAGES] Languages complete! Moving to referees section`);
+            
+            await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Languages')}\n\nNow let's add professional referees. (Minimum 2 required) 👥\n\n**Referee 1 - Full name?**`);
             await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+            return;
         }
     }
     
+    // ============ FALLBACK ============
+    console.log(`[LANGUAGES] UNKNOWN STEP: ${step}, resetting to name`);
+    session.data.collection_step = 'name';
+    await sendMarkdown(ctx, "Let's start over. What language do you speak? 🗣️ (or type 'Skip')");
     await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
 }
 
+// ============ FIXED REFEREES COLLECTION ============
 async function handleRefereesCollection(ctx, client, session, text, callbackData = null) {
+    console.log(`[REFEREES] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
+    
     const cvData = ensureCVData(session);
-    const step = session.data.collection_step;
+    let step = session.data.collection_step;
     const referees = cvData.referees;
-    const currentRef = session.data.current_ref || {};
+    
+    // Initialize current_ref if not exists
+    if (!session.data.current_ref) {
+        session.data.current_ref = {};
+    }
+    const currentRef = session.data.current_ref;
     const refereeCount = referees.length;
     const minReferees = 2;
     
+    // ============ STEP 1: REFEREE NAME ============
     if (step === 'name') {
         if (text === 'Skip') {
-            await sendMarkdown(ctx, `⚠️ Need at least ${minReferees} referees! Referee ${refereeCount + 1} - Full name?`);
+            await sendMarkdown(ctx, `⚠️ Need at least ${minReferees} referees! Please provide referee ${refereeCount + 1} - Full name?`);
             return;
         }
+        
         currentRef.name = text;
         session.data.current_ref = currentRef;
         session.data.collection_step = 'position';
-        await sendMarkdown(ctx, `Referee ${refereeCount + 1} - Their position? 📌\n*Example:* Senior Manager`);
+        
+        console.log(`[REFEREES] Referee name saved: "${text}", moving to position`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Their position?** 📌\n*Example:* Senior Manager, HR Director, Team Lead`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
     }
-    else if (step === 'position') {
+    
+    // ============ STEP 2: REFEREE POSITION ============
+    if (step === 'position') {
         currentRef.position = text;
+        session.data.current_ref = currentRef;
         session.data.collection_step = 'contact';
-        await sendMarkdown(ctx, `Referee ${refereeCount + 1} - Contact? (phone or email) 📞\n*Example:* +265 991 234 567 or jane@example.com`);
+        
+        console.log(`[REFEREES] Position saved: "${text}", moving to contact`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Contact information?** 📞\n*Example:* +265 991 234 567 or jane@example.com`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
     }
-    else if (step === 'contact') {
+    
+    // ============ STEP 3: REFEREE CONTACT ============
+    if (step === 'contact') {
         currentRef.contact = text;
         referees.push({ ...currentRef });
-        session.data.current_ref = null;
+        session.data.current_ref = {};
+        
+        console.log(`[REFEREES] Referee ${refereeCount + 1} saved. Total referees: ${referees.length}`);
+        
         if (referees.length < minReferees) {
+            // Need more referees
             session.data.collection_step = 'name';
-            await sendMarkdown(ctx, `✅ Referee ${referees.length} added. Need ${minReferees - referees.length} more.\n\nReferee ${referees.length + 1} - Full name?`);
+            await sendMarkdown(ctx, `✅ Referee ${referees.length} added. Need ${minReferees - referees.length} more.\n\n**Referee ${referees.length + 1} - Full name?**`);
+            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
         } else {
+            // We have enough referees, ask if they want more
+            session.data.collection_step = 'add_more';
+            await sendMarkdown(ctx, `✅ ${referees.length} referees added! Another referee?`, {
+                reply_markup: { inline_keyboard: [
+                    [{ text: "✅ Yes", callback_data: "more_ref_yes" }],
+                    [{ text: "❌ No, continue", callback_data: "more_ref_no" }]
+                ] }
+            });
+            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        }
+        return;
+    }
+    
+    // ============ STEP 4: ADD MORE REFEREES ============
+    if (step === 'add_more') {
+        if (callbackData === 'more_ref_yes') {
+            // Add another referee
+            session.data.collection_step = 'name';
+            session.data.current_ref = {};
+            
+            console.log(`[REFEREES] Adding another referee`);
+            
+            await sendMarkdown(ctx, `**Referee ${referees.length + 1} - Full name?** 👥`);
+            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+            return;
+        } else {
+            // Move to finalize order
+            console.log(`[REFEREES] Referees complete! Moving to finalize order`);
             await finalizeOrder(ctx, client, session);
+            return;
         }
     }
     
+    // ============ FALLBACK ============
+    console.log(`[REFEREES] UNKNOWN STEP: ${step}, resetting to name`);
+    session.data.collection_step = 'name';
+    await sendMarkdown(ctx, "Let's start over. Please provide referee 1 - Full name? 👥");
     await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
 }
-
 async function handleUpdateFlow(ctx, client, session) {
     await handleIntelligentUpdate(ctx, client, session);
 }
@@ -2387,13 +2495,26 @@ else if (data === 'cancel_action') {
             await handleCertificationsCollection(ctx, client, session, '', data); 
         }
     }
-    else if (data === 'lang_yes' || data === 'lang_no' || data === 'lang_skip') { 
-        if (data === 'lang_skip') {
-            await handleLanguagesCollection(ctx, client, session, 'Skip', data); 
-        } else {
-            await handleLanguagesCollection(ctx, client, session, '', data); 
-        }
+    // In callback query handler, add/verify:
+else if (data === 'lang_yes' || data === 'lang_no' || data === 'lang_skip') { 
+    console.log(`[CALLBACK] Language callback: ${data}`);
+    if (data === 'lang_skip') {
+        await handleLanguagesCollection(ctx, client, session, 'Skip', data); 
+    } else {
+        await handleLanguagesCollection(ctx, client, session, '', data); 
     }
+}
+else if (data === 'more_ref_yes' || data === 'more_ref_no') {
+    console.log(`[CALLBACK] Referee callback: ${data}`);
+    if (data === 'more_ref_yes') {
+        session.data.collection_step = 'name';
+        session.data.current_ref = {};
+        await sendMarkdown(ctx, `Next referee - Full name? 👥`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+    } else {
+        await finalizeOrder(ctx, client, session);
+    }
+}
     else if (data === 'more_work_yes' || data === 'more_work_no') {
         if (data === 'more_work_yes') {
             session.data.collection_step = 'title';

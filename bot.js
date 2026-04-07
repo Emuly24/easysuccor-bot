@@ -968,25 +968,82 @@ WhatsApp: +265 881 193 707`);
 
 // ============ FIXED HANDLE PORTFOLIO COLLECTION ============
 async function handlePortfolioCollection(ctx, client, session, text) {
-    // Ensure session.data exists
-    if (!session.data) {
-        session.data = {};
+    try {
+        // Ensure session exists
+        if (!session) {
+            console.error('Session is null/undefined');
+            session = { data: {} };
+        }
+        if (!session.data) {
+            session.data = {};
+        }
+        
+        // Handle the skip button or text input
+        let portfolioLinks = [];
+        
+        if (text === 'skip' || (text && text.toLowerCase() === 'skip')) {
+            portfolioLinks = [];
+        } else if (text && typeof text === 'string') {
+            // Parse links - split by new lines and filter for http links
+            const lines = text.split('\n');
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed && (trimmed.startsWith('http://') || trimmed.startsWith('https://'))) {
+                    portfolioLinks.push(trimmed);
+                }
+            }
+        }
+        
+        // Store in session
+        session.data.portfolio_links = portfolioLinks;
+        
+        // Now this will always have .length
+        const linkCount = session.data.portfolio_links.length;
+        
+        await sendMarkdown(ctx, `${getReaction()} ${linkCount > 0 ? 'Portfolio saved!' : 'No portfolio added.'}\n\nNow let's collect your details.\n\n${getQuestion('name')}`);
+        
+        await startDataCollection(ctx, client, session);
+        
+    } catch (error) {
+        console.error('Portfolio collection error:', error);
+        // Fallback - continue anyway
+        if (session && session.data) {
+            session.data.portfolio_links = [];
+        }
+        await sendMarkdown(ctx, `Let's continue with your details.\n\n${getQuestion('name')}`);
+        await startDataCollection(ctx, client, session);
+    }
+}
+class PortfolioCollector {
+    async askForPortfolio(ctx) {
+        await sendMarkdown(ctx, `📎 *Portfolio Items (Optional)*
+
+Would you like to include links to your work?
+
+• GitHub repositories
+• Behance/Dribbble portfolio
+• Personal website
+• Case studies
+
+*Why this matters:* Employers love seeing real work examples!
+
+Type your portfolio links (one per line) or click the button below to skip.
+
+*Example:* 
+https://github.com/johndoe
+https://johndoe.com/portfolio`, {
+            reply_markup: { inline_keyboard: [
+                [{ text: "⏭️ Skip Portfolio", callback_data: "portfolio_skip" }]
+            ] }
+        });
     }
     
-    // Parse the portfolio links
-    const parsedLinks = portfolioCollector.parsePortfolioLinks(text);
-    
-    // CRITICAL FIX: Always ensure portfolio_links is an array
-    session.data.portfolio_links = Array.isArray(parsedLinks) ? parsedLinks : [];
-    
-    // Safely get length (now guaranteed to work)
-    const linkCount = session.data.portfolio_links.length;
-    
-    await sendMarkdown(ctx, `${getReaction()} ${linkCount > 0 ? 'Portfolio saved!' : 'No portfolio added.'}\n\nNow let's collect your details.\n\n${getQuestion('name')}`);
-    
-    await startDataCollection(ctx, client, session);
+    parsePortfolioLinks(text) {
+        // This method is no longer critical but keep for compatibility
+        if (!text || text.toLowerCase() === 'skip') return [];
+        return text.split('\n').filter(line => line && line.trim().startsWith('http'));
+    }
 }
-
 // ============ START DATA COLLECTION ============
 async function startDataCollection(ctx, client, session) {
     // Ensure session.data exists

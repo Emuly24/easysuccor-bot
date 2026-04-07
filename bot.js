@@ -634,6 +634,22 @@ https://johndoe.com/portfolio`);
 
 const portfolioCollector = new PortfolioCollector();
 
+// ============ HANDLE PORTFOLIO COLLECTION ============
+async function handlePortfolioCollection(ctx, client, session, text) {
+    // Parse the portfolio links using the existing collector
+    const parsedLinks = portfolioCollector.parsePortfolioLinks(text);
+    
+    // Ensure portfolio_links is always an array
+    session.data.portfolio_links = Array.isArray(parsedLinks) ? parsedLinks : [];
+    
+    // Safely get the count
+    const linkCount = session.data.portfolio_links.length;
+    
+    await sendMarkdown(ctx, `${getReaction()} ${linkCount > 0 ? 'Portfolio saved!' : 'No portfolio added.'}\n\nNow let's collect your details.\n\n${getQuestion('name')}`);
+    
+    await startDataCollection(ctx, client, session);
+}
+
 // ============ DYNAMIC RESPONSES ============
 const RESPONSES = {
     greetings: [

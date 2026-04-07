@@ -33,7 +33,7 @@ const adminAuth = (req, res, next) => {
     next();
 };
 
-// Admin upload endpoint for multiple files (auto-extracts client info)
+// Admin upload endpoint for multiple files
 app.post('/admin/upload-batch', adminAuth, upload.array('files', 20), async (req, res) => {
     try {
         const files = req.files;
@@ -118,7 +118,7 @@ app.post('/admin/upload-batch', adminAuth, upload.array('files', 20), async (req
     }
 });
 
-// Admin single file upload (backward compatible)
+// Admin single file upload
 app.post('/admin/upload-cv', adminAuth, upload.single('cv_file'), async (req, res) => {
     try {
         const file = req.file;
@@ -708,7 +708,7 @@ async function getOrCreateSession(clientId) {
     return session;
 }
 
-// ============ PERSISTENT KEYBOARD ============
+// ============ PERSISTENT KEYBOARD WITH EDITABLE COVER LETTER ============
 const mainMenuKeyboard = Markup.keyboard([
     [Markup.button.text("📄 New CV"), Markup.button.text("📝 Editable CV")],
     [Markup.button.text("💌 Cover Letter"), Markup.button.text("📎 Editable Cover Letter")],
@@ -966,7 +966,7 @@ async function handlePortfolioCollection(ctx, client, session, text) {
     await startDataCollection(ctx, client, session);
 }
 
-// ============ UPDATED START DATA COLLECTION WITH NEW FIELDS ============
+// ============ START DATA COLLECTION WITH NEW FIELDS ============
 async function startDataCollection(ctx, client, session) {
     session.data.cv_data = {
         personal: {
@@ -997,7 +997,7 @@ async function startDataCollection(ctx, client, session) {
     await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
 }
 
-// ============ UPDATED PERSONAL COLLECTION WITH NEW FIELDS ============
+// ============ PERSONAL COLLECTION WITH NEW FIELDS ============
 async function handlePersonalCollection(ctx, client, session, text) {
     const step = session.data.collection_step;
     const personal = session.data.cv_data.personal;
@@ -1093,49 +1093,106 @@ ${getQuestion('education')}`);
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
 }
 
+// ============ FIXED EDUCATION COLLECTION ============
 async function handleEducationCollection(ctx, client, session, text, callbackData = null) {
     const step = session.data.collection_step;
     const education = session.data.cv_data.education;
     const currentEdu = session.data.current_edu || {};
     
-    if (step === 'level') { currentEdu.level = text; session.data.current_edu = currentEdu; session.data.collection_step = 'field'; await sendMarkdown(ctx, "Field of study? 📚\n*Example:* Computer Science"); }
-    else if (step === 'field') { currentEdu.field = text; session.data.collection_step = 'institution'; await sendMarkdown(ctx, "Institution? 🏛️\n*Example:* University of Malawi"); }
-    else if (step === 'institution') { currentEdu.institution = text; session.data.collection_step = 'year'; await sendMarkdown(ctx, "Year of completion? 📅\n*Example:* 2020"); }
+    if (step === 'level') {
+        currentEdu.level = text;
+        session.data.current_edu = currentEdu;
+        session.data.collection_step = 'field';
+        await sendMarkdown(ctx, "Field of study? 📚\n*Example:* Computer Science");
+    }
+    else if (step === 'field') {
+        currentEdu.field = text;
+        session.data.collection_step = 'institution';
+        await sendMarkdown(ctx, "Institution? 🏛️\n*Example:* University of Malawi");
+    }
+    else if (step === 'institution') {
+        currentEdu.institution = text;
+        session.data.collection_step = 'year';
+        await sendMarkdown(ctx, "Year of completion? 📅\n*Example:* 2020");
+    }
     else if (step === 'year') {
-        currentEdu.year = text; education.push({ ...currentEdu }); session.data.current_edu = null; session.data.collection_step = 'add_more';
-        await sendMarkdown(ctx, `${getReaction()} Another qualification?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "edu_yes" }, { text: "❌ No", callback_data: "edu_no" }]] } });
+        currentEdu.year = text;
+        education.push({ ...currentEdu });
+        session.data.current_edu = null;
+        session.data.collection_step = 'add_more';
+        await sendMarkdown(ctx, `${getReaction()} Another qualification?`, {
+            reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "edu_yes" }, { text: "❌ No", callback_data: "edu_no" }]] }
+        });
     }
-    else if (step === 'add_more' && (isAffirmative(text) || callbackData === 'edu_yes')) { session.data.collection_step = 'level'; session.data.current_edu = {}; await sendMarkdown(ctx, "Next qualification? 🎓"); }
-    else {
-        session.current_section = 'employment';
-        session.data.collection_step = 'title';
-        session.data.current_job = {};
-        session.data.cv_data.employment = [];
-        await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Education')}\n\n${getQuestion('jobTitle')}`);
-        await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+    else if (step === 'add_more') {
+        if (callbackData === 'edu_yes') {
+            session.data.collection_step = 'level';
+            session.data.current_edu = {};
+            await sendMarkdown(ctx, "Next qualification? 🎓");
+        } else {
+            // Move to employment section
+            session.current_section = 'employment';
+            session.data.collection_step = 'title';
+            session.data.current_job = {};
+            session.data.cv_data.employment = [];
+            await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Education')}\n\n${getQuestion('jobTitle')}`);
+            await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+        }
     }
+    
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
 }
 
+// ============ FIXED EMPLOYMENT COLLECTION ============
 async function handleEmploymentCollection(ctx, client, session, text, callbackData = null) {
     const step = session.data.collection_step;
     const employment = session.data.cv_data.employment;
     const currentJob = session.data.current_job || {};
     
-    if (step === 'title') { currentJob.title = text; session.data.current_job = currentJob; session.data.collection_step = 'company'; await sendMarkdown(ctx, "Company name? 🏢\n*Example:* ABC Corporation"); }
-    else if (step === 'company') { currentJob.company = text; session.data.collection_step = 'duration'; await sendMarkdown(ctx, "Duration? 📅\n*Example:* Jan 2020 - Present (3 years)"); }
-    else if (step === 'duration') { currentJob.duration = text; session.data.collection_step = 'responsibilities'; currentJob.responsibilities = []; await sendMarkdown(ctx, `Key responsibilities? One per line. Type DONE when finished.\n\n*Example:*\n• Led a team of 5 developers\n• Increased efficiency by 30%\n\nType DONE when done.`); }
+    if (step === 'title') {
+        currentJob.title = text;
+        session.data.current_job = currentJob;
+        session.data.collection_step = 'company';
+        await sendMarkdown(ctx, "Company name? 🏢\n*Example:* ABC Corporation");
+    }
+    else if (step === 'company') {
+        currentJob.company = text;
+        session.data.collection_step = 'duration';
+        await sendMarkdown(ctx, "Duration? 📅\n*Example:* Jan 2020 - Present (3 years)");
+    }
+    else if (step === 'duration') {
+        currentJob.duration = text;
+        session.data.collection_step = 'responsibilities';
+        currentJob.responsibilities = [];
+        await sendMarkdown(ctx, `Key responsibilities? One per line. Type DONE when finished.\n\n*Example:*\n• Led a team of 5 developers\n• Increased efficiency by 30%\n\nType DONE when done.`);
+    }
     else if (step === 'responsibilities') {
-        if (text.toUpperCase() !== 'DONE') { currentJob.responsibilities.push(text); await sendMarkdown(ctx, `✓ Got it. Another? (type DONE when done)`); }
-        else { employment.push({ ...currentJob }); session.data.current_job = null; session.data.collection_step = 'add_more'; await sendMarkdown(ctx, `${getReaction()} Another job?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "emp_yes" }, { text: "❌ No", callback_data: "emp_no" }]] } }); }
+        if (text.toUpperCase() !== 'DONE') {
+            currentJob.responsibilities.push(text);
+            await sendMarkdown(ctx, `✓ Added. Another responsibility? (type DONE when done)`);
+        } else {
+            employment.push({ ...currentJob });
+            session.data.current_job = null;
+            session.data.collection_step = 'add_more';
+            await sendMarkdown(ctx, `${getReaction()} Another job?`, {
+                reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "emp_yes" }, { text: "❌ No", callback_data: "emp_no" }]] }
+            });
+        }
     }
-    else if (step === 'add_more' && (isAffirmative(text) || callbackData === 'emp_yes')) { session.data.collection_step = 'title'; session.data.current_job = {}; await sendMarkdown(ctx, "Next job title? 💼"); }
-    else {
-        session.current_section = 'skills';
-        session.data.collection_step = 'skills';
-        await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Employment')}\n\n${getQuestion('skills')}`);
-        await db.updateSession(session.id, 'collecting_skills', 'skills', session.data);
+    else if (step === 'add_more') {
+        if (callbackData === 'emp_yes') {
+            session.data.collection_step = 'title';
+            session.data.current_job = {};
+            await sendMarkdown(ctx, "Next job title? 💼");
+        } else {
+            // Move to skills section
+            session.current_section = 'skills';
+            session.data.collection_step = 'skills';
+            await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Employment')}\n\n${getQuestion('skills')}`);
+            await db.updateSession(session.id, 'collecting_skills', 'skills', session.data);
+        }
     }
+    
     await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
 }
 
@@ -1162,21 +1219,39 @@ async function handleCertificationsCollection(ctx, client, session, text, callba
             await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
             return;
         }
-        currentCert.name = text; session.data.current_cert = currentCert; session.data.collection_step = 'issuer'; await sendMarkdown(ctx, "Issuing organization? 🏛️\n*Example:* TEVETA");
+        currentCert.name = text;
+        session.data.current_cert = currentCert;
+        session.data.collection_step = 'issuer';
+        await sendMarkdown(ctx, "Issuing organization? 🏛️\n*Example:* TEVETA");
     }
-    else if (step === 'issuer') { currentCert.issuer = text; session.data.collection_step = 'year'; await sendMarkdown(ctx, "Year obtained? 📅\n*Example:* 2022"); }
+    else if (step === 'issuer') {
+        currentCert.issuer = text;
+        session.data.collection_step = 'year';
+        await sendMarkdown(ctx, "Year obtained? 📅\n*Example:* 2022");
+    }
     else if (step === 'year') {
-        currentCert.year = text; certifications.push({ ...currentCert }); session.data.current_cert = null; session.data.collection_step = 'add_more';
-        await sendMarkdown(ctx, `${getReaction()} Another certification?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "cert_yes" }, { text: "❌ No", callback_data: "cert_no" }, { text: "⏭️ Skip", callback_data: "cert_skip" }]] } });
+        currentCert.year = text;
+        certifications.push({ ...currentCert });
+        session.data.current_cert = null;
+        session.data.collection_step = 'add_more';
+        await sendMarkdown(ctx, `${getReaction()} Another certification?`, {
+            reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "cert_yes" }, { text: "❌ No", callback_data: "cert_no" }, { text: "⏭️ Skip", callback_data: "cert_skip" }]] }
+        });
     }
-    else if ((step === 'add_more' && isAffirmative(text)) || callbackData === 'cert_yes') { session.data.collection_step = 'name'; session.data.current_cert = {}; await sendMarkdown(ctx, "Certification name? 📜"); }
-    else {
-        session.current_section = 'languages';
-        session.data.collection_step = 'name';
-        session.data.cv_data.languages = [];
-        await sendMarkdown(ctx, `${getReaction()} Languages you speak? (or 'Skip') 🗣️`);
-        await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
+    else if (step === 'add_more') {
+        if (callbackData === 'cert_yes') {
+            session.data.collection_step = 'name';
+            session.data.current_cert = {};
+            await sendMarkdown(ctx, "Certification name? 📜");
+        } else {
+            session.current_section = 'languages';
+            session.data.collection_step = 'name';
+            session.data.cv_data.languages = [];
+            await sendMarkdown(ctx, `${getReaction()} Languages you speak? (or 'Skip') 🗣️`);
+            await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
+        }
     }
+    
     await db.updateSession(session.id, 'collecting_certifications', 'certifications', session.data);
 }
 
@@ -1194,22 +1269,45 @@ async function handleLanguagesCollection(ctx, client, session, text, callbackDat
             await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
             return;
         }
-        currentLang.name = text; session.data.current_lang = currentLang; session.data.collection_step = 'proficiency';
-        await sendMarkdown(ctx, "Level?", { reply_markup: { inline_keyboard: [[{ text: "🔰 Basic", callback_data: "prof_basic" }, { text: "📖 Intermediate", callback_data: "prof_intermediate" }, { text: "⭐ Fluent", callback_data: "prof_fluent" }]] } });
+        currentLang.name = text;
+        session.data.current_lang = currentLang;
+        session.data.collection_step = 'proficiency';
+        await sendMarkdown(ctx, "Level?", {
+            reply_markup: { inline_keyboard: [
+                [{ text: "🔰 Basic", callback_data: "prof_basic" }],
+                [{ text: "📖 Intermediate", callback_data: "prof_intermediate" }],
+                [{ text: "⭐ Fluent", callback_data: "prof_fluent" }]
+            ] }
+        });
     }
     else if (step === 'proficiency') {
         let proficiency = { prof_basic: 'Basic', prof_intermediate: 'Intermediate', prof_fluent: 'Fluent' }[callbackData] || text;
-        currentLang.proficiency = proficiency; languages.push({ ...currentLang }); session.data.current_lang = null; session.data.collection_step = 'add_more';
-        await sendMarkdown(ctx, `${getReaction()} Another language?`, { reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "lang_yes" }, { text: "❌ No", callback_data: "lang_no" }, { text: "⏭️ Skip", callback_data: "lang_skip" }]] } });
+        currentLang.proficiency = proficiency;
+        languages.push({ ...currentLang });
+        session.data.current_lang = null;
+        session.data.collection_step = 'add_more';
+        await sendMarkdown(ctx, `${getReaction()} Another language?`, {
+            reply_markup: { inline_keyboard: [
+                [{ text: "✅ Yes", callback_data: "lang_yes" }],
+                [{ text: "❌ No", callback_data: "lang_no" }],
+                [{ text: "⏭️ Skip", callback_data: "lang_skip" }]
+            ] }
+        });
     }
-    else if ((step === 'add_more' && isAffirmative(text)) || callbackData === 'lang_yes') { session.data.collection_step = 'name'; session.data.current_lang = {}; await sendMarkdown(ctx, "Language name? 🗣️"); }
-    else {
-        session.current_section = 'referees';
-        session.data.collection_step = 'name';
-        session.data.cv_data.referees = [];
-        await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Languages')}\n\nProfessional referees? (Minimum 2 required) 👥\n\nReferee 1 - Full name?`);
-        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+    else if (step === 'add_more') {
+        if (callbackData === 'lang_yes') {
+            session.data.collection_step = 'name';
+            session.data.current_lang = {};
+            await sendMarkdown(ctx, "Language name? 🗣️");
+        } else {
+            session.current_section = 'referees';
+            session.data.collection_step = 'name';
+            session.data.cv_data.referees = [];
+            await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Languages')}\n\nProfessional referees? (Minimum 2 required) 👥\n\nReferee 1 - Full name?`);
+            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        }
     }
+    
     await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
 }
 
@@ -1221,12 +1319,24 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
     const minReferees = 2;
     
     if (step === 'name') {
-        if (text === 'Skip') { await sendMarkdown(ctx, `⚠️ Need at least ${minReferees} referees! Referee ${refereeCount + 1} - Full name?`); return; }
-        currentRef.name = text; session.data.current_ref = currentRef; session.data.collection_step = 'position'; await sendMarkdown(ctx, `Referee ${refereeCount + 1} - Their position? 📌\n*Example:* Senior Manager`);
+        if (text === 'Skip') {
+            await sendMarkdown(ctx, `⚠️ Need at least ${minReferees} referees! Referee ${refereeCount + 1} - Full name?`);
+            return;
+        }
+        currentRef.name = text;
+        session.data.current_ref = currentRef;
+        session.data.collection_step = 'position';
+        await sendMarkdown(ctx, `Referee ${refereeCount + 1} - Their position? 📌\n*Example:* Senior Manager`);
     }
-    else if (step === 'position') { currentRef.position = text; session.data.collection_step = 'contact'; await sendMarkdown(ctx, `Referee ${refereeCount + 1} - Contact? (phone or email) 📞\n*Example:* +265 991 234 567 or jane@example.com`); }
+    else if (step === 'position') {
+        currentRef.position = text;
+        session.data.collection_step = 'contact';
+        await sendMarkdown(ctx, `Referee ${refereeCount + 1} - Contact? (phone or email) 📞\n*Example:* +265 991 234 567 or jane@example.com`);
+    }
     else if (step === 'contact') {
-        currentRef.contact = text; referees.push({ ...currentRef }); session.data.current_ref = null;
+        currentRef.contact = text;
+        referees.push({ ...currentRef });
+        session.data.current_ref = null;
         if (referees.length < minReferees) {
             session.data.collection_step = 'name';
             await sendMarkdown(ctx, `✅ Referee ${referees.length} added. Need ${minReferees - referees.length} more.\n\nReferee ${referees.length + 1} - Full name?`);
@@ -1234,6 +1344,7 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
             await finalizeOrder(ctx, client, session);
         }
     }
+    
     await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
 }
 
@@ -1455,13 +1566,55 @@ bot.command('resume', async (ctx) => {
     const pausedSession = await db.getPausedSession(client.id);
     if (pausedSession) {
         pausedSession.data = JSON.parse(pausedSession.data);
+        
+        // Determine where to resume based on session data
+        let resumeStage = pausedSession.stage;
+        let resumeMessage = "";
+        
+        if (resumeStage === 'collecting_personal') {
+            const step = pausedSession.data.collection_step;
+            if (step === 'name') resumeMessage = getQuestion('name');
+            else if (step === 'email') resumeMessage = getQuestion('email');
+            else if (step === 'phone') resumeMessage = getQuestion('phone');
+            else if (step === 'alt_phone') resumeMessage = "Alternative phone? (or 'Skip') 📞";
+            else if (step === 'whatsapp') resumeMessage = "WhatsApp for delivery? (or 'Same') 📱";
+            else if (step === 'location') resumeMessage = "Where are you based? (City, Country) 📍";
+            else if (step === 'physical_address') resumeMessage = "What's your physical address? 🏠 (or 'Skip')";
+            else if (step === 'nationality') resumeMessage = "What's your nationality? 🌍 (or 'Skip')";
+            else if (step === 'special_docs') resumeMessage = "Special documents? (Type 'Skip' or 'Done')";
+            else resumeMessage = getQuestion('name');
+        } else if (resumeStage === 'collecting_summary') {
+            resumeMessage = getQuestion('summary');
+        } else if (resumeStage === 'collecting_education') {
+            const step = pausedSession.data.collection_step;
+            if (step === 'level') resumeMessage = "Highest qualification? 🎓";
+            else if (step === 'field') resumeMessage = "Field of study? 📚";
+            else if (step === 'institution') resumeMessage = "Institution? 🏛️";
+            else if (step === 'year') resumeMessage = "Year of completion? 📅";
+            else resumeMessage = "Highest qualification? 🎓";
+        } else if (resumeStage === 'collecting_employment') {
+            const step = pausedSession.data.collection_step;
+            if (step === 'title') resumeMessage = getQuestion('jobTitle');
+            else if (step === 'company') resumeMessage = "Company name? 🏢";
+            else if (step === 'duration') resumeMessage = "Duration? (e.g., Jan 2020 - Present) 📅";
+            else if (step === 'responsibilities') resumeMessage = "Key responsibilities? One per line. Type DONE when finished.";
+            else resumeMessage = getQuestion('jobTitle');
+        } else if (resumeStage === 'collecting_skills') {
+            resumeMessage = getQuestion('skills');
+        } else if (resumeStage === 'collecting_certifications') {
+            resumeMessage = "Any certifications? (or 'Skip') 📜";
+        } else if (resumeStage === 'collecting_languages') {
+            resumeMessage = "Languages you speak? (or 'Skip') 🗣️";
+        } else if (resumeStage === 'collecting_referees') {
+            resumeMessage = "Professional referees? (Minimum 2 required) 👥\n\nReferee 1 - Full name?";
+        } else if (resumeStage === 'collecting_missing') {
+            resumeMessage = "Let's continue with your missing information.";
+        } else {
+            resumeMessage = "Let's continue where we left off.";
+        }
+        
         await db.updateSession(pausedSession.id, pausedSession.stage, pausedSession.current_section, pausedSession.data, 0);
-        await sendMarkdown(ctx, `🔄 Welcome back! Let's continue.`);
-        if (pausedSession.stage === 'collecting_personal') await sendMarkdown(ctx, getQuestion('name'));
-        else if (pausedSession.stage === 'collecting_education') await sendMarkdown(ctx, "Highest qualification? 🎓");
-        else if (pausedSession.stage === 'collecting_employment') await sendMarkdown(ctx, getQuestion('jobTitle'));
-        else if (pausedSession.stage === 'collecting_update') await sendMarkdown(ctx, `Let's continue with your updates.`);
-        else if (pausedSession.stage === 'collecting_missing') await sendMarkdown(ctx, `Let's continue with your missing information.`);
+        await sendMarkdown(ctx, `🔄 Welcome back! Let's continue.\n\n${resumeMessage}`);
     } else {
         await sendMarkdown(ctx, `No paused session found. Type /start to begin fresh.`);
     }
@@ -1695,23 +1848,23 @@ bot.on('callback_query', async (ctx) => {
         await handleDeliverySelection(ctx, client, session, data);
     }
     else if (data === 'edu_yes' || data === 'edu_no') {
-        await handleEducationCollection(ctx, client, session, data === 'edu_yes' ? 'Yes' : 'No', data);
+        await handleEducationCollection(ctx, client, session, '', data);
     }
     else if (data === 'emp_yes' || data === 'emp_no') {
-        await handleEmploymentCollection(ctx, client, session, data === 'emp_yes' ? 'Yes' : 'No', data);
+        await handleEmploymentCollection(ctx, client, session, '', data);
     }
     else if (data === 'cert_yes' || data === 'cert_no' || data === 'cert_skip') { 
         if (data === 'cert_skip') {
             await handleCertificationsCollection(ctx, client, session, 'Skip', data); 
         } else {
-            await handleCertificationsCollection(ctx, client, session, data === 'cert_yes' ? 'Yes' : 'No', data); 
+            await handleCertificationsCollection(ctx, client, session, '', data); 
         }
     }
     else if (data === 'lang_yes' || data === 'lang_no' || data === 'lang_skip') { 
         if (data === 'lang_skip') {
             await handleLanguagesCollection(ctx, client, session, 'Skip', data); 
         } else {
-            await handleLanguagesCollection(ctx, client, session, data === 'lang_yes' ? 'Yes' : 'No', data); 
+            await handleLanguagesCollection(ctx, client, session, '', data); 
         }
     }
     else if (data === 'more_work_yes' || data === 'more_work_no') {
@@ -1812,6 +1965,8 @@ async function startBot() {
     console.log('  ✅ Smart Draft Upload - Auto-extracts data');
     console.log('  ✅ Physical address, nationality, special documents collected');
     console.log('  ✅ Real testimonials (no fake data)');
+    console.log('  ✅ Fixed education/employment state machine');
+    console.log('  ✅ Fixed pause/resume to correct section');
     console.log('========================================');
 }
 

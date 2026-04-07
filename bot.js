@@ -13,6 +13,7 @@ const aiAnalyzer = require('./ai-analyzer');
 const InstallmentTracker = require('./installment-tracker');
 const ReferralTracker = require('./referral-tracker');
 const express = require('express');
+const intelligentUpdate = require('./intelligent-update');
 
 dotenv.config();
 
@@ -632,51 +633,13 @@ https://johndoe.com/portfolio`, {
     }
     
     parsePortfolioLinks(text) {
-        // This method is no longer critical but keep for compatibility
         if (!text || text.toLowerCase() === 'skip') return [];
         return text.split('\n').filter(line => line && line.trim().startsWith('http'));
     }
 }
-// ============ START DATA COLLECTION ============
-async function startDataCollection(ctx, client, session) {
-    // Ensure session.data exists
-    if (!session.data) {
-        session.data = {};
-    }
-    
-    // Ensure portfolio_links exists and is an array
-    if (!session.data.portfolio_links || !Array.isArray(session.data.portfolio_links)) {
-        session.data.portfolio_links = [];
-    }
-    
-    session.data.cv_data = {
-        personal: {
-            full_name: '',
-            email: '',
-            primary_phone: '',
-            alternative_phone: '',
-            whatsapp_phone: '',
-            location: '',
-            physical_address: '',
-            nationality: '',
-            special_documents: []
-        },
-        professional_summary: '',
-        education: [],
-        employment: [],
-        skills: [],
-        certifications: [],
-        languages: [],
-        projects: [],
-        achievements: [],
-        referees: [],
-        portfolio: session.data.portfolio_links
-    };
-    session.current_section = 'personal';
-    session.data.collection_step = 'name';
-    session.data.special_docs_list = [];
-    await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
-}
+
+const portfolioCollector = new PortfolioCollector();
+
 // ============ DYNAMIC RESPONSES ============
 const RESPONSES = {
     greetings: [
@@ -847,7 +810,8 @@ async function handleServiceSelection(ctx, client, session, data) {
     session.data.service = serviceMap[data];
     
     if (session.data.service === 'cv update') {
-        await handleUpdateFlow(ctx, client, session);
+        // Use intelligent update system
+        await handleIntelligentUpdate(ctx, client, session);
         return;
     }
     
@@ -863,6 +827,151 @@ I can extract information from your existing CV or cover letter and only ask for
     });
     
     await db.updateSession(session.id, 'selecting_build_method', null, session.data);
+}
+
+// ============ INTELLIGENT UPDATE HANDLER ============
+async function handleIntelligentUpdate(ctx, client, session) {
+    // Get the client's latest CV
+    const orders = await db.getClientOrders(client.id);
+    const latestCV = orders.find(o => o.service === 'new cv' || o.service === 'editable cv');
+    
+    if (!latestCV || !latestCV.cv_data) {
+        await sendMarkdown(ctx, `❌ I couldn't find your existing CV. Please create a CV first using /start.`);
+        return;
+    }
+    
+    session.data.existing_cv = latestCV.cv_data;
+    session.data.update_mode = 'intelligent';
+    
+    await sendMarkdown(ctx, `✏️ *Intelligent CV Update*
+
+I see you have an existing CV. Tell me what changes you want in plain English.
+
+*Examples:*
+• "Add 5 years of experience as Project Manager at ABC Corp"
+• "Remove my high school education"
+• "Update my phone number to 0999123456"
+• "Add a certification in Digital Marketing"
+• "I'm applying for a Senior Developer role at Tech Company"
+
+You can also upload vacancy details (screenshot, PDF, or text), and I'll tailor your CV accordingly.
+
+*Type your request or upload a file:*`);
+    
+    session.data.awaiting_update_request = true;
+    await db.updateSession(session.id, 'awaiting_update_request', 'update', session.data);
+}
+
+async function handleUpdateRequest(ctx, client, session, text, fileUrl = null, fileType = null) {
+    try {
+        let vacancyData = null;
+        let userRequest = text;
+        
+        // If file was uploaded, extract vacancy details
+        if (fileUrl) {
+            await sendMarkdown(ctx, `📄 Processing your file...`);
+            
+            if (fileType === 'document' || fileType === 'photo') {
+                const extractedVacancy = await aiAnalyzer.extractVacancyFromFile(fileUrl, 'uploaded_file');
+                if (extractedVacancy && extractedVacancy.has_vacancy) {
+                    vacancyData = extractedVacancy;
+                    userRequest = `Update my CV for ${vacancyData.position} at ${vacancyData.company}`;
+                    await sendMarkdown(ctx, `📊 *Vacancy Detected:*
+• Position: ${vacancyData.position}
+• Company: ${vacancyData.company}
+• Requirements: ${vacancyData.requirements.slice(0, 3).join(', ')}
+
+I'll tailor your CV for this role.`);
+                }
+            }
+        }
+        
+        // Process the intelligent update
+        const result = await intelligentUpdate.processUpdate(
+            session.data.existing_cv,
+            userRequest,
+            vacancyData
+        );
+        
+        if (!result.success) {
+            await sendMarkdown(ctx, `❌ I couldn't understand your request. Please be more specific.
+
+*Examples of what you can say:*
+• "Add 3 years as Marketing Manager at XYZ Ltd"
+• "Remove my diploma in Business"
+• "Update my email to new@email.com"
+• "Add a section for Volunteer Experience"
+
+Or type /cancel to go back.`);
+            return;
+        }
+        
+        // Show proposed changes
+        let changeSummary = `📝 *Proposed Changes:*\n\n`;
+        for (const change of result.changes_summary) {
+            changeSummary += `• ${change}\n`;
+        }
+        
+        if (vacancyData) {
+            changeSummary += `\n🎯 *Tailored for:* ${vacancyData.position} at ${vacancyData.company}\n`;
+        }
+        
+        changeSummary += `\nDo you approve these changes?`;
+        
+        session.data.proposed_cv = result.updated_cv;
+        session.data.pending_update = true;
+        
+        await sendMarkdown(ctx, changeSummary, {
+            reply_markup: { inline_keyboard: [
+                [{ text: "✅ Approve Changes", callback_data: "approve_update" }],
+                [{ text: "✏️ Modify Request", callback_data: "modify_update" }],
+                [{ text: "❌ Cancel", callback_data: "cancel_update" }]
+            ] }
+        });
+        
+        await db.updateSession(session.id, 'reviewing_update', 'update', session.data);
+        
+    } catch (error) {
+        console.error('Update request error:', error);
+        await sendMarkdown(ctx, `⚠️ Something went wrong processing your request. Please try again or be more specific.`);
+    }
+}
+
+async function handleApproveUpdate(ctx, client, session) {
+    // Save the updated CV
+    const updatedCV = session.data.proposed_cv;
+    
+    // Create new order for the update
+    const orderId = `UPD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    
+    await db.createOrder({
+        id: orderId,
+        client_id: client.id,
+        service: 'cv update',
+        category: session.data.category || 'professional',
+        delivery_option: 'standard',
+        delivery_time: '6 hours',
+        base_price: getBasePrice('professional', 'cv update'),
+        delivery_fee: 0,
+        total_charge: formatPrice(getBasePrice('professional', 'cv update')),
+        payment_status: 'pending',
+        cv_data: updatedCV
+    });
+    
+    await cvVersioning.saveVersion(orderId, updatedCV, 2, 'Intelligent update');
+    
+    await sendMarkdown(ctx, `✅ *Update Applied Successfully!*
+
+Your CV has been updated as requested.
+
+Order: \`${orderId}\`
+Total: ${formatPrice(getBasePrice('professional', 'cv update'))}
+
+Type /pay to complete payment and receive your updated CV.`);
+    
+    session.data.awaiting_update_request = false;
+    session.data.pending_update = false;
+    await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
 }
 
 // ============ HANDLE BUILD METHOD ============
@@ -1006,7 +1115,6 @@ WhatsApp: +265 881 193 707`);
 // ============ FIXED HANDLE PORTFOLIO COLLECTION ============
 async function handlePortfolioCollection(ctx, client, session, text) {
     try {
-        // Ensure session exists
         if (!session) {
             console.error('Session is null/undefined');
             session = { data: {} };
@@ -1015,13 +1123,11 @@ async function handlePortfolioCollection(ctx, client, session, text) {
             session.data = {};
         }
         
-        // Handle the skip button or text input
         let portfolioLinks = [];
         
         if (text === 'skip' || (text && text.toLowerCase() === 'skip')) {
             portfolioLinks = [];
         } else if (text && typeof text === 'string') {
-            // Parse links - split by new lines and filter for http links
             const lines = text.split('\n');
             for (const line of lines) {
                 const trimmed = line.trim();
@@ -1031,25 +1137,59 @@ async function handlePortfolioCollection(ctx, client, session, text) {
             }
         }
         
-        // Store in session
         session.data.portfolio_links = portfolioLinks;
         
-        // Now this will always have .length
-        const linkCount = session.data.portfolio_links.length;
-        
-        await sendMarkdown(ctx, `${getReaction()} ${linkCount > 0 ? 'Portfolio saved!' : 'No portfolio added.'}\n\nNow let's collect your details.\n\n${getQuestion('name')}`);
+        await sendMarkdown(ctx, `${getReaction()} ${session.data.portfolio_links.length > 0 ? 'Portfolio saved!' : 'No portfolio added.'}\n\nNow let's collect your details.\n\n${getQuestion('name')}`);
         
         await startDataCollection(ctx, client, session);
         
     } catch (error) {
         console.error('Portfolio collection error:', error);
-        // Fallback - continue anyway
         if (session && session.data) {
             session.data.portfolio_links = [];
         }
         await sendMarkdown(ctx, `Let's continue with your details.\n\n${getQuestion('name')}`);
         await startDataCollection(ctx, client, session);
     }
+}
+
+// ============ START DATA COLLECTION ============
+async function startDataCollection(ctx, client, session) {
+    if (!session.data) {
+        session.data = {};
+    }
+    
+    if (!session.data.portfolio_links || !Array.isArray(session.data.portfolio_links)) {
+        session.data.portfolio_links = [];
+    }
+    
+    session.data.cv_data = {
+        personal: {
+            full_name: '',
+            email: '',
+            primary_phone: '',
+            alternative_phone: '',
+            whatsapp_phone: '',
+            location: '',
+            physical_address: '',
+            nationality: '',
+            special_documents: []
+        },
+        professional_summary: '',
+        education: [],
+        employment: [],
+        skills: [],
+        certifications: [],
+        languages: [],
+        projects: [],
+        achievements: [],
+        referees: [],
+        portfolio: session.data.portfolio_links
+    };
+    session.current_section = 'personal';
+    session.data.collection_step = 'name';
+    session.data.special_docs_list = [];
+    await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
 }
 
 // ============ PERSONAL COLLECTION ============
@@ -1406,59 +1546,13 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
 }
 
 async function handleUpdateFlow(ctx, client, session) {
-    const updateSections = [
-        'Personal Information', 'Contact Details', 'Professional Summary',
-        'Work Experience', 'Education', 'Skills', 'Certifications',
-        'Languages', 'Referees'
-    ];
-    
-    session.data.update_sections = updateSections;
-    session.data.current_update_section = 0;
-    session.data.updates = {};
-    
-    await sendMarkdown(ctx, `✏️ *CV Update Mode*
-
-I'll help you update your CV section by section.
-
-Let's start with: *${updateSections[0]}*
-
-Please provide the updated information:`);
-    
-    session.data.collection_step = updateSections[0];
-    await db.updateSession(session.id, 'collecting_update', 'update', session.data);
+    // This is now handled by handleIntelligentUpdate
+    await handleIntelligentUpdate(ctx, client, session);
 }
 
 async function handleUpdateCollection(ctx, client, session, text) {
-    const sections = session.data.update_sections;
-    const currentIndex = session.data.current_update_section || 0;
-    const currentSection = sections[currentIndex];
-    
-    session.data.updates[currentSection] = text;
-    const nextIndex = currentIndex + 1;
-    
-    if (nextIndex < sections.length) {
-        session.data.current_update_section = nextIndex;
-        await sendMarkdown(ctx, `✓ Updated ${currentSection}.\n\nNow for: *${sections[nextIndex]}*\n\nPlease provide the updated information:`);
-        await db.updateSession(session.id, 'collecting_update', 'update', session.data);
-    } else {
-        const orderId = `UPD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-        await db.createOrder({
-            id: orderId, client_id: client.id, service: 'cv update', category: session.data.category || 'professional',
-            delivery_option: 'standard', delivery_time: '6 hours',
-            base_price: getBasePrice('professional', 'cv update'), delivery_fee: 0,
-            total_charge: formatPrice(getBasePrice('professional', 'cv update')),
-            payment_status: 'pending',
-            cv_data: { updates: session.data.updates, original_cv: session.data.cv_data }
-        });
-        
-        await sendMarkdown(ctx, `✅ *Update Request Submitted!*
-
-Order: \`${orderId}\`
-Sections updated: ${sections.length}
-
-Type /pay to complete payment.`);
-        await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
-    }
+    // This is now handled by handleUpdateRequest
+    await handleUpdateRequest(ctx, client, session, text);
 }
 
 async function finalizeOrder(ctx, client, session) {
@@ -1665,6 +1759,8 @@ bot.command('resume', async (ctx) => {
             resumeMessage = "Professional referees? (Minimum 2 required) 👥\n\nReferee 1 - Full name?";
         } else if (resumeStage === 'collecting_missing') {
             resumeMessage = "Let's continue with your missing information.";
+        } else if (resumeStage === 'awaiting_update_request') {
+            resumeMessage = "You were updating your CV. Please tell me what changes you want.";
         } else {
             resumeMessage = "Let's continue where we left off.";
         }
@@ -1776,7 +1872,12 @@ bot.on('document', async (ctx) => {
                 });
                 await db.updateSession(session.id, 'selecting_delivery', null, session.data);
             }
-        } 
+        }
+        else if (session.stage === 'awaiting_update_request') {
+            const fileInfo = await ctx.telegram.getFile(document.file_id);
+            const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
+            await handleUpdateRequest(ctx, client, session, null, fileUrl, 'document');
+        }
         else {
             await sendMarkdown(ctx, `📎 *Draft Upload*\n\nYou can upload an existing CV or cover letter and I'll extract everything!\n\nJust send me the file (PDF, DOCX, or image).`);
             session.data.awaiting_draft_upload = true;
@@ -1801,7 +1902,8 @@ bot.on('photo', async (ctx) => {
         session.data.awaiting_vacancy = false;
         await sendMarkdown(ctx, `📸 Image processed! Found ${vacancyData.position || 'position'}.\n\nApplying for? (or 'SAME')`);
         await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
-    } else if (session.stage === 'awaiting_draft_upload' || session.data.awaiting_draft_upload) {
+    } 
+    else if (session.stage === 'awaiting_draft_upload' || session.data.awaiting_draft_upload) {
         await sendMarkdown(ctx, `📸 Processing your image...`);
         const fileInfo = await ctx.telegram.getFile(photo.file_id);
         const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
@@ -1823,7 +1925,13 @@ bot.on('photo', async (ctx) => {
             });
             await db.updateSession(session.id, 'selecting_delivery', null, session.data);
         }
-    } else {
+    }
+    else if (session.stage === 'awaiting_update_request') {
+        const fileInfo = await ctx.telegram.getFile(photo.file_id);
+        const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
+        await handleUpdateRequest(ctx, client, session, null, fileUrl, 'photo');
+    }
+    else {
         await sendMarkdown(ctx, `📎 *Upload Draft*\n\nYou can upload an image of your CV/cover letter and I'll extract the information!`);
         session.data.awaiting_draft_upload = true;
         await db.updateSession(session.id, 'awaiting_draft_upload', 'draft', session.data);
@@ -1858,6 +1966,7 @@ bot.on('text', async (ctx) => {
                 else if (session.stage === 'collecting_missing') await smartDraft.handleMissingCollection(ctx, client, session, text);
                 else if (session.stage === 'collecting_feedback') await handleFeedback(ctx, client, session, text);
                 else if (session.stage === 'awaiting_vacancy_upload') await handleVacancyText(ctx, client, session, text);
+                else if (session.stage === 'awaiting_update_request') await handleUpdateRequest(ctx, client, session, text);
                 else if (session.stage === 'collecting_coverletter_position') await handleCoverLetterPosition(ctx, client, session, text);
                 else if (session.stage === 'collecting_coverletter_company') await handleCoverLetterCompany(ctx, client, session, text);
                 else if (session.stage === 'awaiting_payment_choice') {
@@ -1911,6 +2020,20 @@ bot.on('callback_query', async (ctx) => {
     }
     else if (data.startsWith('delivery_')) {
         await handleDeliverySelection(ctx, client, session, data);
+    }
+    else if (data === 'approve_update') {
+        await handleApproveUpdate(ctx, client, session);
+    }
+    else if (data === 'modify_update') {
+        await sendMarkdown(ctx, `✏️ Please tell me what changes you want to make to the proposed update.`);
+        session.data.awaiting_update_request = true;
+        await db.updateSession(session.id, 'awaiting_update_request', 'update', session.data);
+    }
+    else if (data === 'cancel_update') {
+        session.data.awaiting_update_request = false;
+        session.data.pending_update = false;
+        await sendMarkdown(ctx, `❌ Update cancelled. Type /start to return to main menu.`);
+        await db.updateSession(session.id, 'main_menu', null, session.data);
     }
     else if (data === 'edu_yes' || data === 'edu_no') {
         await handleEducationCollection(ctx, client, session, '', data);
@@ -2026,6 +2149,7 @@ async function startBot() {
     console.log('  ✅ Clickable skip buttons everywhere');
     console.log('  ✅ Smart Draft Upload - Auto-extracts data');
     console.log('  ✅ Physical address, nationality, special documents');
+    console.log('  ✅ Intelligent CV Update - Natural language processing');
     console.log('  ✅ Real testimonials (no fake data)');
     console.log('  ✅ Webhook mode (production)');
     console.log('========================================');

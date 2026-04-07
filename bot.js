@@ -780,6 +780,14 @@ async function getOrCreateClient(ctx) {
     return client;
 }
 
+async function debugSession(ctx, session, message) {
+    console.log(`[DEBUG] ${message}`);
+    console.log(`[DEBUG] Stage: ${session.stage}`);
+    console.log(`[DEBUG] Current section: ${session.current_section}`);
+    console.log(`[DEBUG] Collection step: ${session.data?.collection_step}`);
+    console.log(`[DEBUG] Text received: ${ctx.message?.text}`);
+}
+
 async function getOrCreateSession(clientId) {
     let session = await db.getActiveSession(clientId);
     if (!session) {
@@ -1382,14 +1390,23 @@ async function handleEducationCollection(ctx, client, session, text, callbackDat
             session.data.current_edu = {};
             await sendMarkdown(ctx, "Next qualification? 🎓");
         } else {
-            session.current_section = 'employment';
-            session.data.collection_step = 'title';
-            session.data.current_job = {};
-            cvData.employment = [];
-            await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Education')}\n\n${getQuestion('jobTitle')}`);
-            await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
-        }
-    }
+    // Move to employment section
+    session.current_section = 'employment';
+    session.data.collection_step = 'title';
+    session.data.current_job = {};
+    session.data.cv_data.employment = [];
+    
+    console.log(`[EDUCATION] Moving to employment section`);
+    console.log(`[EDUCATION] Setting stage to: collecting_employment`);
+    console.log(`[EDUCATION] Setting collection_step to: title`);
+    
+    await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Education')}\n\n${getQuestion('jobTitle')}`);
+    await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+    
+    // Verify the update
+    const updatedSession = await db.getActiveSession(client.id);
+    console.log(`[EDUCATION] After update - stage: ${updatedSession.stage}, collection_step: ${updatedSession.data?.collection_step}`);
+}
     
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
 }
@@ -2126,6 +2143,16 @@ bot.on('text', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const session = await getOrCreateSession(client.id);
     
+    // DEBUG: Log everything
+    console.log(`========================================`);
+    console.log(`[TEXT] Received: "${text}"`);
+    console.log(`[TEXT] From: ${ctx.from.first_name} (${ctx.from.id})`);
+    console.log(`[TEXT] Session stage: ${session.stage}`);
+    console.log(`[TEXT] Session current_section: ${session.current_section}`);
+    console.log(`[TEXT] Session collection_step: ${session.data?.collection_step}`);
+    console.log(`[TEXT] Session data keys: ${Object.keys(session.data || {})}`);
+    console.log(`========================================`);
+    
     const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Handler timeout')), 30000);
     });
@@ -2133,51 +2160,36 @@ bot.on('text', async (ctx) => {
     try {
         await Promise.race([
             (async () => {
-                // Handle commands first
+                // Handle commands
                 if (text === '/start') {
                     await handleGreeting(ctx, client, session);
                 }
-                // Handle persistent keyboard buttons ANYTIME (not just main_menu)
+                // Handle persistent keyboard buttons
                 else if (text === '📄 New CV' || text === '📝 Editable CV' || 
                          text === '💌 Cover Letter' || text === '📎 Editable Cover Letter' || 
                          text === '✏️ Update CV' || text === '📎 Upload Draft' ||
                          text === 'ℹ️ About' || text === '📞 Contact' || text === '🏠 Portal') {
                     
-                    // If user is in the middle of data collection, warn them first
+                    console.log(`[TEXT] Button pressed: ${text}`);
+                    
                     if (session.stage !== 'main_menu' && session.stage !== 'selecting_category' && 
                         session.stage !== 'selecting_service' && session.stage !== 'greeting') {
-                        await sendMarkdown(ctx, `⚠️ *You're in the middle of creating a document!*
-
-Type /pause to save your progress and come back later, or /reset to start over.
-
-What would you like to do?`, {
-                            reply_markup: { inline_keyboard: [
-                                [{ text: "⏸️ Pause & Save", callback_data: "pause_session" }],
-                                [{ text: "🔄 Reset & Start Over", callback_data: "reset_session" }],
-                                [{ text: "❌ Cancel", callback_data: "cancel_action" }]
-                            ] }
-                        });
+                        await sendMarkdown(ctx, `⚠️ *You're in the middle of creating a document!*\n\nType /pause to save your progress, or /reset to start over.`);
                         return;
                     }
-                    
-                    // Handle the button action
                     await handleMainMenu(ctx, client, session, text);
+                }
+                // Handle employment collection - SPECIFIC CHECK
+                else if (session.stage === 'collecting_employment') {
+                    console.log(`[TEXT] Routing to handleEmploymentCollection`);
+                    await handleEmploymentCollection(ctx, client, session, text);
                 }
                 // Handle other stages
                 else if (session.stage === 'main_menu') {
                     await handleMainMenu(ctx, client, session, text);
                 }
                 else if (session.stage === 'selecting_category') {
-                    // This should be handled by callback_query, not text
-                    await sendMarkdown(ctx, `Please select a category using the buttons below:`, {
-                        reply_markup: { inline_keyboard: [
-                            [{ text: "🎓 Student", callback_data: "cat_student" }],
-                            [{ text: "📜 Recent Graduate", callback_data: "cat_recent" }],
-                            [{ text: "💼 Professional", callback_data: "cat_professional" }],
-                            [{ text: "🌱 Non-Working", callback_data: "cat_nonworking" }],
-                            [{ text: "🔄 Returning Client", callback_data: "cat_returning" }]
-                        ] }
-                    });
+                    await sendMarkdown(ctx, `Please select a category using the buttons below.`);
                 }
                 else if (session.stage === 'collecting_portfolio') {
                     await handlePortfolioCollection(ctx, client, session, text);
@@ -2192,6 +2204,8 @@ What would you like to do?`, {
                     await handleEducationCollection(ctx, client, session, text);
                 }
                 else if (session.stage === 'collecting_employment') {
+                    // This is already handled above, but keep as backup
+                    console.log(`[TEXT] Backup routing to handleEmploymentCollection`);
                     await handleEmploymentCollection(ctx, client, session, text);
                 }
                 else if (session.stage === 'collecting_skills') {
@@ -2240,6 +2254,7 @@ What would you like to do?`, {
                     }
                 }
                 else {
+                    console.log(`[TEXT] Unhandled stage: ${session.stage}`);
                     await sendMarkdown(ctx, random(RESPONSES.help));
                 }
             })(),
@@ -2250,6 +2265,7 @@ What would you like to do?`, {
         await sendMarkdown(ctx, `⚠️ *Something went wrong.* Please try again or type /start to restart.`);
     }
 });
+
 // ============ CALLBACK QUERY HANDLER ============
 bot.on('callback_query', async (ctx) => {
     await ctx.answerCbQuery();

@@ -56,28 +56,31 @@ async function initDatabase() {
 }
 
 async function createTablesPostgres(pool) {
-    await pool.query(`
-        CREATE TABLE IF NOT EXISTS clients (
-            id SERIAL PRIMARY KEY,
-            telegram_id TEXT UNIQUE,
-            username TEXT,
-            first_name TEXT,
-            last_name TEXT,
-            phone TEXT,
-            email TEXT,
-            location TEXT,
-            industry TEXT,
-            experience_years INTEGER,
-            referral_code TEXT UNIQUE,
-            referred_by INTEGER,
-            wallet_balance INTEGER DEFAULT 0,
-            referral_credit INTEGER DEFAULT 0,
-            total_orders INTEGER DEFAULT 0,
-            total_spent INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_active TIMESTAMP
-        )
-    `);
+await pool.query(`
+    CREATE TABLE IF NOT EXISTS clients (
+        id SERIAL PRIMARY KEY,
+        telegram_id TEXT UNIQUE,
+        username TEXT,
+        first_name TEXT,
+        last_name TEXT,
+        phone TEXT,
+        email TEXT,
+        location TEXT,
+        physical_address TEXT,
+        nationality TEXT,
+        special_documents TEXT,
+        industry TEXT,
+        experience_years INTEGER,
+        referral_code TEXT UNIQUE,
+        referred_by INTEGER,
+        wallet_balance INTEGER DEFAULT 0,
+        referral_credit INTEGER DEFAULT 0,
+        total_orders INTEGER DEFAULT 0,
+        total_spent INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_active TIMESTAMP
+    )
+`);
     
     await pool.query(`
         CREATE TABLE IF NOT EXISTS sessions (

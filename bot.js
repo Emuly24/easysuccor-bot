@@ -1752,7 +1752,7 @@ async function handleLanguagesCollection(ctx, client, session, text, callbackDat
     await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
 }
 
-// ============ FIXED REFEREES COLLECTION ============
+// ============ REFEREES COLLECTION ============
 async function handleRefereesCollection(ctx, client, session, text, callbackData = null) {
     console.log(`[REFEREES] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
     
@@ -1790,18 +1790,65 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
     if (step === 'position') {
         currentRef.position = text;
         session.data.current_ref = currentRef;
-        session.data.collection_step = 'contact';
+        session.data.collection_step = 'company';
         
-        console.log(`[REFEREES] Position saved: "${text}", moving to contact`);
+        console.log(`[REFEREES] Position saved: "${text}", moving to company`);
         
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Contact information?** 📞\n*Example:* +265 991 234 567 or jane@example.com`);
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Company name?** 🏢\n*Example:* ABC Corporation, UNDP, Google`);
         await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
         return;
     }
     
-    // ============ STEP 3: REFEREE CONTACT ============
-    if (step === 'contact') {
-        currentRef.contact = text;
+    // ============ STEP 3: REFEREE COMPANY ============
+    if (step === 'company') {
+        currentRef.company = text;
+        session.data.current_ref = currentRef;
+        session.data.collection_step = 'company_location';
+        
+        console.log(`[REFEREES] Company saved: "${text}", moving to company location`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Company location?** 📍\n*Example:* Lilongwe, Malawi | Blantyre | Remote\n\nType 'Skip' if not applicable.`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
+    }
+    
+    // ============ STEP 4: REFEREE COMPANY LOCATION ============
+    if (step === 'company_location') {
+        if (text.toLowerCase() !== 'skip') {
+            currentRef.company_location = text;
+        }
+        session.data.current_ref = currentRef;
+        session.data.collection_step = 'email';
+        
+        console.log(`[REFEREES] Company location saved: "${text}", moving to email`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Email address?** 📧\n*Example:* john.doe@example.com\n\nType 'Skip' if not available.`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
+    }
+    
+    // ============ STEP 5: REFEREE EMAIL ============
+    if (step === 'email') {
+        if (text.toLowerCase() !== 'skip') {
+            currentRef.email = text;
+        }
+        session.data.current_ref = currentRef;
+        session.data.collection_step = 'phone';
+        
+        console.log(`[REFEREES] Email saved: "${text}", moving to phone`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Phone number?** 📞\n*Example:* +265 991 234 567\n\nType 'Skip' if not available.`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
+    }
+    
+    // ============ STEP 6: REFEREE PHONE ============
+    if (step === 'phone') {
+        if (text.toLowerCase() !== 'skip') {
+            currentRef.phone = text;
+        }
+        
+        // Save the complete referee
         referees.push({ ...currentRef });
         session.data.current_ref = {};
         
@@ -1817,7 +1864,7 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
             session.data.collection_step = 'add_more';
             await sendMarkdown(ctx, `✅ ${referees.length} referees added! Another referee?`, {
                 reply_markup: { inline_keyboard: [
-                    [{ text: "✅ Yes", callback_data: "more_ref_yes" }],
+                    [{ text: "✅ Yes, add another", callback_data: "more_ref_yes" }],
                     [{ text: "❌ No, continue", callback_data: "more_ref_no" }]
                 ] }
             });
@@ -1826,7 +1873,7 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
         return;
     }
     
-    // ============ STEP 4: ADD MORE REFEREES ============
+    // ============ STEP 7: ADD MORE REFEREES ============
     if (step === 'add_more') {
         if (callbackData === 'more_ref_yes') {
             // Add another referee
@@ -1852,6 +1899,7 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
     await sendMarkdown(ctx, "Let's start over. Please provide referee 1 - Full name? 👥");
     await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
 }
+
 async function handleUpdateFlow(ctx, client, session) {
     await handleIntelligentUpdate(ctx, client, session);
 }
@@ -1866,13 +1914,30 @@ async function finalizeOrder(ctx, client, session) {
     const name = personal?.full_name || ctx.from.first_name;
     const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     
-    if (personal?.email) await db.updateClient(client.id, { email: personal.email });
-    if (personal?.primary_phone) await db.updateClient(client.id, { phone: personal.primary_phone });
-    if (personal?.location) await db.updateClient(client.id, { location: personal.location });
-    if (personal?.physical_address) await db.updateClient(client.id, { physical_address: personal.physical_address });
-    if (personal?.nationality) await db.updateClient(client.id, { nationality: personal.nationality });
-    if (personal?.special_documents) await db.updateClient(client.id, { special_documents: JSON.stringify(personal.special_documents) });
+    // Safely update client with error handling for missing columns
+    try {
+        if (personal?.email) await db.updateClient(client.id, { email: personal.email });
+        if (personal?.primary_phone) await db.updateClient(client.id, { phone: personal.primary_phone });
+        if (personal?.location) await db.updateClient(client.id, { location: personal.location });
+        
+        // These columns might not exist yet - wrap in try-catch
+        try {
+            if (personal?.physical_address) await db.updateClient(client.id, { physical_address: personal.physical_address });
+        } catch (e) { console.log('physical_address column not found, skipping'); }
+        
+        try {
+            if (personal?.nationality) await db.updateClient(client.id, { nationality: personal.nationality });
+        } catch (e) { console.log('nationality column not found, skipping'); }
+        
+        try {
+            if (personal?.special_documents) await db.updateClient(client.id, { special_documents: JSON.stringify(personal.special_documents) });
+        } catch (e) { console.log('special_documents column not found, skipping'); }
+        
+    } catch (error) {
+        console.error('Error updating client:', error);
+    }
     
+    // Rest of finalizeOrder continues...
     await cvVersioning.saveVersion(orderId, cvData, 1, 'Initial CV creation');
     
     const cvResult = await documentGenerator.generateCV(cvData, null, 'docx', session.data.vacancy_data || null, session.data.certificates_data || null);

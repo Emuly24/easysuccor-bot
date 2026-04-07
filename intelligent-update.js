@@ -1,15 +1,10 @@
-// intelligent-update.js - Natural Language CV Update Processing
-const natural = require('natural');
-const tokenizer = new natural.WordTokenizer();
-const TfIdf = natural.TfIdf;
-
+// intelligent-update.js - Lightweight Natural Language CV Update Processing (No external dependencies)
 class IntelligentUpdate {
     constructor() {
         this.actionKeywords = {
             add: ['add', 'include', 'append', 'insert', 'new', 'plus', 'additional'],
             remove: ['remove', 'delete', 'erase', 'take out', 'drop', 'omit', 'clear'],
-            update: ['update', 'change', 'modify', 'edit', 'revise', 'correct', 'fix', 'replace'],
-            section: ['section', 'part', 'area', 'field', 'category', 'heading']
+            update: ['update', 'change', 'modify', 'edit', 'revise', 'correct', 'fix', 'replace']
         };
         
         this.sectionKeywords = {
@@ -26,18 +21,15 @@ class IntelligentUpdate {
 
     async processUpdate(existingCV, userRequest, vacancyData = null) {
         try {
-            // Parse the user's natural language request
             const parsedRequest = this.parseRequest(userRequest);
             
             if (!parsedRequest.action || !parsedRequest.content) {
                 return { success: false, error: 'Could not understand request' };
             }
             
-            // Create a copy of the existing CV
             let updatedCV = JSON.parse(JSON.stringify(existingCV));
             const changesSummary = [];
             
-            // Apply the requested changes
             switch (parsedRequest.action) {
                 case 'add':
                     const addResult = await this.addContent(updatedCV, parsedRequest, vacancyData);
@@ -58,7 +50,6 @@ class IntelligentUpdate {
                     return { success: false, error: 'Unknown action' };
             }
             
-            // If vacancy data is provided, tailor the CV
             if (vacancyData && vacancyData.has_vacancy) {
                 const tailoredResult = await this.tailorForVacancy(updatedCV, vacancyData);
                 updatedCV = tailoredResult.cv;
@@ -79,7 +70,6 @@ class IntelligentUpdate {
     
     parseRequest(text) {
         const lowerText = text.toLowerCase();
-        const tokens = tokenizer.tokenize(lowerText);
         
         // Determine action
         let action = null;
@@ -105,12 +95,12 @@ class IntelligentUpdate {
             if (targetSection) break;
         }
         
-        // Extract content to add/remove/update
-        let content = '';
+        // Extract content
+        let content = null;
         
-        // Look for patterns like "add X years as Y at Z"
-        const experiencePattern = /add\s+(\d+)\s+years?\s+(?:as|of)\s+([a-z\s]+?)(?:\s+at\s+([a-z\s]+))?/i;
-        const expMatch = text.match(experiencePattern);
+        // Pattern 1: "add X years as Y at Z"
+        const expPattern = /add\s+(\d+)\s+years?\s+(?:as|of)\s+([a-z\s]+?)(?:\s+at\s+([a-z\s]+))?/i;
+        const expMatch = text.match(expPattern);
         if (expMatch) {
             content = {
                 type: 'experience',
@@ -120,7 +110,7 @@ class IntelligentUpdate {
             };
         }
         
-        // Look for patterns like "add certification in X"
+        // Pattern 2: "add certification in X"
         const certPattern = /add\s+(?:a|an)?\s*certification(?:\s+in|\s+as)?\s+([a-z\s]+)/i;
         const certMatch = text.match(certPattern);
         if (certMatch && !content) {
@@ -130,7 +120,7 @@ class IntelligentUpdate {
             };
         }
         
-        // Look for patterns like "add skill X"
+        // Pattern 3: "add skill X"
         const skillPattern = /add\s+(?:a|an)?\s*skill\s+([a-z\s]+)/i;
         const skillMatch = text.match(skillPattern);
         if (skillMatch && !content) {
@@ -140,7 +130,7 @@ class IntelligentUpdate {
             };
         }
         
-        // Look for patterns like "remove my X"
+        // Pattern 4: "remove X"
         const removePattern = /remove\s+(?:my|the)?\s*([a-z\s]+)/i;
         const removeMatch = text.match(removePattern);
         if (removeMatch && !content) {
@@ -150,7 +140,37 @@ class IntelligentUpdate {
             };
         }
         
-        // If no specific pattern matched, use the whole text as content
+        // Pattern 5: "update my phone to X"
+        const phonePattern = /update\s+(?:my|the)?\s*phone(?:\s+to)?\s*([\d\s\+]+)/i;
+        const phoneMatch = text.match(phonePattern);
+        if (phoneMatch && !content) {
+            content = {
+                type: 'phone',
+                value: phoneMatch[1].trim()
+            };
+        }
+        
+        // Pattern 6: "update my email to X"
+        const emailPattern = /update\s+(?:my|the)?\s*email(?:\s+to)?\s*([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})/i;
+        const emailMatch = text.match(emailPattern);
+        if (emailMatch && !content) {
+            content = {
+                type: 'email',
+                value: emailMatch[1].trim()
+            };
+        }
+        
+        // Pattern 7: "update my location to X"
+        const locationPattern = /update\s+(?:my|the)?\s*location(?:\s+to)?\s+([a-z\s,]+)/i;
+        const locationMatch = text.match(locationPattern);
+        if (locationMatch && !content) {
+            content = {
+                type: 'location',
+                value: locationMatch[1].trim()
+            };
+        }
+        
+        // Default: treat as text
         if (!content) {
             content = {
                 type: 'text',
@@ -171,7 +191,6 @@ class IntelligentUpdate {
         const content = parsedRequest.content;
         
         if (content.type === 'experience') {
-            // Add work experience
             if (!cv.employment) cv.employment = [];
             
             const newJob = {
@@ -182,17 +201,15 @@ class IntelligentUpdate {
                 achievements: []
             };
             
-            // If vacancy data exists, add relevant responsibilities
             if (vacancyData && vacancyData.requirements) {
                 newJob.responsibilities = vacancyData.requirements.slice(0, 3);
                 newJob.achievements = [`Successfully applied for ${vacancyData.position} position`];
             }
             
-            cv.employment.unshift(newJob); // Add to top (most recent)
+            cv.employment.unshift(newJob);
             changes.push(`Added ${content.years || ''} years as ${content.title}${content.company ? ` at ${content.company}` : ''}`);
             
         } else if (content.type === 'certification') {
-            // Add certification
             if (!cv.certifications) cv.certifications = [];
             
             cv.certifications.push({
@@ -203,7 +220,6 @@ class IntelligentUpdate {
             changes.push(`Added certification: ${content.name}`);
             
         } else if (content.type === 'skill') {
-            // Add skill
             if (!cv.skills) cv.skills = [];
             
             if (!cv.skills.includes(content.name)) {
@@ -212,7 +228,6 @@ class IntelligentUpdate {
             }
             
         } else {
-            // Generic text addition - try to determine where to put it
             const targetSection = parsedRequest.targetSection;
             
             if (targetSection === 'summary' && !cv.professional_summary) {
@@ -222,7 +237,7 @@ class IntelligentUpdate {
                 cv.professional_summary += ' ' + content.text;
                 changes.push(`Updated professional summary`);
             } else {
-                changes.push(`Requested to add: ${content.text.substring(0, 50)}...`);
+                changes.push(`Requested to add: ${content.text?.substring(0, 50) || 'content'}...`);
             }
         }
         
@@ -232,12 +247,10 @@ class IntelligentUpdate {
     async removeContent(cv, parsedRequest) {
         const changes = [];
         const content = parsedRequest.content;
-        const targetSection = parsedRequest.targetSection;
         
         if (content.type === 'text') {
             const searchText = content.text.toLowerCase();
             
-            // Try to find and remove from work experience
             if (cv.employment) {
                 const originalLength = cv.employment.length;
                 cv.employment = cv.employment.filter(job => {
@@ -249,7 +262,6 @@ class IntelligentUpdate {
                 }
             }
             
-            // Try to remove from education
             if (cv.education) {
                 const originalLength = cv.education.length;
                 cv.education = cv.education.filter(edu => {
@@ -261,7 +273,6 @@ class IntelligentUpdate {
                 }
             }
             
-            // Try to remove from skills
             if (cv.skills) {
                 const originalLength = cv.skills.length;
                 cv.skills = cv.skills.filter(skill => !skill.toLowerCase().includes(searchText));
@@ -282,44 +293,51 @@ class IntelligentUpdate {
         const changes = [];
         const content = parsedRequest.content;
         
-        // Handle phone/email/location updates
-        if (content.text && (content.text.includes('phone') || content.text.includes('email') || content.text.includes('location'))) {
+        if (content.type === 'phone') {
+            if (!cv.personal) cv.personal = {};
+            cv.personal.primary_phone = content.value;
+            changes.push(`Updated phone number to ${cv.personal.primary_phone}`);
+        }
+        else if (content.type === 'email') {
+            if (!cv.personal) cv.personal = {};
+            cv.personal.email = content.value;
+            changes.push(`Updated email to ${cv.personal.email}`);
+        }
+        else if (content.type === 'location') {
+            if (!cv.personal) cv.personal = {};
+            cv.personal.location = content.value;
+            changes.push(`Updated location to ${cv.personal.location}`);
+        }
+        else if (content.text && (content.text.includes('phone') || content.text.includes('email') || content.text.includes('location'))) {
             if (!cv.personal) cv.personal = {};
             
-            if (content.text.includes('phone')) {
-                const phoneMatch = content.text.match(/phone\s+(?:to\s+)?([\d\s\+]+)/i);
-                if (phoneMatch) {
-                    cv.personal.primary_phone = phoneMatch[1].trim();
-                    changes.push(`Updated phone number to ${cv.personal.primary_phone}`);
-                }
+            const phoneMatch = content.text.match(/phone\s+(?:to\s+)?([\d\s\+]+)/i);
+            if (phoneMatch) {
+                cv.personal.primary_phone = phoneMatch[1].trim();
+                changes.push(`Updated phone number to ${cv.personal.primary_phone}`);
             }
             
-            if (content.text.includes('email')) {
-                const emailMatch = content.text.match(/email\s+(?:to\s+)?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})/i);
-                if (emailMatch) {
-                    cv.personal.email = emailMatch[1].trim();
-                    changes.push(`Updated email to ${cv.personal.email}`);
-                }
+            const emailMatch = content.text.match(/email\s+(?:to\s+)?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})/i);
+            if (emailMatch) {
+                cv.personal.email = emailMatch[1].trim();
+                changes.push(`Updated email to ${cv.personal.email}`);
             }
             
-            if (content.text.includes('location')) {
-                const locationMatch = content.text.match(/location\s+(?:to\s+)?([a-z\s,]+)/i);
-                if (locationMatch) {
-                    cv.personal.location = locationMatch[1].trim();
-                    changes.push(`Updated location to ${cv.personal.location}`);
-                }
+            const locationMatch = content.text.match(/location\s+(?:to\s+)?([a-z\s,]+)/i);
+            if (locationMatch) {
+                cv.personal.location = locationMatch[1].trim();
+                changes.push(`Updated location to ${cv.personal.location}`);
             }
         } else {
-            changes.push(`Requested to update: ${content.text?.substring(0, 50) || 'content'}`);
+            changes.push(`Requested to update: ${content.text?.substring(0, 50) || 'content'}...`);
         }
         
         return { cv, changes };
     }
     
-    async tailorForVacation(cv, vacancyData) {
+    async tailorForVacancy(cv, vacancyData) {
         const changes = [];
         
-        // Update professional summary to include vacancy
         if (vacancyData.position && vacancyData.company) {
             const vacancyMention = `Seeking ${vacancyData.position} position at ${vacancyData.company}`;
             if (cv.professional_summary) {
@@ -333,7 +351,6 @@ class IntelligentUpdate {
             }
         }
         
-        // Add vacancy requirements as skills if not present
         if (vacancyData.requirements && cv.skills) {
             for (const req of vacancyData.requirements.slice(0, 5)) {
                 const reqLower = req.toLowerCase();

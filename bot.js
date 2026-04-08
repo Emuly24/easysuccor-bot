@@ -33,7 +33,297 @@ const adminAuth = (req, res, next) => {
     next();
 };
 
-// Admin upload endpoints (keep your existing ones - they work fine)
+// ============ ADMIN UPLOAD ENDPOINTS ============
+
+// Batch upload (multiple files)
+app.post('/admin/upload-batch', adminAuth, upload.array('files', 20), async (req, res) => {
+    try {
+        const files = req.files;
+        if (!files || files.length === 0) {
+            return res.status(400).json({ error: 'No files uploaded' });
+        }
+        
+        const results = [];
+        for (const file of files) {
+            try {
+                const extractedData = await documentGenerator.extractFullCVData(file.path, 'cv');
+                
+                let client = null;
+                if (extractedData.data.personal?.email) {
+                    client = await db.getClientByEmail(extractedData.data.personal.email);
+                }
+                
+                if (!client) {
+                    client = await db.createClient(
+                        null,
+                        null,
+                        extractedData.data.personal?.full_name?.split(' ')[0] || 'Unknown',
+                        extractedData.data.personal?.full_name?.split(' ').slice(1).join(' ') || ''
+                    );
+                    await db.updateClient(client.id, {
+                        email: extractedData.data.personal?.email || null,
+                        phone: extractedData.data.personal?.primary_phone || null,
+                        location: extractedData.data.personal?.location || null,
+                        physical_address: extractedData.data.personal?.physical_address || null,
+                        nationality: extractedData.data.personal?.nationality || null,
+                        special_documents: extractedData.data.personal?.special_documents || null,
+                        is_legacy_client: true
+                    });
+                }
+                
+                const convertedCV = await documentGenerator.convertLegacyDocument(file.path, client.id, 'cv');
+                
+                await db.createOrder({
+                    id: `LEGACY_${Date.now()}_${client.id}_${file.originalname}`,
+                    client_id: client.id,
+                    service: 'legacy_cv',
+                    category: 'returningclient',
+                    delivery_option: 'standard',
+                    delivery_time: 'already_delivered',
+                    base_price: 0,
+                    delivery_fee: 0,
+                    total_charge: 'MK0',
+                    payment_status: 'completed',
+                    cv_data: convertedCV,
+                    certificates_appendix: null,
+                    portfolio_links: '[]',
+                    status: 'delivered'
+                });
+                
+                results.push({
+                    file: file.originalname,
+                    success: true,
+                    client_id: client.id,
+                    client_name: extractedData.data.personal?.full_name,
+                    extracted_email: extractedData.data.personal?.email
+                });
+            } catch (fileError) {
+                results.push({
+                    file: file.originalname,
+                    success: false,
+                    error: fileError.message
+                });
+            }
+        }
+        
+        res.json({
+            success: true,
+            total: files.length,
+            successful: results.filter(r => r.success).length,
+            failed: results.filter(r => !r.success).length,
+            results
+        });
+        
+    } catch (error) {
+        console.error('Batch upload error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Single CV upload
+app.post('/admin/upload-cv', adminAuth, upload.single('cv_file'), async (req, res) => {
+    try {
+        const file = req.file;
+        if (!file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        
+        const extractedData = await documentGenerator.extractFullCVData(file.path, 'cv');
+        
+        let client = null;
+        if (extractedData.data.personal?.email) {
+            client = await db.getClientByEmail(extractedData.data.personal.email);
+        }
+        
+        if (!client) {
+            client = await db.createClient(
+                null,
+                null,
+                extractedData.data.personal?.full_name?.split(' ')[0] || 'Unknown',
+                extractedData.data.personal?.full_name?.split(' ').slice(1).join(' ') || ''
+            );
+            await db.updateClient(client.id, {
+                email: extractedData.data.personal?.email || null,
+                phone: extractedData.data.personal?.primary_phone || null,
+                location: extractedData.data.personal?.location || null,
+                physical_address: extractedData.data.personal?.physical_address || null,
+                nationality: extractedData.data.personal?.nationality || null,
+                special_documents: extractedData.data.personal?.special_documents || null,
+                is_legacy_client: true
+            });
+        }
+        
+        const convertedCV = await documentGenerator.convertLegacyDocument(file.path, client.id, 'cv');
+        
+        await db.createOrder({
+            id: `LEGACY_${Date.now()}_${client.id}`,
+            client_id: client.id,
+            service: 'legacy_cv',
+            category: 'returningclient',
+            delivery_option: 'standard',
+            delivery_time: 'already_delivered',
+            base_price: 0,
+            delivery_fee: 0,
+            total_charge: 'MK0',
+            payment_status: 'completed',
+            cv_data: convertedCV,
+            certificates_appendix: null,
+            portfolio_links: '[]',
+            status: 'delivered'
+        });
+        
+        res.json({
+            success: true,
+            message: `CV processed for ${extractedData.data.personal?.full_name || 'client'}`,
+            client_id: client.id,
+            extracted_data: {
+                name: extractedData.data.personal?.full_name,
+                email: extractedData.data.personal?.email,
+                phone: extractedData.data.personal?.primary_phone,
+                location: extractedData.data.personal?.location,
+                physical_address: extractedData.data.personal?.physical_address,
+                nationality: extractedData.data.personal?.nationality,
+                special_documents: extractedData.data.personal?.special_documents
+            }
+        });
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Cover letter upload
+app.post('/admin/upload-cover', adminAuth, upload.single('cover_file'), async (req, res) => {
+    try {
+        const { client_name, client_email, client_phone, client_location, position: formPosition, company: formCompany } = req.body;
+        const file = req.file;
+        
+        if (!file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        
+        const fileUrl = `/uploads/${file.filename}`;
+        const extractedData = await aiAnalyzer.extractFromDocument(fileUrl, file.originalname);
+        
+        const clientName = extractedData.client_name || 'Unknown Client';
+        const clientEmail = extractedData.client_email || null;
+        const clientPhone = extractedData.client_phone || null;
+        const clientLocation = extractedData.client_location || null;
+        const position = extractedData.position || formPosition || 'Unknown Position';
+        const company = extractedData.company || formCompany || 'Unknown Company';
+        
+        let client;
+        if (clientEmail) {
+            client = await db.getClientByEmail(clientEmail);
+        }
+        if (!client && clientPhone) {
+            client = await db.getClientByPhone(clientPhone);
+        }
+        if (!client) {
+            client = await db.createClient(
+                null, null,
+                clientName.split(' ')[0],
+                clientName.split(' ').slice(1).join(' ')
+            );
+            await db.updateClient(client.id, {
+                email: clientEmail,
+                phone: clientPhone,
+                location: clientLocation,
+                is_legacy_client: true
+            });
+        }
+        
+        const convertedCover = await documentGenerator.convertLegacyDocument(file.path, client.id, 'cover_letter');
+        
+        await db.createOrder({
+            id: `LEGACY_CL_${Date.now()}_${client.id}`,
+            client_id: client.id,
+            service: 'legacy_cover_letter',
+            category: 'returningclient',
+            delivery_option: 'standard',
+            delivery_time: 'already_delivered',
+            base_price: 0,
+            delivery_fee: 0,
+            total_charge: 'MK0',
+            payment_status: 'completed',
+            cv_data: { cover_letter: convertedCover },
+            status: 'delivered'
+        });
+        
+        res.json({ 
+            success: true, 
+            message: `Cover letter for ${client_name} uploaded and converted successfully`,
+            client_id: client.id 
+        });
+        
+    } catch (error) {
+        console.error('Cover letter upload error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============ ADMIN DASHBOARD API ENDPOINTS ============
+
+// Get statistics
+app.get('/admin/stats', adminAuth, async (req, res) => {
+    try {
+        const orders = await db.getAllOrders();
+        const clients = await db.getAllClients();
+        const pendingOrders = orders.filter(o => o.payment_status === 'pending');
+        const completedOrders = orders.filter(o => o.payment_status === 'completed');
+        const totalRevenue = completedOrders.reduce((sum, o) => {
+            const amount = parseInt(o.total_charge?.replace('MK', '').replace(',', '') || 0);
+            return sum + amount;
+        }, 0);
+        
+        res.json({
+            total_clients: clients.length,
+            total_orders: orders.length,
+            pending_payment: pendingOrders.length,
+            completed_orders: completedOrders.length,
+            total_revenue: totalRevenue
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get all orders
+app.get('/admin/orders', adminAuth, async (req, res) => {
+    try {
+        const orders = await db.getAllOrders();
+        res.json(orders);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get all clients
+app.get('/admin/clients', adminAuth, async (req, res) => {
+    try {
+        const clients = await db.getAllClients();
+        res.json(clients);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get single order with full CV data
+app.get('/admin/order/:orderId', adminAuth, async (req, res) => {
+    try {
+        const order = await db.getOrder(req.params.orderId);
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+        res.json(order);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Health check
+app.get('/health', (req, res) => {
+    res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
 
 // ============ TELEGRAM BOT ============
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -847,6 +1137,35 @@ async function handleLanguagesCollection(ctx, client, session, text, callbackDat
     await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
 }
 // ============ REFEREES COLLECTION ============
+async function finalizeOrder(ctx, client, session) {
+    // CHECK FOR TEST MODE (admin only)
+    const isTestMode = process.env.TEST_MODE === 'true' || 
+                       (ctx.from.id.toString() === process.env.ADMIN_CHAT_ID && 
+                        session.data.test_mode === true);
+    
+    // ... existing code ...
+    
+    // Instead of waiting for payment, if test mode, mark as paid and deliver immediately
+    if (isTestMode) {
+        // Mark order as paid
+        await db.updateOrderStatus(orderId, 'delivered');
+        await db.updateClient(client.id, { 
+            total_orders: (client.total_orders || 0) + 1,
+            total_spent: (client.total_spent || 0) + parseInt(totalCharge.replace('MK', '').replace(',', ''))
+        });
+        
+        // Send the generated CV file directly
+        const cvResult = await documentGenerator.generateCV(cvData, null, 'docx');
+        if (cvResult.success && fs.existsSync(cvResult.filePath)) {
+            await ctx.replyWithDocument({ source: cvResult.filePath }, {
+                caption: `📄 *TEST MODE - Your CV*\n\nOrder: ${orderId}\n\nThis is a test document. In production, you would receive this after payment.`
+            });
+        }
+        
+        await sendMarkdown(ctx, `🧪 *TEST MODE ACTIVE*\n\nOrder ${orderId} marked as delivered.\nCV file sent above.\n\nNo payment required for testing.`);
+        return;
+    }
+}
 async function handleRefereesCollection(ctx, client, session, text, callbackData = null) {
     const cvData = ensureCVData(session);
     let step = session.data.collection_step;
@@ -1672,6 +1991,176 @@ bot.command('start', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const session = await getOrCreateSession(client.id);
     await handleGreeting(ctx, client, session);
+});
+// Admin command to view all orders
+bot.command('admin_orders', async (ctx) => {
+    // Only allow your admin chat ID
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await ctx.reply("⛔ Unauthorized. Admin access only.");
+    }
+    
+    const orders = await db.getAllOrders();
+    if (orders.length === 0) {
+        await ctx.reply("📭 No orders found.");
+        return;
+    }
+    
+    let message = "📋 *ALL ORDERS*\n\n";
+    for (const order of orders.slice(0, 20)) {
+        message += `🔹 *${order.id}*\n`;
+        message += `   Service: ${order.service}\n`;
+        message += `   Status: ${order.status}\n`;
+        message += `   Payment: ${order.payment_status}\n`;
+        message += `   Total: ${order.total_charge}\n`;
+        message += `   Date: ${new Date(order.created_at).toLocaleDateString()}\n\n`;
+    }
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+});
+
+// Admin command to view a specific order's CV data
+bot.command('admin_view', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await ctx.reply("⛔ Unauthorized.");
+    }
+    
+    const args = ctx.message.text.split(' ');
+    if (args.length < 2) {
+        return await ctx.reply("Usage: /admin_view ORDER_ID");
+    }
+    
+    const orderId = args[1];
+    const order = await db.getOrder(orderId);
+    if (!order) {
+        return await ctx.reply(`❌ Order ${orderId} not found.`);
+    }
+    
+    const cvData = order.cv_data;
+    const personal = cvData?.personal || {};
+    
+    let message = `📄 *CV DATA FOR ORDER ${orderId}*\n\n`;
+    message += `👤 *Personal Info*\n`;
+    message += `• Name: ${personal.full_name || 'N/A'}\n`;
+    message += `• Email: ${personal.email || 'N/A'}\n`;
+    message += `• Phone: ${personal.primary_phone || 'N/A'}\n`;
+    message += `• Location: ${personal.location || 'N/A'}\n`;
+    message += `• Nationality: ${personal.nationality || 'N/A'}\n`;
+    message += `• Address: ${personal.physical_address || 'N/A'}\n\n`;
+    
+    message += `💼 *Work Experience*\n`;
+    for (const job of (cvData?.employment || [])) {
+        message += `• ${job.title} at ${job.company} (${job.duration})\n`;
+        if (job.responsibilities?.length) {
+            message += `  → ${job.responsibilities.slice(0, 2).join(', ')}...\n`;
+        }
+    }
+    message += `\n🎓 *Education*\n`;
+    for (const edu of (cvData?.education || [])) {
+        message += `• ${edu.level} in ${edu.field} from ${edu.institution} (${edu.year})\n`;
+    }
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+});
+
+// Admin command to list all clients
+bot.command('admin_clients', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await ctx.reply("⛔ Unauthorized.");
+    }
+    
+    const clients = await db.getAllClients();
+    if (clients.length === 0) {
+        await ctx.reply("📭 No clients found.");
+        return;
+    }
+    
+    let message = "👥 *ALL CLIENTS*\n\n";
+    for (const client of clients.slice(0, 20)) {
+        message += `🔹 ID: ${client.id} - ${client.first_name} ${client.last_name || ''}\n`;
+        message += `   📞 ${client.phone || 'No phone'} | 📧 ${client.email || 'No email'}\n`;
+        message += `   📦 Orders: ${client.total_orders || 0}\n\n`;
+    }
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+});
+// Admin command to enable test mode
+bot.command('testmode', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await ctx.reply("⛔ Unauthorized.");
+    }
+    
+    const session = await getOrCreateSession(client.id);
+    session.data.test_mode = true;
+    await db.updateSession(session.id, session.stage, session.current_section, session.data);
+    
+    await ctx.reply(`🧪 *Test Mode ENABLED*\n\nYour next order will skip payment and deliver the CV immediately.\n\nType /testmode_off to disable.`);
+});
+
+bot.command('testmode_off', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await ctx.reply("⛔ Unauthorized.");
+    }
+    
+    const session = await getOrCreateSession(client.id);
+    session.data.test_mode = false;
+    await db.updateSession(session.id, session.stage, session.current_section, session.data);
+    
+    await ctx.reply(`✅ Test Mode DISABLED. Back to normal payment flow.`);
+});
+bot.command('admin_stats', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await ctx.reply("⛔ Unauthorized.");
+    }
+    
+    const orders = await db.getAllOrders();
+    const clients = await db.getAllClients();
+    const pendingOrders = orders.filter(o => o.payment_status === 'pending');
+    const completedOrders = orders.filter(o => o.payment_status === 'completed');
+    
+    const totalRevenue = completedOrders.reduce((sum, o) => {
+        const amount = parseInt(o.total_charge?.replace('MK', '').replace(',', '') || 0);
+        return sum + amount;
+    }, 0);
+    
+    const message = `📊 *ADMIN STATS*\n\n` +
+        `👥 Total Clients: ${clients.length}\n` +
+        `📦 Total Orders: ${orders.length}\n` +
+        `⏳ Pending: ${pendingOrders.length}\n` +
+        `✅ Completed: ${completedOrders.length}\n` +
+        `💰 Total Revenue: MK${totalRevenue.toLocaleString()}\n\n` +
+        `Commands:\n` +
+        `/admin_orders - List all orders\n` +
+        `/admin_view ORDER_ID - View CV data\n` +
+        `/admin_clients - List all clients\n` +
+        `/testmode - Enable test mode (skip payment)`;
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+});
+bot.command('admin_export', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) return;
+    
+    const orders = await db.getAllOrders();
+    const clients = await db.getAllClients();
+    
+    const exportData = {
+        exported_at: new Date().toISOString(),
+        total_clients: clients.length,
+        total_orders: orders.length,
+        clients: clients,
+        orders: orders.map(o => ({
+            id: o.id,
+            service: o.service,
+            status: o.status,
+            payment_status: o.payment_status,
+            total_charge: o.total_charge,
+            created_at: o.created_at,
+            cv_data: o.cv_data
+        }))
+    };
+    
+    const fs = require('fs');
+    const filePath = '/tmp/export.json';
+    fs.writeFileSync(filePath, JSON.stringify(exportData, null, 2));
+    await ctx.replyWithDocument({ source: filePath }, { caption: '📊 Database Export' });
+    fs.unlinkSync(filePath);
 });
 
 bot.command('portal', async (ctx) => {

@@ -1958,7 +1958,6 @@ async function handleUpdateCollection(ctx, client, session, text) {
 
 async function finalizeOrder(ctx, client, session) {
     console.log(`[FINALIZE] ========== STARTING FINALIZE ORDER ==========`);
-    console.log(`[FINALIZE] Session data:`, JSON.stringify(session.data, null, 2));
     
     try {
         const cvData = ensureCVData(session);
@@ -1966,28 +1965,19 @@ async function finalizeOrder(ctx, client, session) {
         const name = personal?.full_name || ctx.from.first_name;
         const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
         
-        // CRITICAL: Get values with fallbacks
+        // Get values with fallbacks
         const category = session.data.category || 'professional';
         const service = session.data.service || 'new cv';
         const deliveryOption = session.data.delivery_option || 'standard';
         const deliveryTime = DELIVERY_TIMES[deliveryOption] || '6 hours';
         
-        // Calculate total if not already set
+        // Calculate total
         let totalCharge = session.data.total_charge;
         if (!totalCharge || totalCharge === 'undefined' || totalCharge === 'MK0') {
             const basePrice = getBasePrice(category, service);
             const deliveryFee = DELIVERY_PRICES[deliveryOption] || 0;
             const calculatedTotal = basePrice + deliveryFee;
             totalCharge = formatPrice(calculatedTotal);
-            console.log(`[FINALIZE] Recalculated total: ${totalCharge} (Base: ${basePrice}, Delivery: ${deliveryFee})`);
-        }
-        
-        console.log(`[FINALIZE] Final values - Category: ${category}, Service: ${service}, Delivery: ${deliveryOption}, Time: ${deliveryTime}, Total: ${totalCharge}`);
-        
-        // Safely prepare special_documents
-        let specialDocumentsStr = '[]';
-        if (personal.special_documents && Array.isArray(personal.special_documents)) {
-            specialDocumentsStr = JSON.stringify(personal.special_documents);
         }
         
         // Update client info
@@ -1995,25 +1985,19 @@ async function finalizeOrder(ctx, client, session) {
             if (personal?.email) await db.updateClient(client.id, { email: personal.email });
             if (personal?.primary_phone) await db.updateClient(client.id, { phone: personal.primary_phone });
             if (personal?.location) await db.updateClient(client.id, { location: personal.location });
-            if (personal?.physical_address) await db.updateClient(client.id, { physical_address: personal.physical_address });
-            if (personal?.nationality) await db.updateClient(client.id, { nationality: personal.nationality });
-            if (specialDocumentsStr !== '[]') await db.updateClient(client.id, { special_documents: specialDocumentsStr });
-            console.log(`[FINALIZE] Client info updated`);
         } catch (error) {
             console.error('[FINALIZE] Error updating client:', error.message);
         }
         
-        // Save CV version (non-critical - won't break order)
+        // Save CV version (non-critical)
         try {
             await cvVersioning.saveVersion(orderId, cvData, 1, 'Initial CV creation');
-            console.log(`[FINALIZE] CV version saved`);
         } catch (err) {
-            console.log('[FINALIZE] Version save skipped (non-critical):', err.message);
+            console.log('[FINALIZE] Version save skipped:', err.message);
         }
         
         // Generate CV document
-        const cvResult = await documentGenerator.generateCV(cvData, null, 'docx', session.data.vacancy_data || null, session.data.certificates_data || null);
-        console.log(`[FINALIZE] CV generated: ${cvResult.success ? 'Success' : 'Failed'}`);
+        await documentGenerator.generateCV(cvData, null, 'docx', session.data.vacancy_data || null, session.data.certificates_data || null);
         
         // Create order in database
         await db.createOrder({
@@ -2030,39 +2014,15 @@ async function finalizeOrder(ctx, client, session) {
             cv_data: cvData,
             portfolio_links: JSON.stringify(session.data.portfolio_links || [])
         });
-        console.log(`[FINALIZE] Order created in database`);
         
         session.data.order_id = orderId;
         
         const paymentReference = generatePaymentReference();
-        const paymentMessage = `💳 *Payment Options*
-
-*Amount Due:* ${totalCharge}
-
-┌─────────────────────────────────────┐
-│ 1️⃣ 📱 *Mobile Money*               │
-│    Airtel: 0991295401              │
-│    Mpamba: 0886928639              │
-├─────────────────────────────────────┤
-│ 2️⃣ 📞 *USSD*                       │
-│    Dial *211# (Airtel)             │
-│    Dial *444# (Mpamba)             │
-├─────────────────────────────────────┤
-│ 3️⃣ ⏳ *Pay Later*                  │
-│    Pay within 7 days               │
-├─────────────────────────────────────┤
-│ 4️⃣ 📅 *Installments*               │
-│    2 parts over 7 days             │
-└─────────────────────────────────────┘
-
-📌 *Payment Reference:* \`${paymentReference}\`
-
-After payment, type: \`/confirm ${paymentReference}\``;
-
-        const finalMessage = `✅ *Order Created Successfully!*
+        
+        const finalMessage = `✅ *ORDER CREATED SUCCESSFULLY!*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 *ORDER DETAILS*
+📋 ORDER DETAILS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Order Number: \`${orderId}\`
@@ -2071,27 +2031,52 @@ Delivery Time: ⏰ *${deliveryTime}*
 Total Amount: 💰 *${totalCharge}*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💳 *PAYMENT INSTRUCTIONS*
+💳 PAYMENT OPTIONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${paymentMessage}
+*1️⃣ Mobile Money*
+   📱 Airtel: 0991295401
+   📱 Mpamba: 0886928639
+
+*2️⃣ USSD*
+   📞 Dial *211# (Airtel)
+   📞 Dial *444# (Mpamba)
+
+*3️⃣ Pay Later*
+   ⏳ Pay within 7 days
+
+*4️⃣ Installments*
+   📅 2 parts over 7 days
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 *IMPORTANT NOTES*
+💳 PAYMENT REFERENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-• ⏰ Your document will be delivered within **${deliveryTime}** AFTER payment confirmation
-• 🔑 Use **Order Number** (\`${orderId}\`) for all communications
-• 💰 Use **Payment Reference** (\`${paymentReference}\`) when sending payment
-• ✅ After payment, type: \`/confirm ${paymentReference}\`
-• 📧 Need help? Contact: +265 991 295 401
+\`${paymentReference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 HOW TO COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Send exactly *${totalCharge}* to any account above
+2️⃣ Use reference: \`${paymentReference}\`
+3️⃣ After payment, type: \`/confirm ${paymentReference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏰ DELIVERY TIMING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your document will be delivered within *${deliveryTime}* AFTER we confirm your payment.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📞 Need help? Contact: +265 991 295 401
 
 Thank you for choosing EasySuccor! 🙏`;
 
         await sendMarkdown(ctx, finalMessage);
         await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
         
-        // Schedule feedback request after 14 days (after delivery and job search period)
+        // Schedule feedback request after 14 days
         setTimeout(async () => {
             try {
                 await collectFeedback(ctx, client, orderId);
@@ -2100,11 +2085,10 @@ Thank you for choosing EasySuccor! 🙏`;
             }
         }, 14 * 24 * 60 * 60 * 1000);
         
-        console.log(`[FINALIZE] ========== ORDER COMPLETED SUCCESSFULLY ==========`);
+        console.log(`[FINALIZE] Order completed successfully`);
         
     } catch (error) {
         console.error(`[FINALIZE] ERROR:`, error);
-        console.error(`[FINALIZE] Error stack:`, error.stack);
         await sendMarkdown(ctx, `⚠️ *Something went wrong creating your order.*
 
 Please try again or contact support.
@@ -2114,6 +2098,7 @@ Error: ${error.message}
 Type /start to begin again.`);
     }
 }
+
 async function getPaymentOptions(amount, orderId, clientId) {
     const reference = generatePaymentReference();
     return {

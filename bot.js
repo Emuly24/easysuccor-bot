@@ -1686,7 +1686,8 @@ async function finalizeOrder(ctx, client, session) {
         
         session.data.order_id = orderId;
         
-        const paymentReference = generatePaymentReference();
+       const paymentReference = generatePaymentReference();
+       await db.updateOrderPaymentReference(orderId, paymentReference);
         
         const finalMessage = `✅ *ORDER CREATED SUCCESSFULLY!*
 
@@ -1808,6 +1809,8 @@ async function finalizeCoverLetter(ctx, client, session) {
     });
     
     const paymentReference = generatePaymentReference();
+    await db.updateOrderPaymentReference(orderId, paymentReference);
+        
     
     const finalMessage = `✅ *COVER LETTER ORDER CREATED!* 
 
@@ -2782,16 +2785,75 @@ bot.command('resume', async (ctx) => {
 
 bot.command('confirm', async (ctx) => {
     const args = ctx.message.text.split(' ');
-    if (args.length < 2) { await sendMarkdown(ctx, "Usage: /confirm REFERENCE"); return; }
-    await sendMarkdown(ctx, `✅ Payment confirmation received! Reference: ${args[1]}\n\nOur team will verify and start working on your document shortly. Thank you! 🙏`);
+    if (args.length < 2) {
+        await sendMarkdown(ctx, "Usage: /confirm REFERENCE");
+        return;
+    }
+    const reference = args[1];
+    
+    // 1. Acknowledge the client
+    await sendMarkdown(ctx, `✅ Payment confirmation received! Reference: ${reference}\n\nOur team will verify and start working on your document shortly. Thank you! 🙏`);
+    
+    // 2. Get client info
+    const client = await getOrCreateClient(ctx);
+    
+    // 3. Send admin alert (Telegram + Email)
+    const adminMessage = `🚨 *Payment Confirmation Received*
+
+Reference: \`${reference}\`
+Client: ${client.first_name} ${client.last_name || ''}
+Telegram ID: ${client.telegram_id}
+Username: @${ctx.from.username || 'N/A'}
+
+To verify payment: /verify ${reference}`;
+    
+    await notificationService.alertAdmin(`💰 Payment Confirmation: ${reference}`, adminMessage, ctx.bot);
 });
 
 bot.command('verify', async (ctx) => {
-    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) return await sendMarkdown(ctx, "Unauthorized.");
+    // Admin only
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await sendMarkdown(ctx, "⛔ Unauthorized.");
+    }
+    
     const args = ctx.message.text.split(' ');
-    if (args.length < 2) return await sendMarkdown(ctx, "Usage: /verify REFERENCE");
-    await sendMarkdown(ctx, `✅ Payment verified for ${args[1]}`);
+    if (args.length < 2) {
+        return await sendMarkdown(ctx, "Usage: /verify REFERENCE_OR_ORDER_ID");
+    }
+    const ref = args[1];
+    
+    // Try to find order by payment reference (stored in payment_method) or by order ID
+    let order = await db.getOrderByPaymentReference(ref);
+    if (!order) {
+        order = await db.getOrder(ref);
+    }
+    if (!order) {
+        return await sendMarkdown(ctx, `❌ No order found for reference/ID: ${ref}`);
+    }
+    
+    // Update order status
+    await db.updateOrderStatus(order.id, 'paid');
+    await db.updateOrderPaymentStatus(order.id, 'completed');
+    
+    // Get client info
+    const client = await db.getClientById(order.client_id);
+    if (!client || !client.telegram_id) {
+        return await sendMarkdown(ctx, `❌ Client not found or has no Telegram ID.`);
+    }
+    
+    // Generate CV
+    const cvResult = await documentGenerator.generateCV(order.cv_data, null, 'docx');
+    if (cvResult.success && fs.existsSync(cvResult.filePath)) {
+        // Send to client
+        await ctx.telegram.sendDocument(client.telegram_id, { source: cvResult.filePath }, {
+            caption: `✅ *Payment Confirmed!* 🎉\n\nYour CV is ready.\nOrder: ${order.id}\n\nThank you for choosing EasySuccor! 🙏`
+        });
+        await sendMarkdown(ctx, `✅ Payment verified for ${ref}. CV ready to be delivered.`);
+    } else {
+        await sendMarkdown(ctx, `✅ Payment verified for ${ref} but CV generation failed. Please check logs.`);
+    }
 });
+
 
 bot.command('feedback', async (ctx) => {
     const client = await getOrCreateClient(ctx);

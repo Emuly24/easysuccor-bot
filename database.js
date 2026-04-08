@@ -466,6 +466,13 @@ async function updateClient(clientId, data) {
     }
 }
 
+async function updateOrderPaymentReference(orderId, reference) {
+    if (dbType === 'postgres') {
+        await db.query(`UPDATE orders SET payment_method = $1 WHERE id = $2`, [reference, orderId]);
+    } else {
+        await db.run(`UPDATE orders SET payment_method = ? WHERE id = ?`, [reference, orderId]);
+    }
+}
 async function getAllClients() {
     if (dbType === 'postgres') {
         const result = await db.query('SELECT * FROM clients ORDER BY created_at DESC');

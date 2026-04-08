@@ -2161,14 +2161,22 @@ async function startBot() {
     const fullWebhookUrl = `${WEBHOOK_URL}${webhookPath}`;
     
     try {
+        await bot.telegram.deleteWebhook();
         await bot.telegram.setWebhook(fullWebhookUrl);
         console.log(`✅ Webhook set to ${fullWebhookUrl}`);
     } catch (webhookError) {
         console.error('❌ Failed to set webhook:', webhookError.message);
     }
     
+    // Setup webhook endpoint
     app.post(webhookPath, (req, res) => {
         bot.handleUpdate(req.body, res);
+    });
+    
+    // IMPORTANT: Start the Express server to keep the process alive
+    const PORT = process.env.PORT || 10000;
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`✅ Express server running on port ${PORT}`);
     });
     
     console.log('========================================');
@@ -2179,7 +2187,13 @@ async function startBot() {
     console.log('  ✅ Intelligent CV Update');
     console.log('  ✅ Webhook mode (production)');
     console.log('========================================');
+    
+    // Keep the process alive
+    process.on('SIGINT', () => {
+        console.log('Shutting down...');
+        process.exit(0);
+    });
 }
 
+// Start the bot
 startBot().catch(console.error);
-module.exports = bot;

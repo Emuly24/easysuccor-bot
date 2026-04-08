@@ -1441,27 +1441,6 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
     await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
 }
 
-    // Instead of waiting for payment, if test mode, mark as paid and deliver immediately
-    if (isTestMode) {
-        // Mark order as paid
-        await db.updateOrderStatus(orderId, 'delivered');
-        await db.updateClient(client.id, { 
-            total_orders: (client.total_orders || 0) + 1,
-            total_spent: (client.total_spent || 0) + parseInt(totalCharge.replace('MK', '').replace(',', ''))
-        });
-        
-        // Send the generated CV file directly
-        const cvResult = await documentGenerator.generateCV(cvData, null, 'docx');
-        if (cvResult.success && fs.existsSync(cvResult.filePath)) {
-            await ctx.replyWithDocument({ source: cvResult.filePath }, {
-                caption: `📄 *TEST MODE - Your CV*\n\nOrder: ${orderId}\n\nThis is a test document. In production, you would receive this after payment.`
-            });
-        }
-        
-        await sendMarkdown(ctx, `🧪 *TEST MODE ACTIVE*\n\nOrder ${orderId} marked as delivered.\nCV file sent above.\n\nNo payment required for testing.`);
-        return;
-    }
-
 async function handleRefereesCollection(ctx, client, session, text, callbackData = null) {
     console.log(`[REFEREES] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
 
@@ -1603,6 +1582,10 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
 
 // ============ FINALIZE ORDER ============
 async function finalizeOrder(ctx, client, session) {
+      // CHECK FOR TEST MODE (admin only)
+    const isTestMode = process.env.TEST_MODE === 'true' || 
+                       (ctx.from.id.toString() === process.env.ADMIN_CHAT_ID && 
+                        session.data.test_mode === true);
     console.log(`[FINALIZE] ========== STARTING FINALIZE ORDER ==========`);
     
     try {
@@ -1624,8 +1607,28 @@ async function finalizeOrder(ctx, client, session) {
             const deliveryFee = DELIVERY_PRICES[deliveryOption] || 0;
             const calculatedTotal = basePrice + deliveryFee;
             totalCharge = formatPrice(calculatedTotal);
+            // Instead of waiting for payment, if test mode, mark as paid and deliver immediately
+    if (isTestMode) {
+        // Mark order as paid
+        await db.updateOrderStatus(orderId, 'delivered');
+        await db.updateClient(client.id, { 
+            total_orders: (client.total_orders || 0) + 1,
+            total_spent: (client.total_spent || 0) + parseInt(totalCharge.replace('MK', '').replace(',', ''))
+        });
+        
+        // Send the generated CV file directly
+        const cvResult = await documentGenerator.generateCV(cvData, null, 'docx');
+        if (cvResult.success && fs.existsSync(cvResult.filePath)) {
+            await ctx.replyWithDocument({ source: cvResult.filePath }, {
+                caption: `📄 *TEST MODE - Your CV*\n\nOrder: ${orderId}\n\nThis is a test document. In production, you would receive this after payment.`
+            });
         }
         
+        await sendMarkdown(ctx, `🧪 *TEST MODE ACTIVE*\n\nOrder ${orderId} marked as delivered.\nCV file sent above.\n\nNo payment required for testing.`);
+        return;
+    }
+    
+        }
         // Update client info
         try {
             if (personal?.email) await db.updateClient(client.id, { email: personal.email });

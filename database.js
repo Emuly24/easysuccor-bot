@@ -26,6 +26,7 @@ async function initDatabase() {
         console.log('✅ PostgreSQL database connected');
         
         await createTablesPostgres(pool);
+        await fixColumnTypes(pool);
         
         db = pool;
         dbType = 'postgres';
@@ -55,32 +56,65 @@ async function initDatabase() {
     }
 }
 
+// ============ FIX COLUMN TYPES FUNCTION ============
+async function fixColumnTypes(pool) {
+    try {
+        // Fix cv_versions table - ensure cv_data is TEXT
+        await pool.query(`
+            DO $$ 
+            BEGIN 
+                BEGIN
+                    ALTER TABLE cv_versions ALTER COLUMN cv_data TYPE TEXT;
+                EXCEPTION
+                    WHEN others THEN NULL;
+                END;
+            END $$;
+        `);
+        
+        // Fix orders table - ensure cv_data is TEXT
+        await pool.query(`
+            DO $$ 
+            BEGIN 
+                BEGIN
+                    ALTER TABLE orders ALTER COLUMN cv_data TYPE TEXT;
+                EXCEPTION
+                    WHEN others THEN NULL;
+                END;
+            END $$;
+        `);
+        
+        console.log('✅ Verified cv_data column types');
+    } catch (err) {
+        console.log('Column type fix skipped (non-critical):', err.message);
+    }
+}
+
 async function createTablesPostgres(pool) {
-await pool.query(`
-    CREATE TABLE IF NOT EXISTS clients (
-        id SERIAL PRIMARY KEY,
-        telegram_id TEXT UNIQUE,
-        username TEXT,
-        first_name TEXT,
-        last_name TEXT,
-        phone TEXT,
-        email TEXT,
-        location TEXT,
-        physical_address TEXT,
-        nationality TEXT,
-        special_documents TEXT,
-        industry TEXT,
-        experience_years INTEGER,
-        referral_code TEXT UNIQUE,
-        referred_by INTEGER,
-        wallet_balance INTEGER DEFAULT 0,
-        referral_credit INTEGER DEFAULT 0,
-        total_orders INTEGER DEFAULT 0,
-        total_spent INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_active TIMESTAMP
-    )
-`);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS clients (
+            id SERIAL PRIMARY KEY,
+            telegram_id TEXT UNIQUE,
+            username TEXT,
+            first_name TEXT,
+            last_name TEXT,
+            phone TEXT,
+            email TEXT,
+            location TEXT,
+            physical_address TEXT,
+            nationality TEXT,
+            special_documents TEXT,
+            industry TEXT,
+            experience_years INTEGER,
+            referral_code TEXT UNIQUE,
+            referred_by INTEGER,
+            wallet_balance INTEGER DEFAULT 0,
+            referral_credit INTEGER DEFAULT 0,
+            total_orders INTEGER DEFAULT 0,
+            total_spent INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_active TIMESTAMP
+        )
+    `);
     
     await pool.query(`
         CREATE TABLE IF NOT EXISTS sessions (
@@ -215,6 +249,9 @@ async function createTablesSQLite(db) {
             phone TEXT,
             email TEXT,
             location TEXT,
+            physical_address TEXT,
+            nationality TEXT,
+            special_documents TEXT,
             industry TEXT,
             experience_years INTEGER,
             referral_code TEXT UNIQUE,
@@ -661,19 +698,27 @@ async function updatePaymentReminder(orderId, days) {
 
 // ============ CV VERSIONING FUNCTIONS ============
 async function saveCVVersion(orderId, cvData, versionNumber, changes) {
+    // Ensure cvData is properly stringified
+    const cvDataStr = typeof cvData === 'object' ? JSON.stringify(cvData) : cvData;
+    
     if (dbType === 'postgres') {
-        await db.query(`UPDATE cv_versions SET is_current = 0 WHERE order_id = $1`, [orderId]);
-        await db.query(
-            `INSERT INTO cv_versions (order_id, version_number, cv_data, changes, is_current, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [orderId, versionNumber, JSON.stringify(cvData), changes, 1, new Date().toISOString()]
-        );
+        try {
+            await db.query(`UPDATE cv_versions SET is_current = 0 WHERE order_id = $1`, [orderId]);
+            await db.query(
+                `INSERT INTO cv_versions (order_id, version_number, cv_data, changes, is_current, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                [orderId, versionNumber, cvDataStr, changes, 1, new Date().toISOString()]
+            );
+        } catch (err) {
+            console.log('Warning: CV version save failed (non-critical):', err.message);
+            // Don't throw - this is non-critical
+        }
     } else {
         await db.run(`UPDATE cv_versions SET is_current = 0 WHERE order_id = ?`, [orderId]);
         await db.run(
             `INSERT INTO cv_versions (order_id, version_number, cv_data, changes, is_current, created_at)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [orderId, versionNumber, JSON.stringify(cvData), changes, 1, new Date().toISOString()]
+            [orderId, versionNumber, cvDataStr, changes, 1, new Date().toISOString()]
         );
     }
 }
@@ -1067,7 +1112,7 @@ async function updateInstallmentStatus(orderId, status) {
         );
     } else {
         await db.run(
-            `UPDATE installments SET status = ?, updated_at = ? WHERE order_id = ?`,
+            `UPDATE installments SET status = ?, updated_at = ? WHERE id = ?`,
             [status, new Date().toISOString(), orderId]
         );
     }

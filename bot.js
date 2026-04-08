@@ -1602,11 +1602,7 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
 
 // ============ FINALIZE ORDER ============
 async function finalizeOrder(ctx, client, session) {
-      // CHECK FOR TEST MODE (admin only)
-    const isTestMode = process.env.TEST_MODE === 'true' || 
-                       (ctx.from.id.toString() === process.env.ADMIN_CHAT_ID && 
-                        session.data.test_mode === true);
-    console.log(`[FINALIZE] ========== STARTING FINALIZE ORDER ==========`);
+    console.log(`[FINALIZE] Starting order finalization`);
     
     try {
         const cvData = ensureCVData(session);
@@ -1614,61 +1610,24 @@ async function finalizeOrder(ctx, client, session) {
         const name = personal?.full_name || ctx.from.first_name;
         const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
         
-        // Get values with fallbacks
         const category = session.data.category || 'professional';
         const service = session.data.service || 'new cv';
         const deliveryOption = session.data.delivery_option || 'standard';
         const deliveryTime = DELIVERY_TIMES[deliveryOption] || '6 hours';
         
-        // Calculate total
         let totalCharge = session.data.total_charge;
         if (!totalCharge || totalCharge === 'undefined' || totalCharge === 'MK0') {
-            const basePrice = getBasePrice(category, service);
-            const deliveryFee = DELIVERY_PRICES[deliveryOption] || 0;
-            const calculatedTotal = basePrice + deliveryFee;
-            totalCharge = formatPrice(calculatedTotal);
-            // Instead of waiting for payment, if test mode, mark as paid and deliver immediately
-    if (isTestMode) {
-        // Mark order as paid
-        await db.updateOrderStatus(orderId, 'delivered');
-        await db.updateClient(client.id, { 
-            total_orders: (client.total_orders || 0) + 1,
-            total_spent: (client.total_spent || 0) + parseInt(totalCharge.replace('MK', '').replace(',', ''))
-        });
+            totalCharge = formatPrice(calculateTotal(category, service, deliveryOption));
+        }
         
-        // Send the generated CV file directly
+        // Generate FIRST version for admin review (NOT for client)
         const cvResult = await documentGenerator.generateCV(cvData, null, 'docx');
-        if (cvResult.success && fs.existsSync(cvResult.filePath)) {
-            await ctx.replyWithDocument({ source: cvResult.filePath }, {
-                caption: `📄 *TEST MODE - Your CV*\n\nOrder: ${orderId}\n\nThis is a test document. In production, you would receive this after payment.`
-            });
+        
+        if (!cvResult.success) {
+            throw new Error('CV generation failed');
         }
         
-        await sendMarkdown(ctx, `🧪 *TEST MODE ACTIVE*\n\nOrder ${orderId} marked as delivered.\nCV file sent above.\n\nNo payment required for testing.`);
-        return;
-    }
-    
-        }
-        // Update client info
-        try {
-            if (personal?.email) await db.updateClient(client.id, { email: personal.email });
-            if (personal?.primary_phone) await db.updateClient(client.id, { phone: personal.primary_phone });
-            if (personal?.location) await db.updateClient(client.id, { location: personal.location });
-        } catch (error) {
-            console.error('[FINALIZE] Error updating client:', error.message);
-        }
-        
-        // Save CV version (non-critical)
-        try {
-            await cvVersioning.saveVersion(orderId, cvData, 1, 'Initial CV creation');
-        } catch (err) {
-            console.log('[FINALIZE] Version save skipped:', err.message);
-        }
-        
-        // Generate CV document
-        await documentGenerator.generateCV(cvData, null, 'docx', session.data.vacancy_data || null, session.data.certificates_data || null);
-        
-        // Create order in database
+        // Create order
         await db.createOrder({
             id: orderId,
             client_id: client.id,
@@ -1684,12 +1643,23 @@ async function finalizeOrder(ctx, client, session) {
             portfolio_links: JSON.stringify(session.data.portfolio_links || [])
         });
         
+        // Save review record
+        await db.saveDocumentReview({
+            order_id: orderId,
+            version: 1,
+            document_path: cvResult.filePath,
+            status: 'pending_admin_review',
+            review_type: 'initial'
+        });
+        
         session.data.order_id = orderId;
+        session.data.current_version = 1;
+        session.data.review_count = 0;
         
-       const paymentReference = generatePaymentReference();
-       await db.updateOrderPaymentReference(orderId, paymentReference);
+        const paymentReference = generatePaymentReference();
         
-        const finalMessage = `✅ *ORDER CREATED SUCCESSFULLY!*
+        // Send to client - they don't get document yet, just payment info
+        const clientMessage = `✅ *ORDER CREATED!*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 ORDER DETAILS
@@ -1701,71 +1671,79 @@ Delivery Time: ⏰ *${deliveryTime}*
 Total Amount: 💰 *${totalCharge}*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💳 PAYMENT OPTIONS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-*1️⃣ Mobile Money*
-   📱 Airtel: 0991295401
-   📱 Mpamba: 0886928639
-
-*2️⃣ USSD*
-   📞 Dial *211# (Airtel)
-   📞 Dial *444# (Mpamba)
-
-*3️⃣ Pay Later*
-   ⏳ Pay within 7 days
-
-*4️⃣ Installments*
-   📅 2 parts over 7 days
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💳 PAYMENT REFERENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 \`${paymentReference}\`
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 HOW TO COMPLETE
+📌 NEXT STEPS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1️⃣ Send exactly *${totalCharge}* to any account above
+1️⃣ Send *${totalCharge}* to:
+   📱 Airtel: 0991295401
+   📱 Mpamba: 0886928639
+
 2️⃣ Use reference: \`${paymentReference}\`
-3️⃣ After payment, type: \`/confirm ${paymentReference}\`
+
+3️⃣ After payment, click: [✅ I Have Made Payment]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⏰ DELIVERY TIMING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Your document will be delivered within *${deliveryTime}* AFTER we confirm your payment.
+Your document will be delivered within *${deliveryTime}* AFTER payment confirmation.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📞 Need help? Contact: +265 991 295 401
+*Note:* You will have 2 opportunities to request changes after reviewing your document.
 
 Thank you for choosing EasySuccor! 🙏`;
 
-        await sendMarkdown(ctx, finalMessage);
-        await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
-        
-        // Schedule feedback request after 14 days
-        setTimeout(async () => {
-            try {
-                await collectFeedback(ctx, client, orderId);
-            } catch (err) {
-                console.log('Error scheduling feedback:', err.message);
+        await sendMarkdown(ctx, clientMessage, {
+            reply_markup: {
+                inline_keyboard: [[
+                    { text: "✅ I Have Made Payment", callback_data: `confirm_${paymentReference}` }
+                ]]
             }
-        }, 14 * 24 * 60 * 60 * 1000);
+        });
         
-        console.log(`[FINALIZE] Order completed successfully`);
+        // Send to ADMIN for review (FIRST review)
+        const adminMessage = `📄 *NEW DOCUMENT READY FOR REVIEW*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order ID: \`${orderId}\`
+Client: ${client.first_name} ${client.last_name || ''}
+Service: ${service}
+Version: 1/4
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ *ACTION REQUIRED*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Please review the document and:
+1. Make any necessary changes
+2. Upload the reviewed version
+
+After your review, the client will see a non-downloadable version for feedback.`;
+
+        // Send the document to admin
+        await ctx.telegram.sendDocument(process.env.ADMIN_CHAT_ID, { source: cvResult.filePath }, {
+            caption: adminMessage,
+            reply_markup: {
+                inline_keyboard: [[
+                    { text: "✅ Approve & Send to Client", callback_data: `admin_approve_${orderId}` },
+                    { text: "✏️ Upload Reviewed Version", callback_data: `admin_upload_${orderId}` }
+                ]]
+            }
+        });
+        
+        await db.updateSession(session.id, 'awaiting_admin_review', 'review', session.data);
         
     } catch (error) {
         console.error(`[FINALIZE] ERROR:`, error);
-        await sendMarkdown(ctx, `⚠️ *Something went wrong creating your order.*
-
-Please try again or contact support.
-
-Error: ${error.message}
-
-Type /start to begin again.`);
+        await sendMarkdown(ctx, `⚠️ Something went wrong. Please try again.`);
     }
 }
 
@@ -2853,44 +2831,77 @@ bot.command('confirm', async (ctx) => {
     }
     const reference = args[1];
     
-    // 1. Acknowledge the client
-    await sendMarkdown(ctx, `✅ Payment confirmation received! Reference: ${reference}\n\nOur team will verify and start working on your document shortly. Thank you! 🙏`);
-    
-    // 2. Get client info
     const client = await getOrCreateClient(ctx);
-    
-    // 3. Get the last order (with this reference stored)
     const orders = await db.getClientOrders(client.id);
     const lastOrder = orders[orders.length - 1];
+    const deliveryTime = lastOrder?.delivery_time || '6 hours';
     
-    // 4. Send admin alert (using the global bot instance)
-    const adminMessage = `🚨 *PAYMENT CONFIRMATION RECEIVED*
+    // Client message
+    await sendMarkdown(ctx, `✅ *Payment received!* Reference: ${reference}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 *Order Details*
+📋 *What happens next?*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Reference: \`${reference}\`
+• Our team has been notified of your payment
+• Your document will be delivered within *${deliveryTime}*
+• You'll receive it directly in this chat
+
+Thank you for your trust in EasySuccor! 🙏`);
+    
+    // Prepare admin message (will be sent as both email and Telegram)
+    const adminMessage = `🚨 PAYMENT CONFIRMATION RECEIVED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Reference: ${reference}
 Order ID: ${lastOrder ? lastOrder.id : 'N/A'}
 Client: ${client.first_name} ${client.last_name || ''}
-Telegram ID: \`${client.telegram_id}\`
+Telegram ID: ${client.telegram_id}
 Username: @${ctx.from.username || 'N/A'}
 Phone: ${client.phone || 'Not provided'}
 Email: ${client.email || 'Not provided'}
+Delivery Time: ${deliveryTime}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💳 *Action Required*
+💳 ACTION REQUIRED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Verify payment by typing:
-\`/verify ${reference}\`
+To verify this payment and release the document:
 
-If payment is confirmed, the CV will be sent to the client automatically.`;
+/verify ${reference}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📅 Received: ${new Date().toLocaleString()}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EasySuccor Bot - Professional CV Service`;
     
-    // Use the global bot variable (not ctx.bot)
+    // Send alert (EMAIL FIRST + Telegram backup)
     await notificationService.alertAdmin(`💰 Payment Confirmation: ${reference}`, adminMessage, bot);
+    
+    // Also send Telegram message with button (in addition to email)
+    const telegramMessage = `🚨 *PAYMENT CONFIRMATION RECEIVED*
+
+Reference: \`${reference}\`
+Client: ${client.first_name}
+Order: ${lastOrder ? lastOrder.id : 'N/A'}
+
+Click to verify: /verify ${reference}`;
+    
+    await ctx.telegram.sendMessage(process.env.ADMIN_CHAT_ID, telegramMessage, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [[
+                { text: "✅ Verify Payment", callback_data: `verify_${reference}` }
+            ]]
+        }
+    });
 });
 
+// Original /verify command (kept for backward compatibility, but button is preferred)
 bot.command('verify', async (ctx) => {
     // Admin only
     if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
@@ -2903,14 +2914,11 @@ bot.command('verify', async (ctx) => {
     }
     const ref = args[1];
     
-    // Find order by payment reference or order ID
+    // Find order
     let order = null;
-    let client = null;
-    
-    // Try to find order by searching through orders (since we don't have direct reference column)
     const allOrders = await db.getAllOrders();
     for (const o of allOrders) {
-        if (o.id === ref || (o.payment_method === ref)) {
+        if (o.id === ref || o.payment_method === ref) {
             order = o;
             break;
         }
@@ -2920,54 +2928,57 @@ bot.command('verify', async (ctx) => {
         return await sendMarkdown(ctx, `❌ No order found for reference/ID: ${ref}`);
     }
     
-    // Get client
-    client = await db.getClientById(order.client_id);
+    const client = await db.getClientById(order.client_id);
     if (!client) {
         return await sendMarkdown(ctx, `❌ Client not found for order: ${order.id}`);
     }
     
-    // Check if already verified
     if (order.payment_status === 'completed') {
         return await sendMarkdown(ctx, `⚠️ Payment for order ${order.id} was already verified.`);
     }
     
-    // Update order status
     await db.updateOrderStatus(order.id, 'paid');
     await db.updateOrderPaymentStatus(order.id, 'completed');
     
-    // Generate and send CV to client
-    await sendMarkdown(ctx, `✅ Payment verified for ${ref}. Generating CV...`);
+    await sendMarkdown(ctx, `✅ Payment verified for ${ref}. Processing document...`);
     
     try {
         const cvResult = await documentGenerator.generateCV(order.cv_data, null, 'docx');
-        if (cvResult.success && fs.existsSync(cvResult.filePath)) {
-            // Send to client via Telegram
-            if (client.telegram_id) {
-                await ctx.telegram.sendDocument(client.telegram_id, { source: cvResult.filePath }, {
-                    caption: `✅ *PAYMENT CONFIRMED!* 🎉
+        if (cvResult.success && fs.existsSync(cvResult.filePath) && client.telegram_id) {
+            await ctx.telegram.sendDocument(client.telegram_id, { source: cvResult.filePath }, {
+                caption: `📄 *Your document is ready!*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 *Order Details*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 Order ID: \`${order.id}\`
 Service: ${order.service}
-Delivery: ${order.delivery_time}
+Delivery Time: ${order.delivery_time}
 
-Your CV is ready! Thank you for choosing EasySuccor.
-
-Need help? Contact: +265 991 295 401`
-                });
-                await sendMarkdown(ctx, `✅ CV sent to client (${client.first_name}).`);
-            } else {
-                await sendMarkdown(ctx, `⚠️ Client has no Telegram ID. CV saved at: ${cvResult.filePath}`);
-            }
+Thank you for choosing EasySuccor! 🎉`
+            });
+            await sendMarkdown(ctx, `✅ Document sent to client (${client.first_name}).`);
         } else {
-            await sendMarkdown(ctx, `❌ CV generation failed. Please check logs.`);
+            await sendMarkdown(ctx, `❌ Document generation failed.`);
         }
     } catch (error) {
         console.error('CV generation error:', error);
         await sendMarkdown(ctx, `❌ Error generating CV: ${error.message}`);
+    }
+});
+bot.command('test_email', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await ctx.reply("Unauthorized");
+    }
+    
+    const result = await notificationService.sendEmail(
+        process.env.EMAIL_USER,
+        'Test Email from EasySuccor',
+        'This is a test email to verify your email notification system is working correctly.\n\nIf you received this, email notifications are configured properly!'
+    );
+    
+    if (result.success) {
+        await ctx.reply(`✅ Test email sent successfully to ${process.env.EMAIL_USER}`);
+    } else {
+        await ctx.reply(`❌ Test email failed: ${result.error}`);
     }
 });
 
@@ -3053,6 +3064,65 @@ bot.on('document', async (ctx) => {
             const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
             await handleUpdateRequest(ctx, client, session, null, fileUrl, 'document');
         }
+        // In bot.on('document'), add:
+else if (session.stage === 'awaiting_admin_upload') {
+    const fileInfo = await ctx.telegram.getFile(document.file_id);
+    const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
+    const filePath = path.join(__dirname, 'uploads', `reviewed_${session.data.order_id}.docx`);
+    
+    // Download file
+    const response = await axios({ url: fileUrl, responseType: 'stream' });
+    const writer = fs.createWriteStream(filePath);
+    response.data.pipe(writer);
+    
+    await new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+    });
+    
+    // Save review record
+    await db.saveDocumentReview({
+        order_id: session.data.order_id,
+        version: session.data.current_version + 1,
+        document_path: filePath,
+        status: 'admin_reviewed_uploaded',
+        review_type: 'admin_revised'
+    });
+    
+    // Update session
+    session.data.current_version++;
+    session.data.awaiting_admin_upload = false;
+    await db.updateSession(session.id, 'ready_for_client', 'review', session.data);
+    
+    // Send to client for review
+    const order = await db.getOrder(session.data.order_id);
+    const client = await db.getClientById(order.client_id);
+    const reviewCount = session.data.review_count || 0;
+    const remainingReviews = 2 - reviewCount;
+    
+    await ctx.telegram.sendDocument(client.telegram_id, { source: filePath }, {
+        caption: `📄 *Revised Document Ready for Review*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 REVIEW INSTRUCTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Please review this revised version.
+
+*Remaining change requests: ${remainingReviews}*
+
+To request changes:
+• Type your feedback
+• Send a captioned screenshot
+• Send a voice note
+
+Type *APPROVE* if you're satisfied.
+
+After approval, you will receive the final downloadable version.`
+    });
+    
+    await ctx.reply(`✅ Reviewed document sent to client for final review.`);
+}
         else {
             await sendMarkdown(ctx, `📎 Upload your existing CV or cover letter - I'll extract everything!`);
             session.data.awaiting_draft_upload = true;
@@ -3201,6 +3271,93 @@ bot.on('text', async (ctx) => {
                 await sendMarkdown(ctx, `Please select 1, 2, 3, or 4.`);
             }
         }
+        // In bot.on('text'), add final approval
+else if (text.toUpperCase() === 'APPROVE') {
+    const order = await db.getOrder(session.data.order_id);
+    const reviewCount = session.data.review_count || 0;
+    
+    // Determine format based on service (editable = DOCX, otherwise PDF)
+    const format = order.service === 'editable cv' ? 'docx' : 'pdf';
+    const cvResult = await documentGenerator.generateCV(order.cv_data, null, format);
+    
+    if (cvResult.success) {
+        const caption = `🎉 *FINAL DOCUMENT READY!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order ID: \`${order.id}\`
+Service: ${order.service}
+Format: ${format.toUpperCase()}
+
+Thank you for choosing EasySuccor!
+
+*Note:* You have used ${reviewCount} of 2 change requests.
+
+Need help? Contact: +265 991 295 401`;
+        
+        await ctx.replyWithDocument({ source: cvResult.filePath }, { caption: caption });
+        
+        // Update order status
+        await db.updateOrderStatus(order.id, 'delivered');
+        await db.saveDocumentReview({
+            order_id: session.data.order_id,
+            version: session.data.current_version + 1,
+            document_path: cvResult.filePath,
+            status: 'final_delivered',
+            review_type: 'final'
+        });
+        
+        await db.updateSession(session.id, 'main_menu', null, session.data);
+    } else {
+        await sendMarkdown(ctx, `❌ Failed to generate final document. Please contact support.`);
+    }
+}
+// In bot.on('text'), add client feedback handling
+else if (session.stage === 'awaiting_client_feedback') {
+    const feedback = text;
+    const order = await db.getOrder(session.data.order_id);
+    const reviewCount = session.data.review_count || 0;
+    
+    if (reviewCount >= 2) {
+        await sendMarkdown(ctx, `⚠️ *You have used all 2 change requests.*
+
+The document will now be finalized. Type *APPROVE* to receive your final document.`);
+        return;
+    }
+    
+    // Save feedback
+    await db.saveDocumentReview({
+        order_id: session.data.order_id,
+        version: session.data.current_version,
+        feedback: feedback,
+        status: 'client_feedback_received',
+        review_type: 'client_feedback'
+    });
+    
+    session.data.review_count = reviewCount + 1;
+    session.data.pending_feedback = feedback;
+    
+    // Notify admin
+    await ctx.telegram.sendMessage(process.env.ADMIN_CHAT_ID, `📝 *Client Feedback Received*
+
+Order: ${session.data.order_id}
+Review: ${session.data.review_count}/2
+
+Feedback:
+${feedback}
+
+Please make the requested changes and upload the revised document.`);
+    
+    await sendMarkdown(ctx, `✅ *Feedback received!*
+
+Our team will make the requested changes and send you a revised version within 24 hours.
+
+Remaining change requests: ${2 - (reviewCount + 1)}`);
+    
+    await db.updateSession(session.id, 'awaiting_admin_revision', 'review', session.data);
+}
         else {
             await sendMarkdown(ctx, random(RESPONSES.help));
         }
@@ -3313,6 +3470,84 @@ bot.on('callback_query', async (ctx) => {
     else if (data.startsWith('prof_')) {
         await handleLanguagesCollection(ctx, client, session, '', data);
     }
+    // Admin approves and sends non-downloadable version to client
+else if (data.startsWith('admin_approve_')) {
+    const orderId = data.replace('admin_approve_', '');
+    
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        await ctx.answerCbQuery('⛔ Admin only');
+        return;
+    }
+    
+    await ctx.answerCbQuery('✅ Processing...');
+    
+    const order = await db.getOrder(orderId);
+    const client = await db.getClientById(order.client_id);
+    const reviews = await db.getDocumentReviews(orderId);
+    const currentVersion = reviews.length;
+    
+    // Generate NON-DOWNLOADABLE version for client review
+    // (Send as photo/screenshot or with view-only permissions)
+    const cvResult = await documentGenerator.generateCV(order.cv_data, null, 'docx');
+    
+    if (cvResult.success && client.telegram_id) {
+        // Send as view-only (Telegram doesn't have true view-only, but we can send as photo)
+        // Or send with caption indicating it's for review only
+        await ctx.telegram.sendDocument(client.telegram_id, { source: cvResult.filePath }, {
+            caption: `📄 *Document Ready for Your Review*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 REVIEW INSTRUCTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Please review this document carefully.
+
+*You have 2 opportunities to request changes.*
+
+To request changes:
+1. Type your feedback clearly
+2. Or send a captioned screenshot
+3. Or send a voice note (will be transcribed)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏰ *Review Period: 48 hours*
+
+After you submit feedback, we will make the changes and send a revised version.
+
+Type *APPROVE* if no changes are needed.`
+        });
+        
+        await db.saveDocumentReview({
+            order_id: orderId,
+            version: currentVersion + 1,
+            document_path: cvResult.filePath,
+            status: 'sent_to_client_review',
+            review_type: 'client_review'
+        });
+        
+        await ctx.editMessageText(ctx.callbackQuery.message.text + '\n\n✅ Document sent to client for review.', { parse_mode: 'Markdown' });
+    }
+}
+
+// Admin uploads reviewed version
+else if (data.startsWith('admin_upload_')) {
+    const orderId = data.replace('admin_upload_', '');
+    
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        await ctx.answerCbQuery('⛔ Admin only');
+        return;
+    }
+    
+    await ctx.answerCbQuery('📤 Please upload the reviewed document');
+    
+    // Store in session that we're expecting a file
+    const session = await getOrCreateSessionByOrderId(orderId);
+    session.data.awaiting_admin_upload = true;
+    session.data.order_id = orderId;
+    await db.updateSession(session.id, 'awaiting_admin_upload', 'review', session.data);
+    
+    await ctx.reply(`📤 Please upload the reviewed Word document for order ${orderId}.`);
+}
     else {
         console.log(`Unhandled callback: ${data}`);
         await sendMarkdown(ctx, `⚠️ Something went wrong. Type /start to restart.`);

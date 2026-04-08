@@ -435,6 +435,34 @@ async function createClient(telegramId, username, firstName, lastName) {
     }
 }
 
+// Add to database.js
+async function saveDocumentReview(data) {
+    if (dbType === 'postgres') {
+        const result = await db.query(
+            `INSERT INTO document_reviews (order_id, version, document_path, status, review_type, feedback, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+            [data.order_id, data.version, data.document_path, data.status, data.review_type, data.feedback || null, new Date().toISOString()]
+        );
+        return result.rows[0].id;
+    } else {
+        const result = await db.run(
+            `INSERT INTO document_reviews (order_id, version, document_path, status, review_type, feedback, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [data.order_id, data.version, data.document_path, data.status, data.review_type, data.feedback || null, new Date().toISOString()]
+        );
+        return result.lastID;
+    }
+}
+
+async function getDocumentReviews(orderId) {
+    if (dbType === 'postgres') {
+        const result = await db.query(`SELECT * FROM document_reviews WHERE order_id = $1 ORDER BY version ASC`, [orderId]);
+        return result.rows;
+    } else {
+        return await db.all(`SELECT * FROM document_reviews WHERE order_id = ? ORDER BY version ASC`, [orderId]);
+    }
+}
+
 async function updateClient(clientId, data) {
     const fields = [];
     const values = [];

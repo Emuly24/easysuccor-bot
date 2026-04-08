@@ -1909,56 +1909,85 @@ async function handleUpdateCollection(ctx, client, session, text) {
 }
 
 async function finalizeOrder(ctx, client, session) {
-    const cvData = ensureCVData(session);
-    const personal = cvData.personal;
-    const name = personal?.full_name || ctx.from.first_name;
-    const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    console.log(`[FINALIZE] ========== STARTING FINALIZE ORDER ==========`);
+    console.log(`[FINALIZE] Session stage: ${session.stage}`);
+    console.log(`[FINALIZE] Service: ${session.data.service}`);
+    console.log(`[FINALIZE] Category: ${session.data.category}`);
     
-    // Safely update client with error handling for missing columns
     try {
-        if (personal?.email) await db.updateClient(client.id, { email: personal.email });
-        if (personal?.primary_phone) await db.updateClient(client.id, { phone: personal.primary_phone });
-        if (personal?.location) await db.updateClient(client.id, { location: personal.location });
+        const cvData = ensureCVData(session);
+        console.log(`[FINALIZE] CV Data ensured`);
         
-        // These columns might not exist yet - wrap in try-catch
-        try {
-            if (personal?.physical_address) await db.updateClient(client.id, { physical_address: personal.physical_address });
-        } catch (e) { console.log('physical_address column not found, skipping'); }
+        const personal = cvData.personal;
+        const name = personal?.full_name || ctx.from.first_name;
+        const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+        console.log(`[FINALIZE] Order ID: ${orderId}`);
         
+        // Safely update client with error handling for missing columns
         try {
-            if (personal?.nationality) await db.updateClient(client.id, { nationality: personal.nationality });
-        } catch (e) { console.log('nationality column not found, skipping'); }
+            if (personal?.email) await db.updateClient(client.id, { email: personal.email });
+            if (personal?.primary_phone) await db.updateClient(client.id, { phone: personal.primary_phone });
+            if (personal?.location) await db.updateClient(client.id, { location: personal.location });
+            console.log(`[FINALIZE] Client basic info updated`);
+        } catch (error) {
+            console.error('[FINALIZE] Error updating client basic info:', error);
+        }
         
-        try {
-            if (personal?.special_documents) await db.updateClient(client.id, { special_documents: JSON.stringify(personal.special_documents) });
-        } catch (e) { console.log('special_documents column not found, skipping'); }
+        // Save CV version
+        await cvVersioning.saveVersion(orderId, cvData, 1, 'Initial CV creation');
+        console.log(`[FINALIZE] CV version saved`);
+        
+        // Generate CV document
+        const cvResult = await documentGenerator.generateCV(cvData, null, 'docx', session.data.vacancy_data || null, session.data.certificates_data || null);
+        console.log(`[FINALIZE] CV generated: ${cvResult.success ? 'Success' : 'Failed'}`);
+        
+        // Create order in database
+        await db.createOrder({
+            id: orderId,
+            client_id: client.id,
+            service: session.data.service,
+            category: session.data.category || 'professional',
+            delivery_option: session.data.delivery_option,
+            delivery_time: session.data.delivery_time,
+            base_price: session.data.base_price,
+            delivery_fee: DELIVERY_PRICES[session.data.delivery_option] || 0,
+            total_charge: session.data.total_charge,
+            payment_status: session.data.payment_status || 'pending',
+            cv_data: cvData,
+            portfolio_links: JSON.stringify(session.data.portfolio_links || [])
+        });
+        console.log(`[FINALIZE] Order created in database`);
+        
+        session.data.order_id = orderId;
+        
+        const paymentOptions = await getPaymentOptions(session.data.total_charge, orderId, client.id);
+        console.log(`[FINALIZE] Payment options generated, reference: ${paymentOptions.reference}`);
+        
+        const finalMessage = `${random(RESPONSES.encouragements.final)(name)}\n\n📋 Order: \`${orderId}\`\n🚚 Delivery: ${session.data.delivery_time}\n💰 Total: ${session.data.total_charge}\n\n${paymentOptions.message}`;
+        console.log(`[FINALIZE] Sending final message`);
+        
+        await sendMarkdown(ctx, finalMessage);
+        console.log(`[FINALIZE] Final message sent`);
+        
+        await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
+        console.log(`[FINALIZE] Session updated to awaiting_payment_choice`);
+        
+        // Schedule feedback request after 7 days
+        setTimeout(async () => {
+            try {
+                await collectFeedback(ctx, client, orderId);
+            } catch (err) {
+                console.log('Error scheduling feedback:', err.message);
+            }
+        }, 7 * 24 * 60 * 60 * 1000);
+        
+        console.log(`[FINALIZE] ========== FINALIZE ORDER COMPLETED SUCCESSFULLY ==========`);
         
     } catch (error) {
-        console.error('Error updating client:', error);
+        console.error(`[FINALIZE] ERROR:`, error);
+        console.error(`[FINALIZE] Error stack:`, error.stack);
+        await sendMarkdown(ctx, `⚠️ *Something went wrong creating your order.* Please try again or contact support.\n\nError: ${error.message}`);
     }
-    
-    // Rest of finalizeOrder continues...
-    await cvVersioning.saveVersion(orderId, cvData, 1, 'Initial CV creation');
-    
-    const cvResult = await documentGenerator.generateCV(cvData, null, 'docx', session.data.vacancy_data || null, session.data.certificates_data || null);
-    
-    await db.createOrder({
-        id: orderId, client_id: client.id, service: session.data.service, category: session.data.category || 'professional',
-        delivery_option: session.data.delivery_option, delivery_time: session.data.delivery_time,
-        base_price: session.data.base_price, delivery_fee: DELIVERY_PRICES[session.data.delivery_option] || 0,
-        total_charge: session.data.total_charge, payment_status: session.data.payment_status || 'pending',
-        cv_data: cvData, portfolio_links: JSON.stringify(session.data.portfolio_links || [])
-    });
-    session.data.order_id = orderId;
-    
-    const paymentOptions = await getPaymentOptions(session.data.total_charge, orderId, client.id);
-    
-    await sendMarkdown(ctx, `${random(RESPONSES.encouragements.final)(name)}\n\n📋 Order: \`${orderId}\`\n🚚 Delivery: ${session.data.delivery_time}\n💰 Total: ${session.data.total_charge}\n\n${paymentOptions.message}`);
-    await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
-    
-    setTimeout(async () => {
-        await collectFeedback(ctx, client, orderId);
-    }, 7 * 24 * 60 * 60 * 1000);
 }
 
 async function getPaymentOptions(amount, orderId, clientId) {
@@ -1980,7 +2009,9 @@ After payment, type /confirm ${reference}`
 }
 
 function generatePaymentReference() {
-    return `EASY${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 10000)}`;
+    const reference = `EASY${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 10000)}`;
+    console.log(`[PAYMENT] Generated reference: ${reference}`);
+    return reference;
 }
 
 async function initiatePaymentFlow(ctx, client, session, choice) {
@@ -2574,9 +2605,10 @@ else if (data === 'more_ref_yes' || data === 'more_ref_no') {
     if (data === 'more_ref_yes') {
         session.data.collection_step = 'name';
         session.data.current_ref = {};
-        await sendMarkdown(ctx, `Next referee - Full name? 👥`);
+        await sendMarkdown(ctx, `**Next referee - Full name?** 👥`);
         await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
     } else {
+        console.log(`[CALLBACK] Calling finalizeOrder...`);
         await finalizeOrder(ctx, client, session);
     }
 }

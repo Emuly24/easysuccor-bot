@@ -297,7 +297,7 @@ function ensureCVData(session) {
                 location: '',
                 physical_address: '',
                 nationality: '',
-                special_documents: []
+                special_documents: []  // Make sure this is an array, not empty object
             },
             professional_summary: '',
             education: [],
@@ -321,9 +321,18 @@ function ensureCVData(session) {
             location: '',
             physical_address: '',
             nationality: '',
-            special_documents: []
+            special_documents: []  // Array, not object
         };
     }
+    // Make sure special_documents is an array
+    if (!session.data.cv_data.personal.special_documents) {
+        session.data.cv_data.personal.special_documents = [];
+    }
+    if (!Array.isArray(session.data.cv_data.personal.special_documents)) {
+        session.data.cv_data.personal.special_documents = [];
+    }
+    
+    // Initialize other arrays
     if (!session.data.cv_data.education) session.data.cv_data.education = [];
     if (!session.data.cv_data.employment) session.data.cv_data.employment = [];
     if (!session.data.cv_data.skills) session.data.cv_data.skills = [];
@@ -335,7 +344,6 @@ function ensureCVData(session) {
     
     return session.data.cv_data;
 }
-
 // ============ SAFE COVER LETTER DATA ACCESS HELPER ============
 function ensureCoverLetterData(session) {
     if (!session.data) {
@@ -1317,24 +1325,25 @@ Type 'Skip' to continue or 'Done' when finished.`);
         session.data.special_docs_list = [];
     }
     else if (step === 'special_docs') {
-        if (text.toLowerCase() === 'skip') {
-            personal.special_documents = [];
-            session.current_section = 'summary';
-            session.data.collection_step = 'summary';
-            await sendMarkdown(ctx, `${getReaction()}\n\n${getQuestion('summary')}`);
-            await db.updateSession(session.id, 'collecting_summary', 'summary', session.data);
-        } else if (text.toLowerCase() === 'done') {
-            personal.special_documents = session.data.special_docs_list || [];
-            session.current_section = 'summary';
-            session.data.collection_step = 'summary';
-            await sendMarkdown(ctx, `${getReaction()}\n\n${getQuestion('summary')}`);
-            await db.updateSession(session.id, 'collecting_summary', 'summary', session.data);
-        } else {
-            session.data.special_docs_list.push(text);
-            await sendMarkdown(ctx, `✓ Added. Any more special documents? (Type 'Done' when finished, or 'Skip' to skip this section)`);
-        }
-        return;
+    if (text.toLowerCase() === 'skip') {
+        personal.special_documents = [];  // Empty array, not null
+        session.current_section = 'summary';
+        session.data.collection_step = 'summary';
+        await sendMarkdown(ctx, `${getReaction()}\n\n${getQuestion('summary')}`);
+        await db.updateSession(session.id, 'collecting_summary', 'summary', session.data);
+    } else if (text.toLowerCase() === 'done') {
+        personal.special_documents = session.data.special_docs_list || [];  // Ensure array
+        session.current_section = 'summary';
+        session.data.collection_step = 'summary';
+        await sendMarkdown(ctx, `${getReaction()}\n\n${getQuestion('summary')}`);
+        await db.updateSession(session.id, 'collecting_summary', 'summary', session.data);
+    } else {
+        if (!session.data.special_docs_list) session.data.special_docs_list = [];
+        session.data.special_docs_list.push(text);
+        await sendMarkdown(ctx, `✓ Added. Any more special documents? (Type 'Done' when finished, or 'Skip' to skip this section)`);
     }
+    return;
+}
     
     await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
 }
@@ -1910,67 +1919,60 @@ async function handleUpdateCollection(ctx, client, session, text) {
 
 async function finalizeOrder(ctx, client, session) {
     console.log(`[FINALIZE] ========== STARTING FINALIZE ORDER ==========`);
-    console.log(`[FINALIZE] Session stage: ${session.stage}`);
-    console.log(`[FINALIZE] Service: ${session.data.service}`);
-    console.log(`[FINALIZE] Category: ${session.data.category}`);
     
     try {
         const cvData = ensureCVData(session);
-        console.log(`[FINALIZE] CV Data ensured`);
-        
-        const personal = cvData.personal;
+        const personal = cvData.personal || {};
         const name = personal?.full_name || ctx.from.first_name;
         const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-        console.log(`[FINALIZE] Order ID: ${orderId}`);
         
-        // Safely update client with error handling for missing columns
+        // SAFELY prepare special_documents - ensure it's a valid string
+        let specialDocumentsStr = '[]';
+        if (personal.special_documents && Array.isArray(personal.special_documents)) {
+            specialDocumentsStr = JSON.stringify(personal.special_documents);
+        } else if (personal.special_documents && typeof personal.special_documents === 'string') {
+            specialDocumentsStr = personal.special_documents;
+        }
+        
+        // Safely update client - only update columns that exist
         try {
             if (personal?.email) await db.updateClient(client.id, { email: personal.email });
             if (personal?.primary_phone) await db.updateClient(client.id, { phone: personal.primary_phone });
             if (personal?.location) await db.updateClient(client.id, { location: personal.location });
-            console.log(`[FINALIZE] Client basic info updated`);
         } catch (error) {
-            console.error('[FINALIZE] Error updating client basic info:', error);
+            console.error('[FINALIZE] Error updating client basic info:', error.message);
         }
         
         // Save CV version
         await cvVersioning.saveVersion(orderId, cvData, 1, 'Initial CV creation');
-        console.log(`[FINALIZE] CV version saved`);
         
         // Generate CV document
         const cvResult = await documentGenerator.generateCV(cvData, null, 'docx', session.data.vacancy_data || null, session.data.certificates_data || null);
-        console.log(`[FINALIZE] CV generated: ${cvResult.success ? 'Success' : 'Failed'}`);
         
-        // Create order in database
+        // Create order in database - ensure all values are valid
         await db.createOrder({
             id: orderId,
             client_id: client.id,
-            service: session.data.service,
+            service: session.data.service || 'new cv',
             category: session.data.category || 'professional',
-            delivery_option: session.data.delivery_option,
-            delivery_time: session.data.delivery_time,
-            base_price: session.data.base_price,
+            delivery_option: session.data.delivery_option || 'standard',
+            delivery_time: session.data.delivery_time || '6 hours',
+            base_price: session.data.base_price || 0,
             delivery_fee: DELIVERY_PRICES[session.data.delivery_option] || 0,
-            total_charge: session.data.total_charge,
+            total_charge: session.data.total_charge || 'MK0',
             payment_status: session.data.payment_status || 'pending',
             cv_data: cvData,
             portfolio_links: JSON.stringify(session.data.portfolio_links || [])
         });
-        console.log(`[FINALIZE] Order created in database`);
         
         session.data.order_id = orderId;
         
         const paymentOptions = await getPaymentOptions(session.data.total_charge, orderId, client.id);
-        console.log(`[FINALIZE] Payment options generated, reference: ${paymentOptions.reference}`);
         
         const finalMessage = `${random(RESPONSES.encouragements.final)(name)}\n\n📋 Order: \`${orderId}\`\n🚚 Delivery: ${session.data.delivery_time}\n💰 Total: ${session.data.total_charge}\n\n${paymentOptions.message}`;
-        console.log(`[FINALIZE] Sending final message`);
         
         await sendMarkdown(ctx, finalMessage);
-        console.log(`[FINALIZE] Final message sent`);
-        
         await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
-        console.log(`[FINALIZE] Session updated to awaiting_payment_choice`);
         
         // Schedule feedback request after 7 days
         setTimeout(async () => {
@@ -1981,7 +1983,7 @@ async function finalizeOrder(ctx, client, session) {
             }
         }, 7 * 24 * 60 * 60 * 1000);
         
-        console.log(`[FINALIZE] ========== FINALIZE ORDER COMPLETED SUCCESSFULLY ==========`);
+        console.log(`[FINALIZE] Order completed successfully`);
         
     } catch (error) {
         console.error(`[FINALIZE] ERROR:`, error);

@@ -1,28 +1,30 @@
 {
   "name": "easysuccor-bot",
-  "version": "4.0.0",
-  "description": "Professional CV and Cover Letter creation Assistant Bot",
+  "version": "5.0.0",
+  "description": "Professional CV and Cover Letter Creation Assistant Bot",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
     "dev": "nodemon bot.js",
-    "generate": "node document-generator.js"
+    "generate": "node document-generator.js",
+    "admin": "node admin-dashboard.js"
   },
   "dependencies": {
-    "axios": "^1.6.0",
-    "docx": "^8.2.0",
-    "dotenv": "^16.3.0",
-    "express": "^4.18.2",
+    "axios": "^1.15.0",
+    "docx": "^8.5.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
     "multer": "^1.4.5-lts.1",
     "natural": "^8.1.1",
-    "nodemailer": "^6.9.0",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^8.0.5",
     "pdfkit": "^0.14.0",
     "pg": "^8.20.0",
-    "sharp": "^0.33.0",
+    "sharp": "^0.33.5",
     "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.6",
-    "telegraf": "^4.15.0",
-    "tesseract.js": "^4.1.1"
+    "sqlite3": "^6.0.1",
+    "telegraf": "^4.16.3",
+    "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

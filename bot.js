@@ -3300,7 +3300,9 @@ Need help? Contact: +265 991 295 401`;
         await ctx.replyWithDocument({ source: cvResult.filePath }, { caption: caption });
         
         // Update order status
-        await db.updateOrderStatus(order.id, 'delivered');
+       async function someFunction() {
+    await db.updateOrderStatus(orderId, 'delivered');
+}
         await db.saveDocumentReview({
             order_id: session.data.order_id,
             version: session.data.current_version + 1,

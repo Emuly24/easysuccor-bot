@@ -1145,6 +1145,36 @@ async function getInstallment(orderId) {
     }
     return null;
 }
+// Add to database.js
+async function getOrdersByDateRange(startDate, endDate) {
+    if (dbType === 'postgres') {
+        const result = await db.query(
+            `SELECT * FROM orders WHERE created_at::date BETWEEN $1 AND $2 ORDER BY created_at DESC`,
+            [startDate, endDate]
+        );
+        return result.rows;
+    } else {
+        return await db.all(
+            `SELECT * FROM orders WHERE date(created_at) BETWEEN ? AND ? ORDER BY created_at DESC`,
+            [startDate, endDate]
+        );
+    }
+}
+
+async function getOrdersByYear(year) {
+    if (dbType === 'postgres') {
+        const result = await db.query(
+            `SELECT * FROM orders WHERE EXTRACT(YEAR FROM created_at) = $1 ORDER BY created_at DESC`,
+            [year]
+        );
+        return result.rows;
+    } else {
+        return await db.all(
+            `SELECT * FROM orders WHERE strftime('%Y', created_at) = ? ORDER BY created_at DESC`,
+            [year.toString()]
+        );
+    }
+}
 
 async function updateInstallmentStatus(orderId, status) {
     if (dbType === 'postgres') {

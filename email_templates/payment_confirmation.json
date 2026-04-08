@@ -1,0 +1,6 @@
+{
+  "name": "payment_confirmation",
+  "subject": "Payment Confirmed - Order {{order_id}}",
+  "html": "<h2>Payment Confirmed!</h2><p>Your payment of {{amount}} has been confirmed.</p><p>Order ID: {{order_id}}</p><p>We'll deliver your document within {{delivery_time}}.</p>",
+  "text": "Payment Confirmed!\n\nAmount: {{amount}}\nOrder ID: {{order_id}}\nDelivery: {{delivery_time}}"
+}

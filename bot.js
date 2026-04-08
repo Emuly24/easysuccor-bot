@@ -926,18 +926,27 @@ async function handleServiceSelection(ctx, client, session, data) {
         service_update: 'cv update'
     };
     
-    session.data.service = serviceMap[data];
+    const selectedService = serviceMap[data];
+    session.data.service = selectedService;
     
-    if (session.data.service === 'cv update') {
+    // Handle CV update separately
+    if (selectedService === 'cv update') {
         await handleIntelligentUpdate(ctx, client, session);
         return;
     }
     
-    await sendMarkdown(ctx, `✅ *Service selected:* ${session.data.service}
+    // Handle Cover Letter separately - DIFFERENT FLOW
+    if (selectedService === 'cover letter' || selectedService === 'editable cover letter') {
+        await handleCoverLetterStart(ctx, client, session);
+        return;
+    }
+    
+    // For CV services - ask about draft upload
+    await sendMarkdown(ctx, `✅ *Service selected:* ${selectedService}
 
 *Would you like to upload an existing draft to save time?*
 
-I can extract information from your existing CV or cover letter and only ask for what's missing.`, {
+I can extract information from your existing CV and only ask for what's missing.`, {
         reply_markup: { inline_keyboard: [
             [{ text: "📎 Upload Draft", callback_data: "build_draft" }],
             [{ text: "✍️ Enter Manually", callback_data: "build_manual" }]
@@ -2142,61 +2151,217 @@ async function showClientPortal(ctx, client) {
 }
 
 // ============ COVER LETTER HANDLERS WITH SAFE DATA ACCESS ============
+// ============ COVER LETTER SPECIFIC COLLECTION ============
+
+// Start cover letter process
 async function handleCoverLetterStart(ctx, client, session) {
     ensureCoverLetterData(session);
-    await sendMarkdown(ctx, `📢 *Cover Letter*
+    
+    await sendMarkdown(ctx, `📝 *Cover Letter Creation*
 
-Share the job vacancy (screenshot, PDF, or text). I'll extract the details.`);
-    session.data.awaiting_vacancy = true;
-    await db.updateSession(session.id, 'awaiting_vacancy_upload', 'vacancy', session.data);
+I'll help you create a professional cover letter tailored to your dream job.
+
+First, let me understand what you need.
+
+*Do you have a job vacancy in mind?*
+
+Select an option:`, {
+        reply_markup: { inline_keyboard: [
+            [{ text: "📄 Yes, I have vacancy details", callback_data: "cover_has_vacancy" }],
+            [{ text: "✍️ No, create general cover letter", callback_data: "cover_no_vacancy" }]
+        ] }
+    });
+    
+    await db.updateSession(session.id, 'cover_selecting_vacancy', 'cover', session.data);
 }
 
-async function handleVacancyText(ctx, client, session, text) {
-    ensureCoverLetterData(session);
-    try {
-        const vacancyData = aiAnalyzer.extractVacancyDetails(text);
-        session.data.vacancy_data = vacancyData;
-        session.data.awaiting_vacancy = false;
-        await sendMarkdown(ctx, `Found: ${vacancyData.position} at ${vacancyData.company}\n\nPosition applying for? (or 'SAME')`);
-        await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
-    } catch (error) {
-        console.error('Vacancy extraction error:', error);
-        await sendMarkdown(ctx, `⚠️ Could not extract vacancy details. Please type the position you're applying for.`);
-        session.data.awaiting_vacancy = false;
-        await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
+// Handle vacancy selection
+async function handleCoverVacancyChoice(ctx, client, session, data) {
+    if (data === 'cover_has_vacancy') {
+        session.data.cover_has_vacancy = true;
+        await sendMarkdown(ctx, `📄 *Share the Job Vacancy*
+
+You can send me:
+• 📎 PDF or DOCX file
+• 📸 Screenshot of the vacancy
+• 📝 Paste the job description text
+
+I'll extract:
+• Job title
+• Company name
+• Requirements
+• Deadline
+
+Send the vacancy details now:`);
+        
+        session.data.awaiting_vacancy = true;
+        await db.updateSession(session.id, 'awaiting_vacancy_upload', 'cover', session.data);
+    } else {
+        session.data.cover_has_vacancy = false;
+        await askCoverLetterQuestions(ctx, client, session);
     }
 }
 
-async function handleCoverLetterPosition(ctx, client, session, text) {
-    ensureCoverLetterData(session);
-    session.data.coverletter_position = text.toLowerCase() === 'same' && session.data.vacancy_data?.position ? session.data.vacancy_data.position : text;
-    await sendMarkdown(ctx, `Company name? 🏢`);
-    await db.updateSession(session.id, 'collecting_coverletter_company', 'coverletter', session.data);
+// Ask cover letter specific questions
+async function askCoverLetterQuestions(ctx, client, session) {
+    session.data.cover_data = {};
+    session.data.cover_step = 'position';
+    
+    await sendMarkdown(ctx, `📝 *Cover Letter Details*
+
+*What position are you applying for?*
+
+Example: "Senior Software Engineer", "Project Manager", "Sales Associate"
+
+Type the job title:`);
+    
+    await db.updateSession(session.id, 'cover_collecting_position', 'cover', session.data);
 }
 
-async function handleCoverLetterCompany(ctx, client, session, text) {
-    ensureCoverLetterData(session);
-    session.data.coverletter_company = text;
+// Collect position
+async function handleCoverPosition(ctx, client, session, text) {
+    session.data.cover_data.position = text;
+    session.data.cover_step = 'company';
     
-    // Validate required fields
-    if (!session.data.coverletter_position || session.data.coverletter_position === 'Not specified') {
-        await sendMarkdown(ctx, `⚠️ I need the position you're applying for. Please tell me the job title.`);
-        return;
+    await sendMarkdown(ctx, `✅ Position: ${text}
+
+*Which company are you applying to?*
+
+Example: "ABC Corporation", "UNDP Malawi", "Google"
+
+Type the company name:`);
+    
+    await db.updateSession(session.id, 'cover_collecting_company', 'cover', session.data);
+}
+
+// Collect company
+async function handleCoverCompany(ctx, client, session, text) {
+    session.data.cover_data.company = text;
+    session.data.cover_step = 'experience_highlight';
+    
+    await sendMarkdown(ctx, `✅ Company: ${text}
+
+*What's your most relevant experience for this role?*
+
+Example: "5 years of project management experience", "Led a team of 10 developers"
+
+Type your key experience (2-3 sentences):`);
+    
+    await db.updateSession(session.id, 'cover_collecting_experience', 'cover', session.data);
+}
+
+// Collect experience highlight
+async function handleCoverExperience(ctx, client, session, text) {
+    session.data.cover_data.experience_highlight = text;
+    session.data.cover_step = 'skills_highlight';
+    
+    await sendMarkdown(ctx, `✅ Experience noted.
+
+*What are your top 3 skills relevant to this role?*
+
+Separate with commas.
+
+Example: "Project Management, Team Leadership, Budget Planning"`);
+    
+    await db.updateSession(session.id, 'cover_collecting_skills', 'cover', session.data);
+}
+
+// Collect skills
+async function handleCoverSkills(ctx, client, session, text) {
+    const skills = text.split(',').map(s => s.trim());
+    session.data.cover_data.skills = skills;
+    session.data.cover_step = 'achievement';
+    
+    await sendMarkdown(ctx, `✅ Skills: ${skills.join(', ')}
+
+*What's your biggest professional achievement?*
+
+Example: "Increased sales by 40% in 6 months", "Successfully delivered $2M project under budget"
+
+Type your key achievement:`);
+    
+    await db.updateSession(session.id, 'cover_collecting_achievement', 'cover', session.data);
+}
+
+// Collect achievement
+async function handleCoverAchievement(ctx, client, session, text) {
+    session.data.cover_data.achievement = text;
+    session.data.cover_step = 'why_you';
+    
+    await sendMarkdown(ctx, `✅ Achievement noted.
+
+*Why are you interested in this role/company?*
+
+Example: "I'm passionate about your mission to improve education", "I admire your innovative approach to technology"
+
+Type your motivation (2-3 sentences):`);
+    
+    await db.updateSession(session.id, 'cover_collecting_why', 'cover', session.data);
+}
+
+// Collect why/motivation
+async function handleCoverWhy(ctx, client, session, text) {
+    session.data.cover_data.motivation = text;
+    session.data.cover_step = 'availability';
+    
+    await sendMarkdown(ctx, `✅ Motivation noted.
+
+*When are you available to start?*
+
+Options:
+• Immediately
+• 2 weeks notice
+• 1 month notice
+• Specific date
+
+Type your availability:`);
+    
+    await db.updateSession(session.id, 'cover_collecting_availability', 'cover', session.data);
+}
+
+// Collect availability and finalize
+async function handleCoverAvailability(ctx, client, session, text) {
+    session.data.cover_data.availability = text;
+    
+    // Now generate the cover letter
+    await finalizeCoverLetter(ctx, client, session);
+}
+
+// Finalize and generate cover letter
+async function finalizeCoverLetter(ctx, client, session) {
+    const cvData = ensureCVData(session);
+    const personal = cvData.personal || {};
+    const coverData = session.data.cover_data || {};
+    const vacancyData = session.data.vacancy_data || {};
+    
+    // Use extracted vacancy data if available
+    if (session.data.cover_has_vacancy && vacancyData) {
+        if (vacancyData.position && !coverData.position) coverData.position = vacancyData.position;
+        if (vacancyData.company && !coverData.company) coverData.company = vacancyData.company;
     }
     
     const orderId = `CL_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     
-    // Get CV data if available (for personal info)
-    const cvData = session.data.cv_data || {};
+    // Calculate price (cover letter is flat rate)
+    const basePrice = 5000;
+    const deliveryOption = session.data.delivery_option || 'standard';
+    const deliveryFee = DELIVERY_PRICES[deliveryOption] || 0;
+    const totalCharge = formatPrice(basePrice + deliveryFee);
+    const deliveryTime = DELIVERY_TIMES[deliveryOption];
     
-    // Create cover letter using document generator
+    // Generate cover letter using document generator
     const coverResult = await documentGenerator.generateCoverLetter(
-        { 
-            position: session.data.coverletter_position, 
-            company: session.data.coverletter_company 
+        {
+            position: coverData.position || vacancyData.position || 'Not specified',
+            company: coverData.company || vacancyData.company || 'Not specified',
+            experience: coverData.experience_highlight,
+            skills: coverData.skills,
+            achievement: coverData.achievement,
+            motivation: coverData.motivation,
+            availability: coverData.availability
         },
         cvData,
-        null,
+        personal,
         false
     );
     
@@ -2205,23 +2370,107 @@ async function handleCoverLetterCompany(ctx, client, session, text) {
         client_id: client.id,
         service: 'cover letter',
         category: session.data.category || 'professional',
-        delivery_option: 'standard',
-        delivery_time: '6 hours',
-        base_price: 5000,
-        delivery_fee: 0,
-        total_charge: 'MK5,000',
+        delivery_option: deliveryOption,
+        delivery_time: deliveryTime,
+        base_price: basePrice,
+        delivery_fee: deliveryFee,
+        total_charge: totalCharge,
         payment_status: 'pending',
-        cv_data: { 
-            coverletter: {
-                position: session.data.coverletter_position,
-                company: session.data.coverletter_company,
-                vacancy: session.data.vacancy_data
-            }
-        }
+        cv_data: { cover_letter: coverData, vacancy: vacancyData }
     });
     
-    await sendMarkdown(ctx, `🎉 Cover letter ready!\n\nOrder: \`${orderId}\`\nPosition: ${session.data.coverletter_position}\nCompany: ${session.data.coverletter_company}\nTotal: MK5,000\n\nType /pay when ready.`);
+    const paymentReference = generatePaymentReference();
+    
+    const finalMessage = `✅ *COVER LETTER ORDER CREATED!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order Number: \`${orderId}\`
+Position: ${coverData.position || vacancyData.position || 'Not specified'}
+Company: ${coverData.company || vacancyData.company || 'Not specified'}
+Delivery: ⏰ ${deliveryTime}
+Total: 💰 ${totalCharge}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT OPTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*1️⃣ Mobile Money*
+   📱 Airtel: 0991295401
+   📱 Mpamba: 0886928639
+
+*2️⃣ USSD*
+   📞 Dial *211# (Airtel)
+   📞 Dial *444# (Mpamba)
+
+*3️⃣ Pay Later* - Pay within 7 days
+*4️⃣ Installments* - 2 parts over 7 days
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+\`${paymentReference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 NEXT STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Send exactly *${totalCharge}* to any account above
+2️⃣ Use reference: \`${paymentReference}\`
+3️⃣ After payment, type: \`/confirm ${paymentReference}\`
+
+Your cover letter will be delivered within ${deliveryTime} AFTER payment confirmation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📞 Need help? Contact: +265 991 295 401`;
+
+    await sendMarkdown(ctx, finalMessage);
     await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
+}
+
+// Process vacancy from file upload
+async function processVacancyFile(ctx, client, session, fileUrl, fileName) {
+    await sendMarkdown(ctx, `📄 Processing your vacancy details...`);
+    
+    const vacancyData = await aiAnalyzer.extractVacancyFromFile(fileUrl, fileName);
+    session.data.vacancy_data = vacancyData;
+    session.data.awaiting_vacancy = false;
+    
+    let message = `📊 *Vacancy Details Extracted*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 Position: ${vacancyData.position}
+🏢 Company: ${vacancyData.company}
+📍 Location: ${vacancyData.location}
+⏰ Deadline: ${vacancyData.deadline}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*Key Requirements:*
+${vacancyData.requirements.slice(0, 5).map(r => `• ${r}`).join('\n')}
+
+Do you want to add any additional information?`;
+
+    await sendMarkdown(ctx, message, {
+        reply_markup: { inline_keyboard: [
+            [{ text: "✅ Yes, add more info", callback_data: "cover_add_info" }],
+            [{ text: "📝 No, continue", callback_data: "cover_continue" }]
+        ] }
+    });
+    
+    session.data.cover_has_vacancy = true;
+    await db.updateSession(session.id, 'cover_review_vacancy', 'cover', session.data);
+}
+
+// Continue after vacancy review
+async function handleCoverContinue(ctx, client, session, data) {
+    if (data === 'cover_add_info') {
+        await askCoverLetterQuestions(ctx, client, session);
+    } else {
+        await finalizeCoverLetter(ctx, client, session);
+    }
 }
 
 // ============ BOT COMMANDS ============
@@ -2604,6 +2853,21 @@ bot.on('text', async (ctx) => {
                 else if (session.stage === 'collecting_coverletter_company') {
                     await handleCoverLetterCompany(ctx, client, session, text);
                 }
+                else if (session.stage === 'cover_collecting_experience') {
+                    await handleCoverExperience(ctx, client, session, text);
+                }
+                else if (session.stage === 'cover_collecting_skills') {
+                    await handleCoverSkills(ctx, client, session, text);
+                }
+                else if (session.stage === 'cover_collecting_achievement') {
+                    await handleCoverAchievement(ctx, client, session, text);
+                }
+                else if (session.stage === 'cover_collecting_why') {
+                    await handleCoverWhy(ctx, client, session, text);
+                }
+                else if (session.stage === 'cover_collecting_availability') {
+                    await handleCoverAvailability(ctx, client, session, text);
+                }
                 else if (session.stage === 'awaiting_payment_choice') {
                     if (text === '1' || text === '2' || text === '3' || text === '4') {
                         await initiatePaymentFlow(ctx, client, session, text);
@@ -2680,6 +2944,12 @@ else if (data === 'cancel_action') {
         session.data.awaiting_update_request = true;
         await db.updateSession(session.id, 'awaiting_update_request', 'update', session.data);
     }
+    else if (data === 'cover_has_vacancy' || data === 'cover_no_vacancy') {
+    await handleCoverVacancyChoice(ctx, client, session, data);
+}
+    else if (data === 'cover_add_info' || data === 'cover_continue') {
+    await handleCoverContinue(ctx, client, session, data);
+}
     else if (data === 'cancel_update') {
         session.data.awaiting_update_request = false;
         session.data.pending_update = false;

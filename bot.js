@@ -2713,10 +2713,72 @@ bot.command('referral', async (ctx) => {
 bot.command('pay', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const session = await db.getActiveSession(client.id);
-    if (session && session.data.total_charge) {
-        await sendMarkdown(ctx, `💳 Let's process your payment.\n\n${RESPONSES.payment.payment_options(generatePaymentReference(), session.data.total_charge)}`);
+    
+    if (!session || !session.data || !session.data.total_charge) {
+        await sendMarkdown(ctx, `❌ No active order found. Type /start to create a new order.`);
+        return;
+    }
+    
+    // Generate fresh payment reference
+    const paymentReference = generatePaymentReference();
+    const totalCharge = session.data.total_charge;
+    
+    // Store reference in session
+    session.data.payment_reference = paymentReference;
+    await db.updateSession(session.id, session.stage, session.current_section, session.data);
+    
+    const paymentMessage = `💳 *Complete Your Payment*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order: \`${session.data.order_id || 'Pending'}\`
+Amount: *${totalCharge}*
+Reference: \`${paymentReference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT OPTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*1️⃣ Mobile Money*
+   📱 Airtel: 0991295401
+   📱 Mpamba: 0886928639
+
+*2️⃣ USSD*
+   📞 Dial *211# (Airtel)
+   📞 Dial *444# (Mpamba)
+
+*3️⃣ Pay Later*
+   ⏳ Pay within 7 days
+
+*4️⃣ Installments*
+   📅 2 parts over 7 days
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 NEXT STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Send exactly *${totalCharge}* to any account above
+2️⃣ Use reference: \`${paymentReference}\`
+3️⃣ After payment, type: \`/confirm ${paymentReference}\`
+
+Need help? Contact +265 991 295 401`;
+
+    await sendMarkdown(ctx, paymentMessage);
+});
+
+bot.command('cancel', async (ctx) => {
+    const client = await getOrCreateClient(ctx);
+    const session = await db.getActiveSession(client.id);
+    
+    if (session && session.data) {
+        session.data.payment_confirmed = false;
+        session.data.payment_reference = null;
+        await db.updateSession(session.id, session.stage, session.current_section, session.data);
+        await sendMarkdown(ctx, `❌ Payment confirmation cancelled. You can start over with /start or /pay again.`);
     } else {
-        await sendMarkdown(ctx, `No active order. Type /start to begin.`);
+        await sendMarkdown(ctx, `No active payment to cancel.`);
     }
 });
 
@@ -2797,23 +2859,42 @@ bot.command('confirm', async (ctx) => {
     // 2. Get client info
     const client = await getOrCreateClient(ctx);
     
-    // 3. Send admin alert (Telegram + Email)
-    const adminMessage = `🚨 *Payment Confirmation Received*
+    // 3. Get the last order (with this reference stored)
+    const orders = await db.getClientOrders(client.id);
+    const lastOrder = orders[orders.length - 1];
+    
+    // 4. Send admin alert (using the global bot instance)
+    const adminMessage = `🚨 *PAYMENT CONFIRMATION RECEIVED*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 *Order Details*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Reference: \`${reference}\`
+Order ID: ${lastOrder ? lastOrder.id : 'N/A'}
 Client: ${client.first_name} ${client.last_name || ''}
-Telegram ID: ${client.telegram_id}
+Telegram ID: \`${client.telegram_id}\`
 Username: @${ctx.from.username || 'N/A'}
+Phone: ${client.phone || 'Not provided'}
+Email: ${client.email || 'Not provided'}
 
-To verify payment: /verify ${reference}`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 *Action Required*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Verify payment by typing:
+\`/verify ${reference}\`
+
+If payment is confirmed, the CV will be sent to the client automatically.`;
     
-    await notificationService.alertAdmin(`💰 Payment Confirmation: ${reference}`, adminMessage, ctx.bot);
+    // Use the global bot variable (not ctx.bot)
+    await notificationService.alertAdmin(`💰 Payment Confirmation: ${reference}`, adminMessage, bot);
 });
 
 bot.command('verify', async (ctx) => {
     // Admin only
     if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
-        return await sendMarkdown(ctx, "⛔ Unauthorized.");
+        return await sendMarkdown(ctx, "⛔ Unauthorized. Admin access only.");
     }
     
     const args = ctx.message.text.split(' ');
@@ -2822,38 +2903,73 @@ bot.command('verify', async (ctx) => {
     }
     const ref = args[1];
     
-    // Try to find order by payment reference (stored in payment_method) or by order ID
-    let order = await db.getOrderByPaymentReference(ref);
-    if (!order) {
-        order = await db.getOrder(ref);
+    // Find order by payment reference or order ID
+    let order = null;
+    let client = null;
+    
+    // Try to find order by searching through orders (since we don't have direct reference column)
+    const allOrders = await db.getAllOrders();
+    for (const o of allOrders) {
+        if (o.id === ref || (o.payment_method === ref)) {
+            order = o;
+            break;
+        }
     }
+    
     if (!order) {
         return await sendMarkdown(ctx, `❌ No order found for reference/ID: ${ref}`);
+    }
+    
+    // Get client
+    client = await db.getClientById(order.client_id);
+    if (!client) {
+        return await sendMarkdown(ctx, `❌ Client not found for order: ${order.id}`);
+    }
+    
+    // Check if already verified
+    if (order.payment_status === 'completed') {
+        return await sendMarkdown(ctx, `⚠️ Payment for order ${order.id} was already verified.`);
     }
     
     // Update order status
     await db.updateOrderStatus(order.id, 'paid');
     await db.updateOrderPaymentStatus(order.id, 'completed');
     
-    // Get client info
-    const client = await db.getClientById(order.client_id);
-    if (!client || !client.telegram_id) {
-        return await sendMarkdown(ctx, `❌ Client not found or has no Telegram ID.`);
-    }
+    // Generate and send CV to client
+    await sendMarkdown(ctx, `✅ Payment verified for ${ref}. Generating CV...`);
     
-    // Generate CV
-    const cvResult = await documentGenerator.generateCV(order.cv_data, null, 'docx');
-    if (cvResult.success && fs.existsSync(cvResult.filePath)) {
-        // Send to client
-        await ctx.telegram.sendDocument(client.telegram_id, { source: cvResult.filePath }, {
-            caption: `✅ *Payment Confirmed!* 🎉\n\nYour CV is ready.\nOrder: ${order.id}\n\nThank you for choosing EasySuccor! 🙏`
-        });
-        await sendMarkdown(ctx, `✅ Payment verified for ${ref}. CV ready to be delivered.`);
-    } else {
-        await sendMarkdown(ctx, `✅ Payment verified for ${ref} but CV generation failed. Please check logs.`);
+    try {
+        const cvResult = await documentGenerator.generateCV(order.cv_data, null, 'docx');
+        if (cvResult.success && fs.existsSync(cvResult.filePath)) {
+            // Send to client via Telegram
+            if (client.telegram_id) {
+                await ctx.telegram.sendDocument(client.telegram_id, { source: cvResult.filePath }, {
+                    caption: `✅ *PAYMENT CONFIRMED!* 🎉
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 *Order Details*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order ID: \`${order.id}\`
+Service: ${order.service}
+Delivery: ${order.delivery_time}
+
+Your CV is ready! Thank you for choosing EasySuccor.
+
+Need help? Contact: +265 991 295 401`
+                });
+                await sendMarkdown(ctx, `✅ CV sent to client (${client.first_name}).`);
+            } else {
+                await sendMarkdown(ctx, `⚠️ Client has no Telegram ID. CV saved at: ${cvResult.filePath}`);
+            }
+        } else {
+            await sendMarkdown(ctx, `❌ CV generation failed. Please check logs.`);
+        }
+    } catch (error) {
+        console.error('CV generation error:', error);
+        await sendMarkdown(ctx, `❌ Error generating CV: ${error.message}`);
     }
 });
-
 
 bot.command('feedback', async (ctx) => {
     const client = await getOrCreateClient(ctx);

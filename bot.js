@@ -365,7 +365,7 @@ const RESPONSES = {
         phone: ["Phone number? (Employers will call this) 📞", "What's the best number to reach you? 📞", "Your contact number? 📞"],
         location: ["Where are you based? (City, Country) 📍", "What's your location? 📍", "City and country you're in? 📍"],
         summary: ["Tell me about yourself in 2-3 sentences. What makes you unique? ✨", "Describe yourself professionally - your passion, your drive ✍️", "What's your professional story? (2-3 sentences) 💫"],
-        education: ["What's your highest qualification? 🎓", "Tell me about your education 🎓", "What degree or certificate do you hold? 🎓"],
+        education: ["What's your highest qualification? 🎓", "What is your highest level of education? (e.g., Bachelor's, Master's, Diploma) 🎓", "What's the highest degree or certificate you've earned? 🎓"],
         jobTitle: ["Your most recent job title? 💼", "What position did you last hold? 💼", "Current or most recent role? 💼"],
         skills: ["What are your superpowers? List your key skills (comma separated) ⚡", "What skills make you stand out? ⚡", "Tell me your top skills (comma separated) 💪"]
     },
@@ -520,6 +520,7 @@ const mainMenuKeyboard = Markup.keyboard([
 // ============ GREETING WITH CLICKABLE CATEGORY BUTTONS ============
 async function handleGreeting(ctx, client, session) {
     const name = ctx.from.first_name;
+    const testimonial = getRandomTestimonial();
     
     let message = `👋 *Welcome to EasySuccor,${getGreeting(name)}!*
  We help you create professional CVs and cover letters that get noticed.
@@ -927,68 +928,87 @@ async function handleSummaryCollection(ctx, client, session, text) {
     cvData.professional_summary = text;
     session.current_section = 'education';
     session.data.collection_step = 'level';
-    await sendMarkdown(ctx, `${getReaction()} Thanks for sharing!
-
-Now, let's add your education.\n\n${getQuestion('education')}`);
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
+    await sendMarkdown(ctx, `${getReaction()} Thanks for sharing!\n\nNow, let's add your education.\n\n${getQuestion('education')}`);
 }
 // ============ EDUCATION COLLECTION ============
 async function handleEducationCollection(ctx, client, session, text, callbackData = null) {
+    console.log(`[EDUCATION] Step: ${session.data.collection_step}, Text: "${text}"`);
+    
     const cvData = ensureCVData(session);
     let step = session.data.collection_step;
     const education = cvData.education;
+    
     if (!session.data.current_edu) session.data.current_edu = {};
     const currentEdu = session.data.current_edu;
     
+    // Step 1: Level (highest qualification)
     if (step === 'level') {
         currentEdu.level = text;
         session.data.current_edu = currentEdu;
         session.data.collection_step = 'field';
+        await db.updateSession(session.id, 'collecting_education', 'education', session.data);
         await sendMarkdown(ctx, "📚 **Field of study?**\n*Example:* Computer Science, Business, Engineering");
+        return;
     }
-    else if (step === 'field') {
+    
+    // Step 2: Field of study
+    if (step === 'field') {
         currentEdu.field = text;
+        session.data.current_edu = currentEdu;
         session.data.collection_step = 'institution';
+        await db.updateSession(session.id, 'collecting_education', 'education', session.data);
         await sendMarkdown(ctx, "🏛️ **Institution name?**\n*Example:* University of Malawi");
+        return;
     }
-    else if (step === 'institution') {
+    
+    // Step 3: Institution
+    if (step === 'institution') {
         currentEdu.institution = text;
+        session.data.current_edu = currentEdu;
         session.data.collection_step = 'year';
+        await db.updateSession(session.id, 'collecting_education', 'education', session.data);
         await sendMarkdown(ctx, "📅 **Year of completion?**\n*Example:* 2020, 2025 (expected)");
+        return;
     }
-    else if (step === 'year') {
+    
+    // Step 4: Year
+    if (step === 'year') {
         currentEdu.year = text;
         education.push({ ...currentEdu });
         session.data.current_edu = {};
         session.data.collection_step = 'add_more';
+        await db.updateSession(session.id, 'collecting_education', 'education', session.data);
         await sendMarkdown(ctx, `${getReaction()} Education saved! Another qualification?`, {
             reply_markup: { inline_keyboard: [[{ text: "✅ Yes, add another", callback_data: "edu_yes" }, { text: "❌ No, continue", callback_data: "edu_no" }]] }
         });
+        return;
     }
-    else if (step === 'add_more') {
+    
+    // Step 5: Add more (callback handling)
+    if (step === 'add_more') {
         if (callbackData === 'edu_yes') {
             session.data.collection_step = 'level';
             session.data.current_edu = {};
-            await sendMarkdown(ctx, "Great! Next qualification? 🎓");
+            await db.updateSession(session.id, 'collecting_education', 'education', session.data);
+            await sendMarkdown(ctx, "Great! What's your next qualification? 🎓");
         } else {
+            // Move to employment
             session.current_section = 'employment';
             session.data.collection_step = 'title';
             session.data.current_job = {};
             cvData.employment = [];
-
-            console.log(`[EDUCATION] Education complete! Moving to employment section`);
-            console.log(`[EDUCATION] Setting stage to: collecting_employment, collection_step: title`);
-            
-            await sendMarkdown(ctx, `${getEncouragement('sectionComplete', 'Education')}\n\nNow, your work experience.\n\n${getQuestion('jobTitle')}`);
             await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+            await sendMarkdown(ctx, `${getEncouragement('sectionComplete', 'Education')}\n\nNow, your work experience.\n\n${getQuestion('jobTitle')}`);
         }
+        return;
     }
     
-    // ============ FALLBACK ============
-    console.log(`[EDUCATION] UNKNOWN STEP: ${step}, resetting to level`);
+    // Fallback: reset to level
+    console.log(`[EDUCATION] Unknown step: ${step}, resetting to level`);
     session.data.collection_step = 'level';
-    await sendMarkdown(ctx, "Let's start over. What's your highest qualification? 🎓");
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
+    await sendMarkdown(ctx, "Let's start over. What's your highest qualification? 🎓");
 }
 
 // ============ EMPLOYMENT COLLECTION ============

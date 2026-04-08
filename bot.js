@@ -321,9 +321,10 @@ app.get('/admin/order/:orderId', adminAuth, async (req, res) => {
 });
 
 // Health check
-app.get('/health', (req, res) => {
-    res.json({ status: 'OK', timestamp: new Date().toISOString() });
-});
+const HEALTH_PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
+console.log(`📤 Admin upload endpoints: POST /admin/upload-cv, POST /admin/upload-batch`);
+console.log(`🔑 Admin API Key required in header: x-admin-key`);
 
 // ============ TELEGRAM BOT ============
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -343,7 +344,7 @@ const RESPONSES = {
     encouragements: {
         start: ["Awesome choice! 🎯", "You've got this! 💪", "Let's make it happen! ✨", "Perfect! Let's go! 🚀"],
         progress: [
-            (p) => `📊 You're ${p}% there! Keep going! 🔥`,
+            (p) => `📊 You're ${p}% there! Keep going! `,
             (p) => `🎯 Almost there! ${p}% complete! ⭐`,
             (p) => `💪 Great progress! ${p}% done! 🎯`
         ],
@@ -413,6 +414,8 @@ function getEncouragement(type, value) {
     if (type === 'progress') return random(RESPONSES.encouragements.progress)(value);
     if (type === 'sectionComplete') return random(RESPONSES.encouragements.sectionComplete)(value);
     return random(RESPONSES.encouragements[type]);
+    const yesWords = ['yes', 'yeah', 'yep', 'sure', 'ok', 'y'];
+function isAffirmative(text) { return yesWords.some(w => text.toLowerCase().includes(w)); }
 }
 
 // ============ SAFE CV DATA ACCESS HELPER ============
@@ -486,6 +489,14 @@ async function getOrCreateClient(ctx) {
     return client;
 }
 
+async function debugSession(ctx, session, message) {
+    console.log(`[DEBUG] ${message}`);
+    console.log(`[DEBUG] Stage: ${session.stage}`);
+    console.log(`[DEBUG] Current section: ${session.current_section}`);
+    console.log(`[DEBUG] Collection step: ${session.data?.collection_step}`);
+    console.log(`[DEBUG] Text received: ${ctx.message?.text}`);
+}
+
 async function getOrCreateSession(clientId) {
     let session = await db.getActiveSession(clientId);
     if (!session) {
@@ -505,11 +516,15 @@ const mainMenuKeyboard = Markup.keyboard([
     ["✏️ Update CV", "📎 Upload Draft"],
     ["ℹ️ About", "📞 Contact", "🏠 Portal"]
 ]).resize().persistent();
+
 // ============ GREETING WITH CLICKABLE CATEGORY BUTTONS ============
 async function handleGreeting(ctx, client, session) {
     const name = ctx.from.first_name;
     
-    let message = `${getGreeting(name)}
+    let message = `👋 *Welcome to EasySuccor,${getGreeting(name)}!*
+ We help you create professional CVs and cover letters that get noticed.
+
+${testimonial ? testimonial : ''}   
 
 *What we offer:*
 📄 Professional CV writing
@@ -524,11 +539,11 @@ Select your category below:`;
 
     await sendMarkdown(ctx, message, {
         reply_markup: { inline_keyboard: [
-            [{ text: "🎓 Student", callback_data: "cat_student" }],
-            [{ text: "📜 Recent Graduate", callback_data: "cat_recent" }],
-            [{ text: "💼 Professional", callback_data: "cat_professional" }],
-            [{ text: "🌱 Non-Working", callback_data: "cat_nonworking" }],
-            [{ text: "🔄 Returning Client", callback_data: "cat_returning" }]
+            [{ text: "🎓 Student - still studying", callback_data: "cat_student" }],
+            [{ text: "📜 Recent Graduate < a year", callback_data: "cat_recent" }],
+            [{ text: "💼 Professional - Currently working", callback_data: "cat_professional" }],
+            [{ text: "🌱 Non-Working - Career break", callback_data: "cat_nonworking" }],
+            [{ text: "🔄 Returning Client - Used us before", callback_data: "cat_returning" }]
         ] }
     });
     
@@ -588,7 +603,9 @@ async function handleServiceSelection(ctx, client, session, data) {
     
     await sendMarkdown(ctx, `${getReaction()} *Service selected:* ${selectedService}
 
-Would you like to upload an existing CV draft? It'll save you time!`, {
+*Would you like to upload an existing draft to save time?*
+
+I can extract information from your existing CV and only ask for what's missing.`, {
         reply_markup: { inline_keyboard: [
             [{ text: "📎 Yes, upload draft", callback_data: "build_draft" }],
             [{ text: "✍️ No, enter manually", callback_data: "build_manual" }]
@@ -606,7 +623,11 @@ async function handleCoverLetterStart(ctx, client, session) {
 
 I'll help you create a professional cover letter tailored to your dream job.
 
-*Do you have a job vacancy in mind?*`, {
+First, let me understand what you need.
+
+*Do you have a job vacancy in mind?*
+
+Select an option:`, {
         reply_markup: { inline_keyboard: [
             [{ text: "📄 Yes, I have vacancy details", callback_data: "cover_has_vacancy" }],
             [{ text: "✍️ No, create general cover letter", callback_data: "cover_no_vacancy" }]
@@ -626,7 +647,7 @@ You can send me:
 • 📸 Screenshot
 • 📝 Paste the job description
 
-I'll extract the job title, company, and requirements.
+I'll extract all the necessary requirements.
 
 Send the vacancy details now:`);
         session.data.awaiting_vacancy = true;
@@ -645,7 +666,7 @@ async function askCoverLetterQuestions(ctx, client, session) {
 
 *What position are you applying for?*
 
-Example: "Senior Software Engineer", "Project Manager"`);
+Example: "Senior Software Engineer", "Project Manager.\nType the job title:"`);
     await db.updateSession(session.id, 'cover_collecting_position', 'cover', session.data);
 }
 
@@ -654,7 +675,11 @@ async function handleCoverPosition(ctx, client, session, text) {
     session.data.cover_step = 'company';
     await sendMarkdown(ctx, `✅ Got it! *${text}*
 
-*Which company are you applying to?*`);
+*Which company are you applying to?*
+
+Example: "ABC Corporation", "UNDP Malawi", "Google"
+
+Type the company name:`);
     await db.updateSession(session.id, 'cover_collecting_company', 'cover', session.data);
 }
 
@@ -665,7 +690,9 @@ async function handleCoverCompany(ctx, client, session, text) {
 
 *What's your most relevant experience for this role?* (2-3 sentences)
 
-Example: "5 years of project management experience leading teams of 10+"`);
+Example: "5 years of project management experience leading teams of 10+"
+
+Type your key experience (2-3 sentences):`);
     await db.updateSession(session.id, 'cover_collecting_experience', 'cover', session.data);
 }
 
@@ -687,7 +714,9 @@ async function handleCoverSkills(ctx, client, session, text) {
 
 *What's your biggest professional achievement?*
 
-Example: "Increased sales by 40% in 6 months"`);
+Example: "Increased sales by 40% in 6 months", "Successfully delivered 2M project under budget"
+
+Type your key achievement:`);
     await db.updateSession(session.id, 'cover_collecting_achievement', 'cover', session.data);
 }
 
@@ -696,7 +725,11 @@ async function handleCoverAchievement(ctx, client, session, text) {
     session.data.cover_step = 'why_you';
     await sendMarkdown(ctx, `✅ Impressive!
 
-*Why are you interested in this role/company?*`);
+*Why are you interested in this role/company?*
+
+Example: "I'm passionate about your mission to improve education", "I admire your innovative approach to technology"
+
+Type your motivation (2-3 sentences):`);
     await db.updateSession(session.id, 'cover_collecting_why', 'cover', session.data);
 }
 
@@ -705,28 +738,41 @@ async function handleCoverWhy(ctx, client, session, text) {
     session.data.cover_step = 'availability';
     await sendMarkdown(ctx, `✅ Great motivation!
 
-*When can you start?*
+*When are you available to start?*
 
-Options: Immediately, 2 weeks notice, 1 month notice`);
+Options:
+• Immediately
+• 2 weeks notice
+• 1 month notice
+• Specific date
+
+Type your availability:`);
     await db.updateSession(session.id, 'cover_collecting_availability', 'cover', session.data);
 }
 
+// Collect availability and finalize
 async function handleCoverAvailability(ctx, client, session, text) {
     session.data.cover_data.availability = text;
+    
+    // Now generate the cover letter
     await finalizeCoverLetter(ctx, client, session);
 }
+
 // ============ PORTFOLIO COLLECTION ============
 class PortfolioCollector {
     async askForPortfolio(ctx) {
         await sendMarkdown(ctx, `📎 *Portfolio (Optional)*
 
-Share links to your work if you have any:
+Would you like to include links to your work?
 
-• GitHub, Behance, LinkedIn
+• GitHub repositories
+• Behance/Dribbble portfolio
 • Personal website
 • Case studies
 
-Type your links (one per line) or click SKIP.
+*Why this matters:* Employers love seeing real work examples!
+
+Type your portfolio links (one per line) or click the button below to skip.
 
 *Example:* 
 https://github.com/yourusername`, {
@@ -762,7 +808,7 @@ async function handlePortfolioCollection(ctx, client, session, text) {
         
         await sendMarkdown(ctx, `${getReaction()} ${portfolioLinks.length > 0 ? 'Portfolio saved!' : 'No portfolio added.'}
 
-Now let's build your CV! 🚀
+Now let's build your CV! 
 
 ${getQuestion('name')}`);
         
@@ -770,7 +816,7 @@ ${getQuestion('name')}`);
     } catch (error) {
         console.error('Portfolio error:', error);
         session.data.portfolio_links = [];
-        await sendMarkdown(ctx, `Let's continue with your CV.\n\n${getQuestion('name')}`);
+        await sendMarkdown(ctx, `Let's continue with your details.\n\n${getQuestion('name')}`);
         await startDataCollection(ctx, client, session);
     }
 }
@@ -840,13 +886,16 @@ Type 'Skip' to continue.`, {
         session.data.collection_step = 'special_docs';
         await sendMarkdown(ctx, `📋 *Special Documents (Optional)*
 
-List any important documents: Driver's License, Passport, Professional License
+Do you have any special documents? (e.g., Driver's License, Passport, Professional License, Work Permit)
 
-Type each on a new line. Type 'Skip' to continue or 'Done' when finished.
+Type each document name and number, one per line.
 
 *Examples:*
 • Driver's License: MW123456
-• Passport: MW987654`);
+• Passport: MW987654
+• Professional License: TEVETA/2024/001
+
+Type 'Skip' to continue or 'Done' when finished.`);
         session.data.special_docs_list = [];
     }
     else if (step === 'special_docs') {
@@ -926,74 +975,147 @@ async function handleEducationCollection(ctx, client, session, text, callbackDat
             session.data.collection_step = 'title';
             session.data.current_job = {};
             cvData.employment = [];
+
+            console.log(`[EDUCATION] Education complete! Moving to employment section`);
+            console.log(`[EDUCATION] Setting stage to: collecting_employment, collection_step: title`);
+            
             await sendMarkdown(ctx, `${getEncouragement('sectionComplete', 'Education')}\n\nNow, your work experience.\n\n${getQuestion('jobTitle')}`);
             await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
         }
     }
     
+    // ============ FALLBACK ============
+    console.log(`[EDUCATION] UNKNOWN STEP: ${step}, resetting to level`);
+    session.data.collection_step = 'level';
+    await sendMarkdown(ctx, "Let's start over. What's your highest qualification? 🎓");
     await db.updateSession(session.id, 'collecting_education', 'education', session.data);
 }
+
 // ============ EMPLOYMENT COLLECTION ============
 async function handleEmploymentCollection(ctx, client, session, text, callbackData = null) {
+    console.log(`[EMPLOYMENT] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
     const cvData = ensureCVData(session);
-    let step = session.data.collection_step;
-    const employment = cvData.employment;
-    if (!session.data.current_job) session.data.current_job = {};
+    
+    // Initialize employment array if not exists
+    if (!cvData.employment) {
+        cvData.employment = [];
+    }
+    
+    // Initialize current job if not exists
+    if (!session.data.current_job) {
+        session.data.current_job = {};
+    }
+    
+    const step = session.data.collection_step;
     const currentJob = session.data.current_job;
     
+    // ============ STEP 1: TITLE ============
     if (step === 'title') {
+        // Save the job title
         currentJob.title = text;
         session.data.current_job = currentJob;
         session.data.collection_step = 'company';
-        await sendMarkdown(ctx, "🏢 **Company name?**\n*Example:* ABC Corporation, Google");
+        
+        console.log(`[EMPLOYMENT] Title saved: ${text}, moving to company`);
+        
+        await sendMarkdown(ctx, "✅ Got it!\n\nNow, **company name?** 🏢\n*Example:* ABC Corporation, Google, UNDP");
+        await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+        return;
     }
-    else if (step === 'company') {
+    
+    // ============ STEP 2: COMPANY ============
+    if (step === 'company') {
+        // Save the company name
         currentJob.company = text;
+        session.data.current_job = currentJob;
         session.data.collection_step = 'duration';
-        await sendMarkdown(ctx, "📅 **How long were you there?**\n*Example:* Jan 2020 - Present (3 years)");
+        
+        console.log(`[EMPLOYMENT] Company saved: ${text}, moving to duration`);
+        
+        await sendMarkdown(ctx, "✅ Got it!\n\nHow long did you work there? 📅\n*Example:* Jan 2020 - Present (3 years)");
+        await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+        return;
     }
-    else if (step === 'duration') {
+    
+    // ============ STEP 3: DURATION ============
+    if (step === 'duration') {
+        // Save the duration
         currentJob.duration = text;
+        session.data.current_job = currentJob;
         session.data.collection_step = 'responsibilities';
         currentJob.responsibilities = [];
-        await sendMarkdown(ctx, `📋 **Key responsibilities**
-
-List one per line. Type DONE when finished.
-
-*Example:*
-• Led a team of 5 developers
-• Increased efficiency by 30%
-
-Type \`DONE\` when done.`);
+        
+        console.log(`[EMPLOYMENT] Duration saved: ${text}, moving to responsibilities`);
+        
+        await sendMarkdown(ctx, `✅ Got it!\n\nNow list your **key responsibilities** (one per line)\n\n*Example:*\n• Led a team of 5 developers\n• Increased efficiency by 30%\n\nType \`DONE\` when finished.`);
+        await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+        return;
     }
-    else if (step === 'responsibilities') {
-        if (text.toUpperCase() !== 'DONE') {
-            currentJob.responsibilities.push(text);
-            await sendMarkdown(ctx, `✓ Added. Another responsibility? (type DONE to finish)`);
-        } else {
-            employment.push({ ...currentJob });
+    
+    // ============ STEP 4: RESPONSIBILITIES ============
+    if (step === 'responsibilities') {
+        // Check if user typed DONE
+        if (text.toUpperCase() === 'DONE') {
+            // Save the job to employment array
+            cvData.employment.push({ ...currentJob });
             session.data.current_job = {};
             session.data.collection_step = 'add_more';
-            await sendMarkdown(ctx, `${getReaction()} Job saved! Another work experience?`, {
-                reply_markup: { inline_keyboard: [[{ text: "✅ Yes, add another", callback_data: "emp_yes" }, { text: "❌ No, continue", callback_data: "emp_no" }]] }
+            
+            console.log(`[EMPLOYMENT] Job saved: ${currentJob.title} at ${currentJob.company}, responsibilities: ${currentJob.responsibilities.length}`);
+            
+            await sendMarkdown(ctx, `✅ Job saved! Another work experience?`, {
+                reply_markup: { inline_keyboard: [
+                    [{ text: "✅ Yes, add another", callback_data: "emp_yes" }],
+                    [{ text: "❌ No, continue", callback_data: "emp_no" }]
+                ] }
             });
+            await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+            return;
         }
+        
+        // Add responsibility
+        currentJob.responsibilities.push(text);
+        session.data.current_job = currentJob;
+        
+        console.log(`[EMPLOYMENT] Added responsibility (${currentJob.responsibilities.length}): ${text.substring(0, 50)}`);
+        
+        await sendMarkdown(ctx, `✓ Added. Type another responsibility or \`DONE\` to finish.`);
+        await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+        return;
     }
-    else if (step === 'add_more') {
+    
+    // ============ STEP 5: ADD MORE JOBS ============
+    if (step === 'add_more') {
         if (callbackData === 'emp_yes') {
+            // Add another job
             session.data.collection_step = 'title';
             session.data.current_job = {};
-            await sendMarkdown(ctx, "Next job title? 💼");
+            
+            console.log(`[EMPLOYMENT] Adding another job, resetting to title`);
+            
+            await sendMarkdown(ctx, "Great! What's your next job title? 💼\n*Example:* Senior Developer, Marketing Manager");
+            await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
+            return;
         } else {
+            // Move to skills
             session.current_section = 'skills';
             session.data.collection_step = 'skills';
-            await sendMarkdown(ctx, `${getEncouragement('sectionComplete', 'Employment')}\n\nNow, your skills.\n\n${getQuestion('skills')}`);
+            
+            console.log(`[EMPLOYMENT] Employment complete, moving to skills`);
+            
+            await sendMarkdown(ctx, `✓ Employment complete! Moving on.\n\n${getQuestion('skills')}`);
             await db.updateSession(session.id, 'collecting_skills', 'skills', session.data);
+            return;
         }
     }
     
+    // ============ FALLBACK ============
+    console.log(`[EMPLOYMENT] UNKNOWN STEP: ${step}`);
+    await sendMarkdown(ctx, `Let's continue. What's your most recent job title? 💼`);
+    session.data.collection_step = 'title';
     await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
 }
+
 // ============ SKILLS COLLECTION ============
 async function handleSkillsCollection(ctx, client, session, text) {
     const cvData = ensureCVData(session);
@@ -1012,7 +1134,7 @@ Now, any certifications? (Click SKIP if none)`, {
 // ============ CERTIFICATIONS COLLECTION ============
 async function handleCertificationsCollection(ctx, client, session, text, callbackData = null) {
     const cvData = ensureCVData(session);
-    let step = session.data.collection_step;
+    const step = session.data.collection_step;
     const certifications = cvData.certifications;
     if (!session.data.current_cert) session.data.current_cert = {};
     const currentCert = session.data.current_cert;
@@ -1071,25 +1193,37 @@ async function handleCertificationsCollection(ctx, client, session, text, callba
 
 // ============ LANGUAGES COLLECTION ============
 async function handleLanguagesCollection(ctx, client, session, text, callbackData = null) {
+    console.log(`[LANGUAGES] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
+    
     const cvData = ensureCVData(session);
     let step = session.data.collection_step;
     const languages = cvData.languages;
-    if (!session.data.current_lang) session.data.current_lang = {};
+    
+    // Initialize current_lang if not exists
+    if (!session.data.current_lang) {
+        session.data.current_lang = {};
+    }
     const currentLang = session.data.current_lang;
     
+    // ============ STEP 1: LANGUAGE NAME ============
     if (step === 'name') {
-        if (callbackData === 'lang_skip') {
+        // Check if user wants to skip
+        if (text === 'Skip' || callbackData === 'lang_skip') {
+            console.log(`[LANGUAGES] User skipped languages, moving to referees`);
             session.current_section = 'referees';
             session.data.collection_step = 'name';
-            cvData.referees = [];
-            await sendMarkdown(ctx, `${getReaction()} Now, let's add professional referees. (2 recommended) 👥
-
-**Referee 1 - Full name?**`);
+            session.data.cv_data.referees = [];
+            await sendMarkdown(ctx, `Got it! ${getReaction()}\n\nNow let's add professional referees. (Minimum 2 required) 👥\n\n**Referee 1 - Full name?**`);
             await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
             return;
         }
+        
         currentLang.name = text;
+        session.data.current_lang = currentLang;
         session.data.collection_step = 'proficiency';
+        
+        console.log(`[LANGUAGES] Language name saved: "${text}", moving to proficiency`);
+        
         await sendMarkdown(ctx, "What's your proficiency level?", {
             reply_markup: { inline_keyboard: [
                 [{ text: "🔰 Basic", callback_data: "prof_basic" }],
@@ -1097,8 +1231,12 @@ async function handleLanguagesCollection(ctx, client, session, text, callbackDat
                 [{ text: "⭐ Fluent", callback_data: "prof_fluent" }]
             ] }
         });
+        await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
+        return;
     }
-    else if (step === 'proficiency') {
+    
+    // ============ STEP 2: PROFICIENCY LEVEL ============
+    if (step === 'proficiency') {
         let proficiency = 'Basic';
         if (callbackData === 'prof_basic') proficiency = 'Basic';
         else if (callbackData === 'prof_intermediate') proficiency = 'Intermediate';
@@ -1110,41 +1248,199 @@ async function handleLanguagesCollection(ctx, client, session, text, callbackDat
         session.data.current_lang = null;
         session.data.collection_step = 'add_more';
         
-        await sendMarkdown(ctx, `${getReaction()} ${currentLang.name} (${proficiency}) saved! Another language?`, {
+        console.log(`[LANGUAGES] Language saved: ${currentLang.name} (${proficiency}), total languages: ${languages.length}`);
+        
+        await sendMarkdown(ctx, `${getReaction()} Language saved! Another language?`, {
             reply_markup: { inline_keyboard: [
                 [{ text: "✅ Yes", callback_data: "lang_yes" }],
                 [{ text: "❌ No", callback_data: "lang_no" }],
                 [{ text: "⏭️ Skip All", callback_data: "lang_skip" }]
             ] }
         });
+        await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
+        return;
     }
-    else if (step === 'add_more') {
+    
+    // ============ STEP 3: ADD MORE LANGUAGES ============
+    if (step === 'add_more') {
         if (callbackData === 'lang_yes') {
+            // Add another language
             session.data.collection_step = 'name';
             session.data.current_lang = {};
-            await sendMarkdown(ctx, "Next language? 🗣️");
+            
+            console.log(`[LANGUAGES] Adding another language`);
+            
+            await sendMarkdown(ctx, "What's the next language? 🗣️");
+            await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
+            return;
         } else {
+            // Move to referees
             session.current_section = 'referees';
             session.data.collection_step = 'name';
-            cvData.referees = [];
-            await sendMarkdown(ctx, `${getEncouragement('sectionComplete', 'Languages')}\n\nNow, let's add professional referees. (2 recommended) 👥
-
-**Referee 1 - Full name?**`);
+            session.data.cv_data.referees = [];
+            
+            console.log(`[LANGUAGES] Languages complete! Moving to referees section`);
+            
+            await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Languages')}\n\nNow let's add professional referees. (Minimum 2 required) 👥\n\n**Referee 1 - Full name?**`);
             await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+            return;
         }
     }
     
+    // ============ FALLBACK ============
+    console.log(`[LANGUAGES] UNKNOWN STEP: ${step}, resetting to name`);
+    session.data.collection_step = 'name';
+    await sendMarkdown(ctx, "Let's start over. What language do you speak? 🗣️ (or type 'Skip')");
     await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
 }
-// ============ REFEREES COLLECTION ============
-async function finalizeOrder(ctx, client, session) {
-    // CHECK FOR TEST MODE (admin only)
-    const isTestMode = process.env.TEST_MODE === 'true' || 
-                       (ctx.from.id.toString() === process.env.ADMIN_CHAT_ID && 
-                        session.data.test_mode === true);
+
+async function handleRefereesCollection(ctx, client, session, text, callbackData = null) {
+    console.log(`[REFEREES] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
     
-    // ... existing code ...
+    const cvData = ensureCVData(session);
+    let step = session.data.collection_step;
+    const referees = cvData.referees;
     
+    // Initialize current_ref if not exists
+    if (!session.data.current_ref) {
+        session.data.current_ref = {};
+    }
+    const currentRef = session.data.current_ref;
+    const refereeCount = referees.length;
+    const minReferees = 2;
+    
+    // ============ STEP 1: REFEREE NAME ============
+    if (step === 'name') {
+        if (text === 'Skip') {
+            await sendMarkdown(ctx, `⚠️ Need at least ${minReferees} referees! Please provide referee ${refereeCount + 1} - Full name?`);
+            return;
+        }
+        
+        currentRef.name = text;
+        session.data.current_ref = currentRef;
+        session.data.collection_step = 'position';
+        
+        console.log(`[REFEREES] Referee name saved: "${text}", moving to position`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Their position?** 📌\n*Example:* Senior Manager, HR Director, Team Lead`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
+    }
+    
+    // ============ STEP 2: REFEREE POSITION ============
+    if (step === 'position') {
+        currentRef.position = text;
+        session.data.current_ref = currentRef;
+        session.data.collection_step = 'company';
+        
+        console.log(`[REFEREES] Position saved: "${text}", moving to company`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Company name?** 🏢\n*Example:* ABC Corporation, UNDP, Google`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
+    }
+    
+    // ============ STEP 3: REFEREE COMPANY ============
+    if (step === 'company') {
+        currentRef.company = text;
+        session.data.current_ref = currentRef;
+        session.data.collection_step = 'company_location';
+        
+        console.log(`[REFEREES] Company saved: "${text}", moving to company location`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Company location?** 📍\n*Example:* Lilongwe, Malawi | Blantyre | Remote\n\nType 'Skip' if not applicable.`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
+    }
+    
+    // ============ STEP 4: REFEREE COMPANY LOCATION ============
+    if (step === 'company_location') {
+        if (text.toLowerCase() !== 'skip') {
+            currentRef.company_location = text;
+        }
+        session.data.current_ref = currentRef;
+        session.data.collection_step = 'email';
+        
+        console.log(`[REFEREES] Company location saved: "${text}", moving to email`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Email address?** 📧\n*Example:* john.doe@example.com\n\nType 'Skip' if not available.`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
+    }
+    
+    // ============ STEP 5: REFEREE EMAIL ============
+    if (step === 'email') {
+        if (text.toLowerCase() !== 'skip') {
+            currentRef.email = text;
+        }
+        session.data.current_ref = currentRef;
+        session.data.collection_step = 'phone';
+        
+        console.log(`[REFEREES] Email saved: "${text}", moving to phone`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Phone number?** 📞\n*Example:* +265 991 234 567\n\nType 'Skip' if not available.`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
+    }
+    
+    // ============ STEP 6: REFEREE PHONE ============
+    if (step === 'phone') {
+        if (text.toLowerCase() !== 'skip') {
+            currentRef.phone = text;
+        }
+        
+        // Save the complete referee
+        referees.push({ ...currentRef });
+        session.data.current_ref = {};
+        
+        console.log(`[REFEREES] Referee ${refereeCount + 1} saved. Total referees: ${referees.length}`);
+        
+        if (referees.length < minReferees) {
+            // Need more referees
+            session.data.collection_step = 'name';
+            await sendMarkdown(ctx, `✅ Referee ${referees.length} added. Need ${minReferees - referees.length} more.\n\n**Referee ${referees.length + 1} - Full name?**`);
+            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        } else {
+            // We have enough referees, ask if they want more
+            session.data.collection_step = 'add_more';
+            await sendMarkdown(ctx, `✅ ${referees.length} referees added! Another referee?`, {
+                reply_markup: { inline_keyboard: [
+                    [{ text: "✅ Yes, add another", callback_data: "more_ref_yes" }],
+                    [{ text: "❌ No, continue", callback_data: "more_ref_no" }]
+                ] }
+            });
+            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        }
+        return;
+    }
+    
+    // ============ STEP 7: ADD MORE REFEREES ============
+    if (step === 'add_more') {
+        if (callbackData === 'more_ref_yes') {
+            // Add another referee
+            session.data.collection_step = 'name';
+            session.data.current_ref = {};
+            
+            console.log(`[REFEREES] Adding another referee`);
+            
+            await sendMarkdown(ctx, `**Referee ${referees.length + 1} - Full name?** 👥`);
+            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+            return;
+        } else {
+            // Move to finalize order
+            console.log(`[REFEREES] Referees complete! Moving to finalize order`);
+            await finalizeOrder(ctx, client, session);
+            return;
+        }
+    }
+    
+    // ============ FALLBACK ============
+    console.log(`[REFEREES] UNKNOWN STEP: ${step}, resetting to name`);
+    session.data.collection_step = 'name';
+    await sendMarkdown(ctx, "Let's start over. Please provide referee 1 - Full name? 👥");
+    await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+}
+
     // Instead of waiting for payment, if test mode, mark as paid and deliver immediately
     if (isTestMode) {
         // Mark order as paid
@@ -1165,8 +1461,10 @@ async function finalizeOrder(ctx, client, session) {
         await sendMarkdown(ctx, `🧪 *TEST MODE ACTIVE*\n\nOrder ${orderId} marked as delivered.\nCV file sent above.\n\nNo payment required for testing.`);
         return;
     }
-}
+
 async function handleRefereesCollection(ctx, client, session, text, callbackData = null) {
+    console.log(`[REFEREES] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
+
     const cvData = ensureCVData(session);
     let step = session.data.collection_step;
     const referees = cvData.referees;
@@ -1182,107 +1480,258 @@ async function handleRefereesCollection(ctx, client, session, text, callbackData
         }
         currentRef.name = text;
         session.data.collection_step = 'position';
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Their position?** 📌\n*Example:* Senior Manager, HR Director`);
+         console.log(`[REFEREES] Referee name saved: "${text}", moving to position`);
+
+       await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Their position?** 📌\n*Example:* Senior Manager, HR Director, Team Lead`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
     }
-    else if (step === 'position') {
+    
+    // ============ STEP 2: REFEREE POSITION ============
+    if (step === 'position') {
         currentRef.position = text;
+        session.data.current_ref = currentRef;
         session.data.collection_step = 'company';
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Company name?** 🏢`);
+        
+        console.log(`[REFEREES] Position saved: "${text}", moving to company`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Company name?** 🏢\n*Example:* ABC Corporation, UNDP, Google`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
     }
-    else if (step === 'company') {
+    
+    // ============ STEP 3: REFEREE COMPANY ============
+    if (step === 'company') {
         currentRef.company = text;
+        session.data.current_ref = currentRef;
         session.data.collection_step = 'company_location';
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Company location?** 📍\nType 'Skip' if not applicable.`);
+        
+        console.log(`[REFEREES] Company saved: "${text}", moving to company location`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Company location?** 📍\n*Example:* Lilongwe, Malawi | Blantyre | Remote\n\nType 'Skip' if not applicable.`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
     }
-    else if (step === 'company_location') {
-        if (text.toLowerCase() !== 'skip') currentRef.company_location = text;
+    
+    // ============ STEP 4: REFEREE COMPANY LOCATION ============
+    if (step === 'company_location') {
+        if (text.toLowerCase() !== 'skip') {
+            currentRef.company_location = text;
+        }
+        session.data.current_ref = currentRef;
         session.data.collection_step = 'email';
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Email?** 📧\nType 'Skip' if not available.`);
+        
+        console.log(`[REFEREES] Company location saved: "${text}", moving to email`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Email address?** 📧\n*Example:* john.doe@example.com\n\nType 'Skip' if not available.`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
     }
-    else if (step === 'email') {
-        if (text.toLowerCase() !== 'skip') currentRef.email = text;
+    
+    // ============ STEP 5: REFEREE EMAIL ============
+    if (step === 'email') {
+        if (text.toLowerCase() !== 'skip') {
+            currentRef.email = text;
+        }
+        session.data.current_ref = currentRef;
         session.data.collection_step = 'phone';
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Phone?** 📞\nType 'Skip' if not available.`);
+        
+        console.log(`[REFEREES] Email saved: "${text}", moving to phone`);
+        
+        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Phone number?** 📞\n*Example:* +265 991 234 567\n\nType 'Skip' if not available.`);
+        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        return;
     }
-    else if (step === 'phone') {
-        if (text.toLowerCase() !== 'skip') currentRef.phone = text;
+    
+    // ============ STEP 6: REFEREE PHONE ============
+    if (step === 'phone') {
+        if (text.toLowerCase() !== 'skip') {
+            currentRef.phone = text;
+        }
+        
+        // Save the complete referee
         referees.push({ ...currentRef });
         session.data.current_ref = {};
         
+        console.log(`[REFEREES] Referee ${refereeCount + 1} saved. Total referees: ${referees.length}`);
+        
         if (referees.length < minReferees) {
+            // Need more referees
             session.data.collection_step = 'name';
             await sendMarkdown(ctx, `✅ Referee ${referees.length} added. Need ${minReferees - referees.length} more.\n\n**Referee ${referees.length + 1} - Full name?**`);
+            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
         } else {
+            // We have enough referees, ask if they want more
             session.data.collection_step = 'add_more';
             await sendMarkdown(ctx, `✅ ${referees.length} referees added! Another referee?`, {
-                reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "more_ref_yes" }, { text: "❌ No, continue", callback_data: "more_ref_no" }]] }
+                reply_markup: { inline_keyboard: [
+                    [{ text: "✅ Yes, add another", callback_data: "more_ref_yes" }],
+                    [{ text: "❌ No, continue", callback_data: "more_ref_no" }]
+                ] }
             });
+            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
         }
+        return;
     }
-    else if (step === 'add_more') {
+    
+    // ============ STEP 7: ADD MORE REFEREES ============
+    if (step === 'add_more') {
         if (callbackData === 'more_ref_yes') {
+            // Add another referee
             session.data.collection_step = 'name';
             session.data.current_ref = {};
+            
+            console.log(`[REFEREES] Adding another referee`);
+            
             await sendMarkdown(ctx, `**Referee ${referees.length + 1} - Full name?** 👥`);
+            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+            return;
         } else {
+            // Move to finalize order
+            console.log(`[REFEREES] Referees complete! Moving to finalize order`);
             await finalizeOrder(ctx, client, session);
+            return;
         }
     }
     
+    // ============ FALLBACK ============
+    console.log(`[REFEREES] UNKNOWN STEP: ${step}, resetting to name`);
+    session.data.collection_step = 'name';
+    await sendMarkdown(ctx, "Let's start over. Please provide referee 1 - Full name? 👥");
     await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
 }
 
 // ============ FINALIZE ORDER ============
 async function finalizeOrder(ctx, client, session) {
+    console.log(`[FINALIZE] ========== STARTING FINALIZE ORDER ==========`);
+    
     try {
         const cvData = ensureCVData(session);
         const personal = cvData.personal || {};
         const name = personal?.full_name || ctx.from.first_name;
         const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
         
+        // Get values with fallbacks
         const category = session.data.category || 'professional';
         const service = session.data.service || 'new cv';
         const deliveryOption = session.data.delivery_option || 'standard';
         const deliveryTime = DELIVERY_TIMES[deliveryOption] || '6 hours';
         
+        // Calculate total
         let totalCharge = session.data.total_charge;
         if (!totalCharge || totalCharge === 'undefined' || totalCharge === 'MK0') {
-            totalCharge = formatPrice(calculateTotal(category, service, deliveryOption));
+            const basePrice = getBasePrice(category, service);
+            const deliveryFee = DELIVERY_PRICES[deliveryOption] || 0;
+            const calculatedTotal = basePrice + deliveryFee;
+            totalCharge = formatPrice(calculatedTotal);
         }
         
+        // Update client info
         try {
             if (personal?.email) await db.updateClient(client.id, { email: personal.email });
             if (personal?.primary_phone) await db.updateClient(client.id, { phone: personal.primary_phone });
             if (personal?.location) await db.updateClient(client.id, { location: personal.location });
-        } catch (error) { console.error('[FINALIZE] Error updating client:', error.message); }
+        } catch (error) {
+            console.error('[FINALIZE] Error updating client:', error.message);
+        }
         
+        // Save CV version (non-critical)
         try {
             await cvVersioning.saveVersion(orderId, cvData, 1, 'Initial CV creation');
-        } catch (err) { console.log('[FINALIZE] Version save skipped:', err.message); }
+        } catch (err) {
+            console.log('[FINALIZE] Version save skipped:', err.message);
+        }
         
+        // Generate CV document
         await documentGenerator.generateCV(cvData, null, 'docx', session.data.vacancy_data || null, session.data.certificates_data || null);
         
+        // Create order in database
         await db.createOrder({
-            id: orderId, client_id: client.id, service: service, category: category,
-            delivery_option: deliveryOption, delivery_time: deliveryTime,
-            base_price: getBasePrice(category, service), delivery_fee: DELIVERY_PRICES[deliveryOption] || 0,
-            total_charge: totalCharge, payment_status: 'pending',
-            cv_data: cvData, portfolio_links: JSON.stringify(session.data.portfolio_links || [])
+            id: orderId,
+            client_id: client.id,
+            service: service,
+            category: category,
+            delivery_option: deliveryOption,
+            delivery_time: deliveryTime,
+            base_price: getBasePrice(category, service),
+            delivery_fee: DELIVERY_PRICES[deliveryOption] || 0,
+            total_charge: totalCharge,
+            payment_status: 'pending',
+            cv_data: cvData,
+            portfolio_links: JSON.stringify(session.data.portfolio_links || [])
         });
         
         session.data.order_id = orderId;
+        
         const paymentReference = generatePaymentReference();
         
-        const finalMessage = `${RESPONSES.payment.order_created(orderId, service, deliveryTime, totalCharge)}
+        const finalMessage = `✅ *ORDER CREATED SUCCESSFULLY!*
 
-${RESPONSES.payment.payment_options(paymentReference, totalCharge)}`;
-        
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order Number: \`${orderId}\`
+Service: ${service}
+Delivery Time: ⏰ *${deliveryTime}*
+Total Amount: 💰 *${totalCharge}*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT OPTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*1️⃣ Mobile Money*
+   📱 Airtel: 0991295401
+   📱 Mpamba: 0886928639
+
+*2️⃣ USSD*
+   📞 Dial *211# (Airtel)
+   📞 Dial *444# (Mpamba)
+
+*3️⃣ Pay Later*
+   ⏳ Pay within 7 days
+
+*4️⃣ Installments*
+   📅 2 parts over 7 days
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+\`${paymentReference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 HOW TO COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Send exactly *${totalCharge}* to any account above
+2️⃣ Use reference: \`${paymentReference}\`
+3️⃣ After payment, type: \`/confirm ${paymentReference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏰ DELIVERY TIMING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your document will be delivered within *${deliveryTime}* AFTER we confirm your payment.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📞 Need help? Contact: +265 991 295 401
+
+Thank you for choosing EasySuccor! 🙏`;
+
         await sendMarkdown(ctx, finalMessage);
         await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
         
+        // Schedule feedback request after 14 days
         setTimeout(async () => {
-            try { await collectFeedback(ctx, client, orderId); } catch (err) { console.log('Feedback scheduling error:', err.message); }
+            try {
+                await collectFeedback(ctx, client, orderId);
+            } catch (err) {
+                console.log('Error scheduling feedback:', err.message);
+            }
         }, 14 * 24 * 60 * 60 * 1000);
+        
+        console.log(`[FINALIZE] Order completed successfully`);
         
     } catch (error) {
         console.error(`[FINALIZE] ERROR:`, error);
@@ -1290,9 +1739,12 @@ ${RESPONSES.payment.payment_options(paymentReference, totalCharge)}`;
 
 Please try again or contact support.
 
+Error: ${error.message}
+
 Type /start to begin again.`);
     }
 }
+
 
 // ============ FINALIZE COVER LETTER ============
 async function finalizeCoverLetter(ctx, client, session) {
@@ -1313,14 +1765,16 @@ async function finalizeCoverLetter(ctx, client, session) {
     const totalCharge = formatPrice(basePrice + deliveryFee);
     const deliveryTime = DELIVERY_TIMES[deliveryOption];
     
-    await documentGenerator.generateCoverLetter({
-        position: coverData.position || vacancyData.position || 'Not specified',
-        company: coverData.company || vacancyData.company || 'Not specified',
-        experience: coverData.experience_highlight,
-        skills: coverData.skills,
-        achievement: coverData.achievement,
-        motivation: coverData.motivation,
-        availability: coverData.availability
+   // Generate cover letter using document generator
+    const coverResult = await documentGenerator.generateCoverLetter(
+        {
+            position: coverData.position || vacancyData.position || 'Not specified',
+            company: coverData.company || vacancyData.company || 'Not specified',
+            experience: coverData.experience_highlight,
+            skills: coverData.skills,
+            achievement: coverData.achievement,
+            motivation: coverData.motivation,
+            availability: coverData.availability
     }, cvData, personal, false);
     
     await db.createOrder({
@@ -1332,19 +1786,57 @@ async function finalizeCoverLetter(ctx, client, session) {
     
     const paymentReference = generatePaymentReference();
     
-    const finalMessage = `✅ *COVER LETTER ORDER CREATED!* 🎉
+    const finalMessage = `✅ *COVER LETTER ORDER CREATED!* 
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Order Number: \`${orderId}\`
 Position: ${coverData.position || vacancyData.position || 'Not specified'}
 Company: ${coverData.company || vacancyData.company || 'Not specified'}
-⏰ Delivery: ${deliveryTime}
-💰 Total: ${totalCharge}
+Delivery: ⏰ ${deliveryTime}
+Total: 💰 ${totalCharge}
 
-${RESPONSES.payment.payment_options(paymentReference, totalCharge)}`;
-    
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT OPTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*1️⃣ Mobile Money*
+   📱 Airtel: 0991295401
+   📱 Mpamba: 0886928639
+
+*2️⃣ USSD*
+   📞 Dial *211# (Airtel)
+   📞 Dial *444# (Mpamba)
+
+*3️⃣ Pay Later* - Pay within 7 days
+*4️⃣ Installments* - 2 parts over 7 days
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+\`${paymentReference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 NEXT STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Send exactly *${totalCharge}* to any account above
+2️⃣ Use reference: \`${paymentReference}\`
+3️⃣ After payment, type: \`/confirm ${paymentReference}\`
+
+Your cover letter will be delivered within ${deliveryTime} AFTER payment confirmation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📞 Need help? Contact: +265 991 295 401`;
+
     await sendMarkdown(ctx, finalMessage);
     await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
 }
+
 // ============ TESTIMONIAL SYSTEM ============
 let TESTIMONIALS_CACHE = [];
 
@@ -1482,9 +1974,9 @@ class SmartDraftProcessor {
             'Email': "What's your email address? 📧\n*Example:* john.doe@example.com",
             'Phone': "What's your phone number? 📞\n*Example:* +265 991 234 567 or 0991234567",
             'Location': "Where are you based? (City, Country) 📍\n*Example:* Lilongwe, Malawi",
-            'Physical Address': "What's your physical address? 🏠\n*Example:* House No. 123, Area 47, Lilongwe\n\nClick the button below to skip.",
+            'Physical Address': "What's your physical address? 🏠\n*Example:* House No. 123, Area 47, P.O BOX 100, Lilongwe\n\nClick the button below to skip.",
             'Nationality': "What's your nationality? 🌍\n*Example:* Malawian\n\nClick the button below to skip.",
-            'Professional Summary': "Please provide a brief professional summary (2-3 sentences) ✍️\n*Example:* Results-oriented Project Manager with 5+ years of experience in...",
+            'Professional Summary': "Please provide a brief summary about yourself (2-3 sentences) ✍️\n*Example:* Results-oriented Project Manager with 5+ years of experience in...",
             'Work Experience': "Let's add your work experience. Most recent job title? 💼\n*Example:* Senior Software Engineer",
             'Education': "What's your highest qualification? 🎓\n*Example:* Bachelor of Science in Computer Science",
             'Skills': "List your key skills (comma separated) ⚡\n*Example:* Project Management, Team Leadership, Risk Assessment",
@@ -1773,8 +2265,7 @@ WhatsApp: +265 881 193 707
         await sendMarkdown(ctx, `📞 *Contact*
 
 Airtel: 0991295401
-Mpamba: 0886928639
-Visa: 1005653618 (NBM)
+TNM: +265 881 193 707
 WhatsApp: +265 881 193 707`);
         return;
     } else if (text === '🏠 Portal') {
@@ -1783,11 +2274,11 @@ WhatsApp: +265 881 193 707`);
     } else {
         await sendMarkdown(ctx, `Please select a category to get started:`, {
             reply_markup: { inline_keyboard: [
-                [{ text: "🎓 Student", callback_data: "cat_student" }],
-                [{ text: "📜 Recent Graduate", callback_data: "cat_recent" }],
-                [{ text: "💼 Professional", callback_data: "cat_professional" }],
-                [{ text: "🌱 Non-Working", callback_data: "cat_nonworking" }],
-                [{ text: "🔄 Returning Client", callback_data: "cat_returning" }]
+                [{ text: "🎓 Student - Still studying", callback_data: "cat_student" }],
+                [{ text: "📜 Recent Graduate < a year", callback_data: "cat_recent" }],
+                [{ text: "💼 Professional - currently working", callback_data: "cat_professional" }],
+                [{ text: "🌱 Non-Working - Career break", callback_data: "cat_nonworking" }],
+                [{ text: "🔄 Returning Client - Used us before", callback_data: "cat_returning" }]
             ] }
         });
     }
@@ -1874,6 +2365,7 @@ I see you have an existing CV. Tell me what changes you want in plain English.
 • "Remove my high school education"
 • "Update my phone number to 0999123456"
 • "Add a certification in Digital Marketing"
+• "I'm applying for a Senior Developer role at Tech Company"
 
 You can also upload vacancy details, and I'll tailor your CV accordingly.
 
@@ -1895,7 +2387,9 @@ async function handleUpdateRequest(ctx, client, session, text, fileUrl = null, f
                 if (extractedVacancy && extractedVacancy.has_vacancy) {
                     vacancyData = extractedVacancy;
                     userRequest = `Update my CV for ${vacancyData.position} at ${vacancyData.company}`;
-                    await sendMarkdown(ctx, `📊 *Vacancy Detected:*\n• Position: ${vacancyData.position}\n• Company: ${vacancyData.company}`);
+                    await sendMarkdown(ctx, `📊 *Vacancy Detected:*\n• Position: ${vacancyData.position}\n• Company: ${vacancyData.company}\nCompany: ${vacancyData.company}\n• Requirements: ${vacancyData.requirements.slice(0, 3).join(', ')}
+
+I'll tailor your CV for this role.`);
                 }
             }
         }
@@ -1905,10 +2399,13 @@ async function handleUpdateRequest(ctx, client, session, text, fileUrl = null, f
         if (!result.success) {
             await sendMarkdown(ctx, `❌ I couldn't understand your request. Please be more specific.
 
-*Examples:*
+*Examples of what you can say:*
 • "Add 3 years as Marketing Manager at XYZ Ltd"
 • "Remove my diploma in Business"
-• "Update my email to new@email.com"`);
+• "Update my email to new@email.com"
+• "Add a section for Volunteer Experience"
+
+ type /cancel to go back.`);
             return;
         }
         
@@ -1951,12 +2448,12 @@ async function handleApproveUpdate(ctx, client, session) {
     
     await sendMarkdown(ctx, `✅ *Update Applied Successfully!*
 
-Your CV has been updated.
+Your CV has been updated as requested.
 
 Order: \`${orderId}\`
 Total: ${formatPrice(getBasePrice('professional', 'cv update'))}
 
-Type /pay to complete payment.`);
+Type /pay to complete payment and receive your updated CV.`);
     
     session.data.awaiting_update_request = false;
     session.data.pending_update = false;

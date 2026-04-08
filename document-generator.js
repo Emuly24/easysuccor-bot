@@ -70,6 +70,66 @@ class DocumentGenerator {
     };
     return colors[industry] || colors.default;
   }
+// ============ EXTRACT FULL CV DATA FROM URL (FOR BOT DRAFT UPLOAD) ============
+
+async extractFullCVDataFromUrl(fileUrl, fileName) {
+    try {
+        // Create temp file path
+        const tempDir = path.join(__dirname, 'temp');
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+        
+        const tempFilePath = path.join(tempDir, `temp_${Date.now()}_${fileName}`);
+        
+        // Download file from URL
+        await this.downloadFile(fileUrl, tempFilePath);
+        
+        // Extract data from the downloaded file
+        const result = await this.extractFullCVData(tempFilePath, 'cv');
+        
+        // Clean up temp file
+        fs.unlinkSync(tempFilePath);
+        
+        return result;
+    } catch (error) {
+        console.error('extractFullCVDataFromUrl error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// ============ DOWNLOAD FILE FROM URL ============
+
+async downloadFile(url, outputPath) {
+    try {
+        const axios = require('axios');
+        const response = await axios({
+            method: 'GET',
+            url: url,
+            responseType: 'stream'
+        });
+        
+        const writer = fs.createWriteStream(outputPath);
+        response.data.pipe(writer);
+        
+        return new Promise((resolve, reject) => {
+            writer.on('finish', () => resolve(outputPath));
+            writer.on('error', reject);
+        });
+    } catch (error) {
+        console.error('Download error:', error);
+        throw error;
+    }
+}// ============ EXTRACT FULL CV DATA FROM LOCAL FILE ============
+
+async extractFullCVData(filePath, fileType = 'cv') {
+    try {
+        const rawText = await this.extractTextFromFile(filePath);
+        const structuredData = this.intelligentlyParseCVText(rawText, fileType);
+        return { success: true, data: structuredData };
+    } catch (error) {
+        console.error('Extraction error:', error);
+        return { success: false, error: error.message };
+    }
+}
 
   // ============ DEEP VACANCY EXTRACTION ============
   

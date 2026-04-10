@@ -1,7 +1,8 @@
-// notification-service.js - Enterprise-Grade Multi-Channel Notification System
+// notification-service.js - Enterprise-Grade Multi-Channel Notification System (UPDATED)
 const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
+const db = require('./database'); // Added missing import
 
 class NotificationService {
   constructor() {
@@ -40,7 +41,6 @@ class NotificationService {
 
   saveHistory() {
     try {
-      // Keep only last 1000 notifications
       const historyToSave = this.notificationHistory.slice(-1000);
       fs.writeFileSync(this.historyPath, JSON.stringify(historyToSave, null, 2));
     } catch (error) {
@@ -72,7 +72,6 @@ class NotificationService {
         await this.sendNotificationWithRetry(notification);
       } catch (error) {
         console.error('Queue processing error:', error);
-        // Re-queue with delay if failed
         if (notification.retryCount < this.retryCount) {
           notification.retryCount = (notification.retryCount || 0) + 1;
           setTimeout(() => {
@@ -95,7 +94,6 @@ class NotificationService {
         } else if (channel === 'telegram' || type === 'telegram') {
           result = await this.sendTelegramDirect(to, message, notification.bot);
         } else {
-          // Send to both
           result = await this.sendToBoth(to, subject, message, attachments, notification.bot);
         }
         
@@ -127,7 +125,6 @@ class NotificationService {
           return { success: false, error: error.message };
         }
         
-        // Exponential backoff
         const delay = Math.min(this.retryDelay * Math.pow(2, attempt - 1), this.maxRetryDelay);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
@@ -149,7 +146,6 @@ class NotificationService {
   }
 
   async sendEmailDirect(to, subject, message, attachments = null) {
-    // Validate email credentials
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       console.error('❌ Email credentials missing');
       return { success: false, error: 'Email credentials not configured' };
@@ -210,51 +206,37 @@ class NotificationService {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EasySuccor Notification</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
       line-height: 1.6;
-      color: #333;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: #f0f2f5;
       padding: 20px;
     }
     .container {
       max-width: 600px;
       margin: 0 auto;
       background: white;
-      border-radius: 20px;
+      border-radius: 16px;
       overflow: hidden;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     }
     .header {
-      background: linear-gradient(135deg, #2C7DA0, #1F5E7A);
+      background: linear-gradient(135deg, #1a56db, #0e9f6e);
       color: white;
       padding: 30px;
       text-align: center;
     }
-    .header h1 {
-      font-size: 28px;
-      margin-bottom: 10px;
-    }
-    .header p {
-      opacity: 0.9;
-      font-size: 14px;
-    }
-    .content {
-      padding: 30px;
-    }
+    .header h1 { font-size: 28px; margin-bottom: 10px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    .content { padding: 30px; }
     .message-box {
       background: #f8f9fa;
-      border-left: 4px solid #2C7DA0;
+      border-left: 4px solid #1a56db;
       padding: 20px;
       margin: 20px 0;
       border-radius: 8px;
       white-space: pre-wrap;
-      font-family: 'Courier New', monospace;
       font-size: 14px;
     }
     .details {
@@ -268,18 +250,11 @@ class NotificationService {
       padding: 8px 0;
       border-bottom: 1px solid #cce5ff;
     }
-    .detail-label {
-      font-weight: bold;
-      width: 120px;
-      color: #2C7DA0;
-    }
-    .detail-value {
-      flex: 1;
-      color: #333;
-    }
+    .detail-label { font-weight: bold; width: 120px; color: #1a56db; }
+    .detail-value { flex: 1; color: #333; }
     .button {
       display: inline-block;
-      background: #2C7DA0;
+      background: #1a56db;
       color: white;
       padding: 12px 24px;
       text-decoration: none;
@@ -287,9 +262,7 @@ class NotificationService {
       margin: 20px 0;
       transition: background 0.3s;
     }
-    .button:hover {
-      background: #1F5E7A;
-    }
+    .button:hover { background: #1e40af; }
     .footer {
       background: #f1f3f4;
       padding: 20px;
@@ -297,16 +270,6 @@ class NotificationService {
       font-size: 12px;
       color: #666;
     }
-    .status-badge {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: bold;
-    }
-    .status-success { background: #d4edda; color: #155724; }
-    .status-warning { background: #fff3cd; color: #856404; }
-    .status-error { background: #f8d7da; color: #721c24; }
     @media (max-width: 480px) {
       .container { border-radius: 10px; }
       .header { padding: 20px; }
@@ -323,7 +286,7 @@ class NotificationService {
       <p>Professional CV & Cover Letter Service</p>
     </div>
     <div class="content">
-      <h2 style="color: #2C7DA0; margin-bottom: 20px;">${this.escapeHtml(subject)}</h2>
+      <h2 style="color: #1a56db; margin-bottom: 20px;">${this.escapeHtml(subject)}</h2>
       <div class="message-box">
         ${this.escapeHtml(message).replace(/\n/g, '<br>')}
       </div>
@@ -338,13 +301,12 @@ class NotificationService {
         </div>
       </div>
       <div style="text-align: center;">
-        <a href="https://easysuccor-bot.onrender.com/admin.html" class="button">📊 Go to Admin Dashboard</a>
+        <a href="https://t.me/EasySuccor_bot" class="button">📱 Open EasySuccor Bot</a>
       </div>
     </div>
     <div class="footer">
       <p>&copy; ${year} EasySuccor. All rights reserved.</p>
       <p>Need help? Contact: +265 991 295 401 | ${process.env.EMAIL_USER}</p>
-      <p>This is an automated message from EasySuccor Bot.</p>
     </div>
   </div>
 </body>
@@ -386,7 +348,6 @@ class NotificationService {
     }
     
     try {
-      // Truncate message if too long (Telegram limit is 4096)
       const truncatedMessage = message.length > 4000 ? message.substring(0, 3900) + '\n\n... (truncated)' : message;
       
       await bot.telegram.sendMessage(chatId, truncatedMessage, { 
@@ -423,7 +384,7 @@ class NotificationService {
     });
   }
 
-  // ============ ADMIN ALERTS (PRIORITY) ============
+  // ============ ADMIN ALERTS ============
   
   async alertAdmin(subject, message, bot, priority = 'high') {
     const adminChatId = process.env.ADMIN_CHAT_ID;
@@ -440,7 +401,6 @@ class NotificationService {
       timestamp: new Date().toISOString()
     };
     
-    // Send both channels in parallel for high priority
     if (priority === 'high') {
       const [emailResult, telegramResult] = await Promise.all([
         this.sendEmail(adminEmail, `🔴 URGENT: ${subject}`, message, null, priority),
@@ -449,7 +409,6 @@ class NotificationService {
       results.email = emailResult;
       results.telegram = telegramResult;
     } else {
-      // Send sequentially for normal priority
       results.email = await this.sendEmail(adminEmail, subject, message, null, priority);
       if (adminChatId) {
         results.telegram = await this.sendTelegram(adminChatId, message, bot, priority);
@@ -459,7 +418,6 @@ class NotificationService {
     console.log(`   Email: ${results.email.success ? '✅' : '❌'} ${results.email.error || ''}`);
     console.log(`   Telegram: ${results.telegram.success ? '✅' : '❌'} ${results.telegram.error || ''}`);
     
-    // Log to history
     this.addToHistory({
       type: 'admin_alert',
       subject,
@@ -485,12 +443,17 @@ class NotificationService {
   }
 
   async sendPaymentConfirmation(client, order, reference, bot) {
+    const paymentMethods = `• Airtel Money: 0991295401
+• TNM Mpamba: 0886928639
+• MO626 Bank: 1005653618`;
+    
     const clientMessage = `✅ *PAYMENT CONFIRMED!* 🎉
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Order: \`${order.id}\`
 Amount: ${order.total_charge}
 Reference: \`${reference}\`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Your document will be delivered within ${order.delivery_time}.
 
@@ -503,11 +466,55 @@ Order: ${order.id}
 Client: ${client.first_name} ${client.last_name || ''}
 Amount: ${order.total_charge}
 Reference: ${reference}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Document has been sent to client.`;
 
     await this.sendTelegram(client.telegram_id, clientMessage, bot);
     await this.alertAdmin('Payment Verified - Document Sent', adminMessage, bot);
+  }
+
+  async sendInstallmentPaymentConfirmation(client, order, installmentPlan, bot) {
+    const message = `✅ *INSTALLMENT PAYMENT CONFIRMED!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Order: \`${order.id}\`
+Payment: Installment ${installmentPlan.current_installment} of 2
+Amount Paid: ${installmentPlan.last_paid_amount}
+Remaining: ${installmentPlan.remaining_amount}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${installmentPlan.current_installment === 1 ? 
+  'Your CV creation has started! You will receive a preview within 24 hours.' : 
+  'Your final document will be delivered shortly.'}
+
+Thank you for choosing EasySuccor! 🙏`;
+
+    await this.sendTelegram(client.telegram_id, message, bot);
+  }
+
+  async sendPayLaterReminder(client, plan, bot) {
+    const message = `⏰ *PAYMENT REMINDER*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Order: \`${plan.orderId}\`
+Amount Due: ${plan.amount}
+Due Date: ${plan.due_date}
+Days Remaining: ${plan.days_until_due}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Please make your payment to receive your document.
+
+Payment Methods:
+• Airtel Money: 0991295401
+• TNM Mpamba: 0886928639
+• MO626 Bank: 1005653618
+
+Reference: ${plan.reference}
+
+After payment, type: /confirm ${plan.reference}`;
+
+    await this.sendTelegram(client.telegram_id, message, bot);
   }
 
   async sendOrderStatusUpdate(client, order, status, bot) {
@@ -524,6 +531,29 @@ Document has been sent to client.`;
     await this.sendTelegram(client.telegram_id, message, bot);
   }
 
+  async sendDocumentReadyNotification(client, order, documentType, bot) {
+    const message = `📄 *YOUR DOCUMENT IS READY!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Order: \`${order.id}\`
+Document: ${documentType}
+Format: ${order.service.includes('editable') ? 'Word (DOCX)' : 'PDF'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your document has been delivered to this chat.
+
+You have 2 free revision requests. To request changes, simply reply with your feedback.
+
+Thank you for choosing EasySuccor! 🎉`;
+
+    await this.sendTelegram(client.telegram_id, message, bot);
+    
+    if (client.email) {
+      await this.sendEmail(client.email, 'Your Document is Ready - EasySuccor', 
+        `Dear ${client.first_name},\n\nYour ${documentType} for order ${order.id} is ready.\n\nYou have 2 free revision requests.\n\nThank you for choosing EasySuccor!`);
+    }
+  }
+
   // ============ BULK NOTIFICATIONS ============
   
   async sendBulkEmail(recipients, subject, message) {
@@ -531,14 +561,12 @@ Document has been sent to client.`;
     for (const recipient of recipients) {
       const result = await this.sendEmail(recipient, subject, message);
       results.push({ recipient, ...result });
-      // Rate limiting - wait between emails
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     return results;
   }
 
   async sendNewsletter(subject, message, bot) {
-    // Get all clients with email
     const allClients = await db.getAllClients();
     const clientsWithEmail = allClients.filter(c => c.email);
     
@@ -549,7 +577,6 @@ Document has been sent to client.`;
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
-    // Also send to admin
     await this.sendEmail(this.adminEmail, `Newsletter Sent: ${subject}`, `Sent to ${results.length} clients.`);
     
     return results;
@@ -590,7 +617,6 @@ Document has been sent to client.`;
     let htmlContent = template.html;
     let textContent = template.text;
     
-    // Replace variables
     for (const [key, value] of Object.entries(variables)) {
       const regex = new RegExp(`{{${key}}}`, 'g');
       subject = subject.replace(regex, value);

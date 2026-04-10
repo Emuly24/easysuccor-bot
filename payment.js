@@ -6,6 +6,9 @@ const db = require('./database');
 class PaymentProcessor {
   constructor() {
     this.paymentReferences = new Map();
+    this.installmentPlans = new Map();
+    this.payLaterPlans = new Map();
+    
     this.providers = {
       airtel: {
         name: 'Airtel Money',
@@ -18,7 +21,7 @@ class PaymentProcessor {
         ussd: '*444#'
       },
       bank: {
-        name: 'National Bank',
+        name: 'MO626',
         account: '1005653618',
         swift: 'NBMAMWMW'
       }
@@ -32,6 +35,7 @@ class PaymentProcessor {
     return `EASY${timestamp}${random}${checksum}`;
   }
 
+  // ============ REGULAR PAYMENT ============
   async initiatePayment(amount, orderId, clientId, clientName, clientPhone, ctx, paymentMethod = null) {
     const reference = this.generatePaymentReference();
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
@@ -46,10 +50,8 @@ class PaymentProcessor {
       attempts: 0
     });
 
-    // Schedule expiration reminder
     this.scheduleExpirationReminder(reference, expiresAt, ctx);
 
-    // Send admin notification
     const adminMessage = `🚨 *NEW PAYMENT PENDING*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -71,7 +73,6 @@ To verify: /verify ${reference}`;
 
     await notificationService.alertAdmin(`💰 Payment Pending: ${reference}`, adminMessage, ctx.bot);
 
-    // Generate payment instructions based on method
     const paymentInstructions = this.generatePaymentInstructions(amount, reference, paymentMethod);
     
     return {
@@ -85,81 +86,678 @@ To verify: /verify ${reference}`;
     const instructions = {
       reference,
       amount,
-      message: `💰 *PAYMENT REQUIRED*
-
-Amount: ${amount}
-Reference: \`${reference}\`
-Expires: 48 hours
+      message: `💳 *COMPLETE YOUR PAYMENT*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💳 *PAYMENT OPTIONS*
+📋 ORDER SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Amount: *${amount}*
+Reference: \`${reference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT METHODS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━`
     };
 
     if (!method || method === 'any') {
       instructions.message += `
 
-*1️⃣ Airtel Money*
-   📱 Number: ${this.providers.airtel.number}
-   📞 USSD: Dial ${this.providers.airtel.ussd}
+*1️⃣ Mobile Money (Airtel/Mpamba)*
+   📱 Airtel: ${this.providers.airtel.number}
+   📱 Mpamba: ${this.providers.mpamba.number}
 
-*2️⃣ TNM Mpamba*
-   📱 Number: ${this.providers.mpamba.number}
-   📞 USSD: Dial ${this.providers.mpamba.ussd}
+*2️⃣ Bank Transfer (MO626)*
+   🏦 Account: ${this.providers.bank.account}
 
-*3️⃣ Bank Transfer*
-   🏦 ${this.providers.bank.name}
-   💳 Account: ${this.providers.bank.account}
-   🌐 SWIFT: ${this.providers.bank.swift}
+*3️⃣ Pay Later* - 7 days to pay
+*4️⃣ Installments* - 2 parts over 7 days
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 *INSTRUCTIONS*
+📌 NEXT STEPS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. Send exactly ${amount} to any account above
-2. Use reference \`${reference}\` as payment reference
-3. After sending, type: \`/confirm ${reference}\`
-
-⏰ Reference expires in 48 hours`;
-    } else if (method === 'airtel') {
-      instructions.message += `
-
-📱 *Airtel Money*
-   Number: ${this.providers.airtel.number}
-   USSD: Dial ${this.providers.airtel.ussd}
-
-Send exactly ${amount} to ${this.providers.airtel.number}
-Use reference: \`${reference}\`
-
-After payment, type: \`/confirm ${reference}\``;
-    } else if (method === 'mpamba') {
-      instructions.message += `
-
-📱 *TNM Mpamba*
-   Number: ${this.providers.mpamba.number}
-   USSD: Dial ${this.providers.mpamba.ussd}
-
-Send exactly ${amount} to ${this.providers.mpamba.number}
-Use reference: \`${reference}\`
-
-After payment, type: \`/confirm ${reference}\``;
-    } else if (method === 'bank') {
-      instructions.message += `
-
-🏦 *Bank Transfer*
-   Bank: ${this.providers.bank.name}
-   Account: ${this.providers.bank.account}
-   SWIFT: ${this.providers.bank.swift}
-
-Send exactly ${amount} to the account above
-Use reference: \`${reference}\`
-
-After payment, type: \`/confirm ${reference}\``;
+Choose your preferred payment method above.`;
     }
 
     return instructions;
   }
 
+  // ============ PAY LATER ============
+  async initiatePayLater(amount, orderId, clientId, clientName, clientPhone, ctx) {
+    const reference = this.generatePaymentReference();
+    const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const reminderDates = [
+      { daysBefore: 3, date: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000) },
+      { daysBefore: 1, date: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000) },
+      { daysBefore: 0, date: dueDate }
+    ];
+    
+    const payLaterPlan = {
+      orderId,
+      clientId,
+      clientName,
+      clientPhone,
+      amount,
+      reference,
+      status: 'pending',
+      dueDate: dueDate.toISOString(),
+      createdAt: new Date().toISOString(),
+      penaltyApplied: false,
+      penaltyAmount: 0,
+      remindersSent: [],
+      extensionRequests: 0,
+      maxExtensions: 2
+    };
+    
+    this.payLaterPlans.set(orderId, payLaterPlan);
+    
+    // Save to database
+    await db.savePayLaterPlan(payLaterPlan);
+    
+    // Schedule reminders
+    for (const reminder of reminderDates) {
+      this.schedulePayLaterReminder(orderId, reminder.date, reminder.daysBefore, ctx);
+    }
+    
+    const adminMessage = `⏳ *PAY LATER PLAN CREATED*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order: ${orderId}
+Client: ${clientName}
+Amount: ${amount}
+Reference: \`${reference}\`
+Due Date: ${dueDate.toLocaleDateString()}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Status: Awaiting payment within 7 days`;
+
+    await notificationService.alertAdmin(`⏳ Pay Later: ${orderId}`, adminMessage, ctx.bot);
+    
+    return {
+      success: true,
+      reference,
+      dueDate: dueDate.toISOString(),
+      message: `⏳ *PAY LATER PLAN ACTIVATED*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order: \`${orderId}\`
+Amount: *${amount}*
+Reference: \`${reference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏰ PAYMENT DEADLINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*Due Date:* ${dueDate.toLocaleDateString()}
+*Time Remaining:* 7 days
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ IMPORTANT NOTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Your document will be delivered AFTER payment
+• 10% penalty if payment is late
+• Reminders will be sent before due date
+• You can request a 3-day extension (max 2 times)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 WHEN READY TO PAY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Send *${amount}* to:
+📱 Airtel: ${this.providers.airtel.number}
+📱 Mpamba: ${this.providers.mpamba.number}
+🏦 MO626: ${this.providers.bank.account}
+
+Reference: \`${reference}\`
+
+After payment, type: \`/confirm ${reference}\``
+    };
+  }
+
+  schedulePayLaterReminder(orderId, reminderDate, daysBefore, ctx) {
+    const timeUntilReminder = reminderDate.getTime() - Date.now();
+    if (timeUntilReminder > 0) {
+      setTimeout(async () => {
+        const plan = this.payLaterPlans.get(orderId) || await db.getPayLaterPlan(orderId);
+        if (plan && plan.status === 'pending') {
+          await this.sendPayLaterReminder(orderId, daysBefore, ctx);
+        }
+      }, timeUntilReminder);
+    }
+  }
+
+  async sendPayLaterReminder(orderId, daysBefore, ctx) {
+    const plan = this.payLaterPlans.get(orderId) || await db.getPayLaterPlan(orderId);
+    if (!plan || plan.status !== 'pending') return;
+    
+    if (plan.remindersSent.includes(daysBefore)) return;
+    plan.remindersSent.push(daysBefore);
+    await db.updatePayLaterPlan(orderId, { remindersSent: plan.remindersSent });
+    
+    const client = await db.getClientById(plan.clientId);
+    if (!client || !client.telegram_id) return;
+    
+    let urgency = '';
+    let message = '';
+    
+    if (daysBefore === 3) {
+      urgency = '⏰ *REMINDER*';
+      message = `Your payment of ${plan.amount} is due in 3 days.`;
+    } else if (daysBefore === 1) {
+      urgency = '⚠️ *URGENT REMINDER*';
+      message = `Your payment of ${plan.amount} is due TOMORROW!`;
+    } else if (daysBefore === 0) {
+      urgency = '🔴 *DUE TODAY*';
+      message = `Your payment of ${plan.amount} is due TODAY!`;
+    }
+    
+    const reminderMessage = `${urgency}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 PAYMENT REMINDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order: \`${orderId}\`
+Amount: *${plan.amount}*
+Reference: \`${plan.reference}\`
+Due Date: ${new Date(plan.dueDate).toLocaleDateString()}
+
+${message}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT METHODS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 Airtel: ${this.providers.airtel.number}
+📱 Mpamba: ${this.providers.mpamba.number}
+🏦 MO626: ${this.providers.bank.account}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏰ Need more time?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You can request a 3-day extension (max 2 times).
+
+Type: \`/extend ${orderId}\``;
+
+    await ctx.telegram.sendMessage(client.telegram_id, reminderMessage, { parse_mode: 'Markdown' });
+    
+    // Also notify admin
+    await notificationService.alertAdmin(
+      `⏰ Pay Later Reminder: ${orderId}`,
+      `Reminder sent to ${client.first_name} for payment of ${plan.amount}. Due in ${daysBefore} days.`,
+      ctx.bot
+    );
+  }
+
+  async requestExtension(orderId, ctx) {
+    const plan = this.payLaterPlans.get(orderId) || await db.getPayLaterPlan(orderId);
+    if (!plan) return { success: false, error: "No pay later plan found" };
+    if (plan.status !== 'pending') return { success: false, error: "Payment already completed" };
+    if (plan.extensionRequests >= plan.maxExtensions) {
+      return { success: false, error: "Maximum extension requests reached. Please contact support." };
+    }
+    
+    plan.extensionRequests++;
+    const extensionDays = 3;
+    const newDueDate = new Date(plan.dueDate);
+    newDueDate.setDate(newDueDate.getDate() + extensionDays);
+    plan.dueDate = newDueDate.toISOString();
+    
+    await db.updatePayLaterPlan(orderId, { 
+      extensionRequests: plan.extensionRequests,
+      dueDate: plan.dueDate
+    });
+    
+    const client = await db.getClientById(plan.clientId);
+    if (client && client.telegram_id) {
+      await ctx.telegram.sendMessage(client.telegram_id, 
+        `✅ *EXTENSION GRANTED*
+
+Your payment due date has been extended by ${extensionDays} days.
+
+New due date: ${newDueDate.toLocaleDateString()}
+
+Please make your payment by this date to avoid penalties.`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    
+    await notificationService.alertAdmin(
+      `✅ Extension Granted: ${orderId}`,
+      `Client: ${plan.clientName}\nNew due date: ${newDueDate.toLocaleDateString()}\nExtensions used: ${plan.extensionRequests}/${plan.maxExtensions}`,
+      ctx.bot
+    );
+    
+    return { success: true, message: `Extension granted. New due date: ${newDueDate.toLocaleDateString()}` };
+  }
+
+  async applyPayLaterPenalty(orderId) {
+    const plan = this.payLaterPlans.get(orderId) || await db.getPayLaterPlan(orderId);
+    if (!plan || plan.penaltyApplied) return null;
+    
+    const dueDate = new Date(plan.dueDate);
+    const now = new Date();
+    const daysOverdue = Math.ceil((now - dueDate) / (1000 * 60 * 60 * 24));
+    
+    if (daysOverdue >= 7 && !plan.penaltyApplied) {
+      const penalty = Math.floor(plan.amount * 0.1);
+      plan.penaltyApplied = true;
+      plan.penaltyAmount = penalty;
+      plan.amount += penalty;
+      
+      await db.updatePayLaterPlan(orderId, {
+        penaltyApplied: true,
+        penaltyAmount: penalty,
+        amount: plan.amount
+      });
+      
+      return { penalty, newAmount: plan.amount, daysOverdue };
+    }
+    
+    return null;
+  }
+
+  // ============ INSTALLMENT PLAN ============
+  async initiateInstallmentPlan(amount, orderId, clientId, clientName, clientPhone, ctx) {
+    const reference = this.generatePaymentReference();
+    const firstAmount = Math.ceil(amount / 2);
+    const secondAmount = amount - firstAmount;
+    const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    
+    const installmentPlan = {
+      orderId,
+      clientId,
+      clientName,
+      clientPhone,
+      totalAmount: amount,
+      firstAmount,
+      secondAmount,
+      reference,
+      status: 'first_pending',
+      firstPaid: false,
+      secondPaid: false,
+      dueDate: dueDate.toISOString(),
+      createdAt: new Date().toISOString(),
+      penaltyApplied: false,
+      penaltyAmount: 0,
+      extensionRequests: 0,
+      maxExtensions: 2,
+      remindersSent: []
+    };
+    
+    this.installmentPlans.set(orderId, installmentPlan);
+    
+    // Save to database
+    await db.saveInstallmentPlan(installmentPlan);
+    
+    const adminMessage = `📅 *INSTALLMENT PLAN CREATED*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order: ${orderId}
+Client: ${clientName}
+Total: ${amount}
+First Payment: ${firstAmount}
+Second Payment: ${secondAmount}
+Due Date: ${dueDate.toLocaleDateString()}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Status: Awaiting first payment`;
+
+    await notificationService.alertAdmin(`📅 Installment Plan: ${orderId}`, adminMessage, ctx.bot);
+    
+    return {
+      success: true,
+      reference,
+      firstAmount,
+      secondAmount,
+      dueDate: dueDate.toISOString(),
+      message: `📅 *INSTALLMENT PLAN ACTIVATED*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order: \`${orderId}\`
+Total Amount: *${amount}*
+Reference: \`${reference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT SCHEDULE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*1st Payment (50%):* MK${firstAmount.toLocaleString()}
+   ➜ Pay now to start CV creation
+
+*2nd Payment (50%):* MK${secondAmount.toLocaleString()}
+   ➜ Due by: ${dueDate.toLocaleDateString()}
+   ➜ Receive your final document
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 HOW IT WORKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Make the first payment now
+2️⃣ We start working on your CV immediately
+3️⃣ You receive a preview within 24 hours
+4️⃣ Make the second payment within 7 days
+5️⃣ Receive your final downloadable document
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ LATE PAYMENT POLICY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• 10% penalty if more than 7 days overdue
+• Extensions available upon request
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 MAKE FIRST PAYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Send *MK${firstAmount.toLocaleString()}* to:
+
+📱 Airtel: ${this.providers.airtel.number}
+📱 Mpamba: ${this.providers.mpamba.number}
+🏦 MO626: ${this.providers.bank.account}
+
+*Reference:* \`${reference}_INST1\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ AFTER FIRST PAYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Click the button below to confirm:`
+    };
+  }
+
+  async confirmFirstInstallment(orderId, reference, ctx) {
+    const plan = this.installmentPlans.get(orderId) || await db.getInstallmentPlan(orderId);
+    if (!plan) return { success: false, error: "No installment plan found" };
+    if (plan.firstPaid) return { success: false, error: "First installment already confirmed" };
+    
+    plan.firstPaid = true;
+    plan.status = 'first_paid';
+    plan.firstPaidAt = new Date().toISOString();
+    
+    await db.updateInstallmentPlan(orderId, {
+      firstPaid: true,
+      status: 'first_paid',
+      firstPaidAt: plan.firstPaidAt
+    });
+    
+    // Schedule second payment reminder
+    this.scheduleSecondInstallmentReminder(orderId, new Date(plan.dueDate), ctx);
+    
+    const client = await db.getClientById(plan.clientId);
+    if (client && client.telegram_id) {
+      await ctx.telegram.sendMessage(client.telegram_id,
+        `✅ *FIRST INSTALLMENT CONFIRMED!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 PAYMENT RECEIVED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Amount Paid: *MK${plan.firstAmount.toLocaleString()}*
+Remaining: *MK${plan.secondAmount.toLocaleString()}*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 WHAT HAPPENS NEXT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Your CV creation has started!
+⏰ You will receive a preview within 24 hours
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📅 SECOND PAYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Amount: *MK${plan.secondAmount.toLocaleString()}*
+Due Date: *${new Date(plan.dueDate).toLocaleDateString()}*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ REMINDERS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• You will receive reminders before due date
+• Late payments incur 10% penalty
+• Extensions available on request
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ AFTER FINAL PAYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You will receive your downloadable document immediately.
+
+Thank you for choosing EasySuccor! 🙏`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    
+    await notificationService.alertAdmin(
+      `✅ First Installment Paid: ${orderId}`,
+      `Client: ${plan.clientName}\nAmount: MK${plan.firstAmount.toLocaleString()}\nRemaining: MK${plan.secondAmount.toLocaleString()}\nDue: ${new Date(plan.dueDate).toLocaleDateString()}`,
+      ctx.bot
+    );
+    
+    return { success: true, orderId };
+  }
+
+  async confirmSecondInstallment(orderId, reference, ctx) {
+    const plan = this.installmentPlans.get(orderId) || await db.getInstallmentPlan(orderId);
+    if (!plan) return { success: false, error: "No installment plan found" };
+    if (!plan.firstPaid) return { success: false, error: "First installment not paid yet" };
+    if (plan.secondPaid) return { success: false, error: "Second installment already confirmed" };
+    
+    // Check for late payment penalty
+    const penalty = await this.applyInstallmentPenalty(orderId);
+    let finalAmount = plan.secondAmount;
+    let penaltyMessage = '';
+    
+    if (penalty) {
+      finalAmount = penalty.newAmount;
+      penaltyMessage = `\n\n⚠️ *Late Payment Penalty Applied*\nPenalty: MK${penalty.penalty.toLocaleString()}\nTotal Paid: MK${finalAmount.toLocaleString()}`;
+    }
+    
+    plan.secondPaid = true;
+    plan.status = 'completed';
+    plan.secondPaidAt = new Date().toISOString();
+    
+    await db.updateInstallmentPlan(orderId, {
+      secondPaid: true,
+      status: 'completed',
+      secondPaidAt: plan.secondPaidAt
+    });
+    
+    const client = await db.getClientById(plan.clientId);
+    if (client && client.telegram_id) {
+      await ctx.telegram.sendMessage(client.telegram_id,
+        `✅ *FINAL INSTALLMENT CONFIRMED!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 PAYMENT COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Total Paid: *MK${plan.totalAmount.toLocaleString()}*${penaltyMessage}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 YOUR DOCUMENT IS READY!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your document will be delivered in this chat immediately.
+
+Thank you for completing your payment! 🎉
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⭐ *NEXT STEPS*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Your document is being delivered
+• You have 2 free revision requests
+• Share your experience with /feedback
+
+Thank you for choosing EasySuccor! 🙏`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    
+    await notificationService.alertAdmin(
+      `✅ Second Installment Paid: ${orderId}`,
+      `Client: ${plan.clientName}\nTotal Amount: MK${plan.totalAmount.toLocaleString()}${penalty ? `\nPenalty Applied: MK${penalty.penalty.toLocaleString()}` : ''}\nInstallment plan completed!`,
+      ctx.bot
+    );
+    
+    return { success: true, orderId, penaltyApplied: !!penalty };
+  }
+
+  scheduleSecondInstallmentReminder(orderId, dueDate, ctx) {
+    const reminderTimes = [
+      { daysBefore: 3, time: dueDate.getTime() - 3 * 24 * 60 * 60 * 1000 },
+      { daysBefore: 1, time: dueDate.getTime() - 1 * 24 * 60 * 60 * 1000 },
+      { daysBefore: 0, time: dueDate.getTime() }
+    ];
+    
+    for (const reminder of reminderTimes) {
+      const timeUntilReminder = reminder.time - Date.now();
+      if (timeUntilReminder > 0) {
+        setTimeout(async () => {
+          await this.sendSecondInstallmentReminder(orderId, reminder.daysBefore, ctx);
+        }, timeUntilReminder);
+      }
+    }
+  }
+
+  async sendSecondInstallmentReminder(orderId, daysBefore, ctx) {
+    const plan = this.installmentPlans.get(orderId) || await db.getInstallmentPlan(orderId);
+    if (!plan || plan.secondPaid) return;
+    
+    if (plan.remindersSent.includes(daysBefore)) return;
+    plan.remindersSent.push(daysBefore);
+    await db.updateInstallmentPlan(orderId, { remindersSent: plan.remindersSent });
+    
+    const client = await db.getClientById(plan.clientId);
+    if (!client || !client.telegram_id) return;
+    
+    let urgency = '';
+    let message = '';
+    
+    if (daysBefore === 3) {
+      urgency = '⏰ *REMINDER*';
+      message = `Your second installment of ${plan.secondAmount} is due in 3 days.`;
+    } else if (daysBefore === 1) {
+      urgency = '⚠️ *URGENT REMINDER*';
+      message = `Your second installment of ${plan.secondAmount} is due TOMORROW!`;
+    } else if (daysBefore === 0) {
+      urgency = '🔴 *DUE TODAY*';
+      message = `Your second installment of ${plan.secondAmount} is due TODAY!`;
+    }
+    
+    const reminderMessage = `${urgency}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 INSTALLMENT REMINDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order: \`${orderId}\`
+Amount Due: *MK${plan.secondAmount.toLocaleString()}*
+Due Date: ${new Date(plan.dueDate).toLocaleDateString()}
+
+${message}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT METHODS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 Airtel: ${this.providers.airtel.number}
+📱 Mpamba: ${this.providers.mpamba.number}
+🏦 MO626: ${this.providers.bank.account}
+
+Reference: \`${plan.reference}_INST2\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏰ Need more time?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You can request a 3-day extension (max 2 times).
+
+Type: \`/extend_installment ${orderId}\``;
+
+    await ctx.telegram.sendMessage(client.telegram_id, reminderMessage, { parse_mode: 'Markdown' });
+  }
+
+  async applyInstallmentPenalty(orderId) {
+    const plan = this.installmentPlans.get(orderId) || await db.getInstallmentPlan(orderId);
+    if (!plan || plan.penaltyApplied) return null;
+    
+    const dueDate = new Date(plan.dueDate);
+    const now = new Date();
+    const daysOverdue = Math.ceil((now - dueDate) / (1000 * 60 * 60 * 24));
+    
+    if (daysOverdue >= 7 && !plan.penaltyApplied) {
+      const penalty = Math.floor(plan.secondAmount * 0.1);
+      plan.penaltyApplied = true;
+      plan.penaltyAmount = penalty;
+      const newAmount = plan.secondAmount + penalty;
+      
+      await db.updateInstallmentPlan(orderId, {
+        penaltyApplied: true,
+        penaltyAmount: penalty,
+        secondAmount: newAmount
+      });
+      
+      return { penalty, newAmount, daysOverdue };
+    }
+    
+    return null;
+  }
+
+  async requestInstallmentExtension(orderId, ctx) {
+    const plan = this.installmentPlans.get(orderId) || await db.getInstallmentPlan(orderId);
+    if (!plan) return { success: false, error: "No installment plan found" };
+    if (plan.secondPaid) return { success: false, error: "Payment already completed" };
+    if (plan.extensionRequests >= plan.maxExtensions) {
+      return { success: false, error: "Maximum extension requests reached. Please contact support." };
+    }
+    
+    plan.extensionRequests++;
+    const extensionDays = 3;
+    const newDueDate = new Date(plan.dueDate);
+    newDueDate.setDate(newDueDate.getDate() + extensionDays);
+    plan.dueDate = newDueDate.toISOString();
+    
+    await db.updateInstallmentPlan(orderId, {
+      extensionRequests: plan.extensionRequests,
+      dueDate: plan.dueDate
+    });
+    
+    const client = await db.getClientById(plan.clientId);
+    if (client && client.telegram_id) {
+      await ctx.telegram.sendMessage(client.telegram_id,
+        `✅ *INSTALLMENT EXTENSION GRANTED*
+
+Your second payment due date has been extended by ${extensionDays} days.
+
+New due date: ${newDueDate.toLocaleDateString()}
+
+Please make your payment by this date to avoid penalties.`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    
+    return { success: true, message: `Extension granted. New due date: ${newDueDate.toLocaleDateString()}` };
+  }
+
+  // ============ REGULAR PAYMENT METHODS ============
   scheduleExpirationReminder(reference, expiresAt, ctx) {
     const timeUntilExpiry = expiresAt.getTime() - Date.now();
     const reminderTimes = [timeUntilExpiry - 24 * 60 * 60 * 1000, timeUntilExpiry - 6 * 60 * 60 * 1000];
@@ -233,14 +831,12 @@ Our team has been notified and will verify shortly. You will receive confirmatio
     payment.verifiedBy = ctx.from.id;
     this.paymentReferences.set(reference, payment);
 
-    // Update order status
     await db.updateOrderStatus(payment.orderId, 'paid');
     await db.updateOrderPaymentStatus(payment.orderId, 'completed');
     if (payment.paymentMethod) {
       await db.updateOrderPaymentMethod(payment.orderId, payment.paymentMethod);
     }
 
-    // Send client confirmation
     const client = await db.getClientById(payment.clientId);
     if (client && client.telegram_id) {
       await ctx.telegram.sendMessage(client.telegram_id, 
@@ -301,6 +897,26 @@ Thank you for your trust in EasySuccor! 🙏`,
       if (payment.status === 'confirmed') {
         stats.total_amount += payment.amount;
       }
+    }
+    
+    return stats;
+  }
+
+  async getInstallmentStats() {
+    const stats = {
+      total: this.installmentPlans.size,
+      first_pending: 0,
+      first_paid: 0,
+      completed: 0,
+      total_amount: 0,
+      collected_amount: 0
+    };
+    
+    for (const [, plan] of this.installmentPlans) {
+      stats[plan.status]++;
+      stats.total_amount += plan.totalAmount;
+      if (plan.firstPaid) stats.collected_amount += plan.firstAmount;
+      if (plan.secondPaid) stats.collected_amount += plan.secondAmount;
     }
     
     return stats;

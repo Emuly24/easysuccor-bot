@@ -1,38 +1,234 @@
-# Create .gitignore to exclude sensitive files
+# Create .gitignore to exclude sensitive and generated files
 cat > .gitignore << 'EOF'
-# Dependencies
+# ============================================================
+# DEPENDENCIES
+# ============================================================
 node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
-# Environment variables
+# ============================================================
+# ENVIRONMENT VARIABLES (CRITICAL - NEVER COMMIT)
+# ============================================================
 .env
 .env.local
+.env.development
 .env.production
+.env.test
+.env.backup
+*.env
 
-# Database
+# ============================================================
+# DATABASE FILES
+# ============================================================
 data/*.db
 data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/backups/
+*.sqlite
+*.sqlite3
+*.db
 
-# Generated files
+# ============================================================
+# GENERATED FILES & EXPORTS
+# ============================================================
 exports/
-uploads/
-temp/
+exports/*.pdf
+exports/*.docx
+exports/*.doc
+generated/
+output/
+documents/
 
-# Logs
+# ============================================================
+# UPLOADS & TEMPORARY FILES
+# ============================================================
+uploads/
+uploads/*.pdf
+uploads/*.docx
+uploads/*.doc
+uploads/*.jpg
+uploads/*.jpeg
+uploads/*.png
+temp/
+tmp/
+*.tmp
+*.temp
+*.cache
+
+# ============================================================
+# SESSION & STATE FILES
+# ============================================================
+sessions/
+session_data/
+*.session
+session-store/
+
+# ============================================================
+# LOGS
+# ============================================================
 logs/
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pm2*.log
+error.log
+combined.log
 
-# OS files
+# ============================================================
+# BACKUP FILES
+# ============================================================
+backups/
+*.backup
+*.bak
+*.old
+*~
+
+# ============================================================
+# NOTIFICATION HISTORY
+# ============================================================
+data/notification_history.json
+notification_history.json
+email_templates/*.json.bak
+
+# ============================================================
+# DEEPSEEK & AI CACHE
+# ============================================================
+.deepseek_cache/
+.ai_cache/
+*.aichat
+.ml_cache/
+
+# ============================================================
+# OS GENERATED FILES
+# ============================================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+*.lock
 
-# IDE files
+# ============================================================
+# IDE & EDITOR FILES
+# ============================================================
 .vscode/
+.vscode/*
 .idea/
+.idea/*
 *.swp
 *.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-*
+*.code-workspace
 
-# Temporary files
-*.tmp
-*.temp
+# ============================================================
+# TEST COVERAGE & REPORTS
+# ============================================================
+coverage/
+.nyc_output/
+*.lcov
+test-results/
+reports/
+
+# ============================================================
+# BUILD & DISTRIBUTION
+# ============================================================
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# ============================================================
+# PM2 & PROCESS MANAGER FILES
+# ============================================================
+.pm2/
+pm2-*.log
+ecosystem.config.js.bak
+
+# ============================================================
+# SSL CERTIFICATES (if any)
+# ============================================================
+*.pem
+*.crt
+*.key
+*.csr
+ssl/
+certs/
+
+# ============================================================
+# DOCKER FILES (if using Docker)
+# ============================================================
+.docker/
+docker-compose.override.yml
+
+# ============================================================
+# MISCELLANEOUS
+# ============================================================
+*.pid
+*.seed
+*.pid.lock
+.ruby-version
+.ruby-gemset
+.rvmrc
+
+# ============================================================
+# SPECIFIC TO EASYSUCCOR
+# ============================================================
+# Referral tracking cache
+.referral_cache/
+.cache/
+
+# CV data exports
+cv_exports/
+cover_letter_exports/
+
+# Payment receipts (sensitive)
+receipts/
+payment_receipts/
+
+# Client data dumps
+client_exports/
+data_dumps/
+
+# Screenshots for testing
+screenshots/
+test_screenshots/
+
+# Debug dumps
+debug/
+dumps/
+*.heapdump
+*.heapsnapshot
+
+# ============================================================
+# KEEP THESE FILES (DO NOT IGNORE)
+# ============================================================
+# !.gitkeep
+# !data/.gitkeep
+# !uploads/.gitkeep
+# !exports/.gitkeep
+# !logs/.gitkeep
+
 EOF
+
+# Create .gitkeep files to preserve directory structure
+mkdir -p data uploads exports logs temp sessions
+touch data/.gitkeep
+touch uploads/.gitkeep
+touch exports/.gitkeep
+touch logs/.gitkeep
+touch temp/.gitkeep
+touch sessions/.gitkeep
+
+echo "✅ .gitignore created successfully!"
+echo "✅ Directory structure preserved with .gitkeep files!"

@@ -1,0 +1,14 @@
+[phases.setup]
+nixPkgs = [
+  "nodejs",
+  "poppler_utils",
+  "imagemagick",
+  "tesseract",
+  "ghostscript"
+]
+
+[phases.install]
+cmds = [
+  "npm install",
+  "mkdir -p data uploads exports logs temp sessions"
+]

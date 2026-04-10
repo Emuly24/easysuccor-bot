@@ -1,9 +1,15 @@
-// bot.js - Complete EasySuccor Telegram Bot with Smart Draft Upload & Real Testimonials
+// ====================================================================
+// BOT.JS - EASYSUCCOR TELEGRAM BOT
+// COMPLETE PRODUCTION VERSION - UPDATED
+// ====================================================================
+
 const { Telegraf, Markup } = require('telegraf');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const axios = require('axios');
+const express = require('express');
 const multer = require('multer');
 const db = require('./database');
 const payment = require('./payment');
@@ -12,12 +18,11 @@ const documentGenerator = require('./document-generator');
 const aiAnalyzer = require('./ai-analyzer');
 const InstallmentTracker = require('./installment-tracker');
 const ReferralTracker = require('./referral-tracker');
-const express = require('express');
 const intelligentUpdate = require('./intelligent-update');
 
 dotenv.config();
 
-// ============ EXPRESS SERVER FOR ADMIN UPLOADS ============
+// ============ EXPRESS SERVER FOR ADMIN UPLOADS (UPDATED) ============
 const app = express();
 const upload = multer({ dest: 'uploads/admin/' });
 
@@ -25,17 +30,237 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
+// ============ LANDING PAGE ROUTES ============
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// ============ HEALTH CHECK ENDPOINT FOR RAILWAY ============
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'alive', 
+        timestamp: new Date().toISOString(), 
+        uptime: process.uptime(),
+        version: '2.0.0',
+        deepseek_configured: !!process.env.DEEPSEEK_API_KEY,
+        database: dbType === 'postgres' ? 'postgresql' : 'sqlite'
+    });
+});
+
+// ============ ADMIN AUTHENTICATION ============
 const adminAuth = (req, res, next) => {
-    const apiKey = req.headers['x-admin-key'];
+    const apiKey = req.headers['x-admin-key'] || req.query.key;
     if (apiKey !== process.env.ADMIN_API_KEY) {
-        return res.status(401).json({ error: 'Unauthorized' });
+        return res.status(401).json({ error: 'Unauthorized. Valid admin API key required.' });
     }
     next();
 };
+// ============ PRICE CONFIGURATION (Admin Adjustable) ============
+let PRICE_CONFIG = {
+    student: { cv: 6000, editable_cv: 8000, editable_cover: 8000, update: 3000, cover: 5000 },
+    recent: { cv: 8000, editable_cv: 10000, editable_cover: 8000, update: 4000, cover: 5000 },
+    professional: { cv: 10000, editable_cv: 12000, editable_cover: 8000, update: 6000, cover: 6000 },
+    nonworking: { cv: 8000, editable_cv: 10000, editable_cover: 8000, update: 5000, cover: 5000 },
+    returning: { editable_cv: 10000, editable_cover: 8000, update: 5000, cover: 5000 }
+};
 
-// ============ ADMIN UPLOAD ENDPOINTS ============
+// Load saved prices
+try {
+    if (fs.existsSync('./price_config.json')) {
+        PRICE_CONFIG = JSON.parse(fs.readFileSync('./price_config.json', 'utf8'));
+        console.log('✅ Price config loaded from file');
+    }
+} catch(e) { console.log('Using default price config'); }
 
-// Batch upload (multiple files)
+// ============ PRICE MANAGEMENT ENDPOINTS ============
+
+// Get current prices
+app.get('/admin/prices', adminAuth, (req, res) => {
+    res.json(PRICE_CONFIG);
+});
+
+// Update prices
+app.post('/admin/update-prices', adminAuth, async (req, res) => {
+    try {
+        const { category, service, price } = req.body;
+        if (PRICE_CONFIG[category] && PRICE_CONFIG[category][service] !== undefined) {
+            PRICE_CONFIG[category][service] = parseInt(price);
+            fs.writeFileSync('./price_config.json', JSON.stringify(PRICE_CONFIG, null, 2));
+            
+            // Log admin action
+            await db.logAdminAction({
+                admin_id: req.body.admin_id || 'web',
+                action: 'update_prices',
+                details: `${category}.${service} = ${price}`,
+                timestamp: new Date().toISOString()
+            });
+            
+            res.json({ success: true, message: 'Prices updated successfully' });
+        } else {
+            res.status(400).json({ error: 'Invalid category or service' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// ============ ADMIN UPLOAD ENDPOINTS (UPDATED - 18+ CATEGORIES) ============
+
+// Helper function to extract all 18+ categories from CV data
+function extractAllCVData(cvData) {
+    return {
+        // Personal Information
+        personal: {
+            full_name: cvData.personal?.full_name || null,
+            email: cvData.personal?.email || null,
+            primary_phone: cvData.personal?.primary_phone || null,
+            alternative_phone: cvData.personal?.alternative_phone || null,
+            whatsapp_phone: cvData.personal?.whatsapp_phone || null,
+            location: cvData.personal?.location || null,
+            physical_address: cvData.personal?.physical_address || null,
+            nationality: cvData.personal?.nationality || null,
+            linkedin: cvData.personal?.linkedin || null,
+            github: cvData.personal?.github || null,
+            portfolio: cvData.personal?.portfolio || null,
+            professional_title: cvData.personal?.professional_title || null,
+            date_of_birth: cvData.personal?.date_of_birth || null,
+            special_documents: cvData.personal?.special_documents || []
+        },
+        // Professional Summary (AI generated, but store if exists)
+        professional_summary: cvData.professional_summary || null,
+        // Work Experience
+        employment: (cvData.employment || []).map(job => ({
+            title: job.title || null,
+            company: job.company || null,
+            location: job.location || null,
+            start_date: job.start_date || null,
+            end_date: job.end_date || null,
+            duration: job.duration || null,
+            responsibilities: job.responsibilities || [],
+            achievements: job.achievements || [],
+            technologies_used: job.technologies_used || [],
+            team_size: job.team_size || null,
+            reporting_to: job.reporting_to || null
+        })),
+        // Education
+        education: (cvData.education || []).map(edu => ({
+            level: edu.level || null,
+            field: edu.field || null,
+            institution: edu.institution || null,
+            location: edu.location || null,
+            start_date: edu.start_date || null,
+            graduation_date: edu.graduation_date || null,
+            gpa: edu.gpa || null,
+            achievements: edu.achievements || [],
+            courses: edu.courses || []
+        })),
+        // Skills (categorized)
+        skills: {
+            technical: cvData.skills?.technical || [],
+            soft: cvData.skills?.soft || [],
+            tools: cvData.skills?.tools || [],
+            certifications: cvData.skills?.certifications || []
+        },
+        // Certifications
+        certifications: (cvData.certifications || []).map(cert => ({
+            name: cert.name || null,
+            issuer: cert.issuer || null,
+            date: cert.date || null,
+            expiry_date: cert.expiry_date || null,
+            credential_id: cert.credential_id || null,
+            url: cert.url || null
+        })),
+        // Languages
+        languages: (cvData.languages || []).map(lang => ({
+            name: lang.name || null,
+            proficiency: lang.proficiency || null,
+            certification: lang.certification || null
+        })),
+        // Projects
+        projects: (cvData.projects || []).map(proj => ({
+            name: proj.name || null,
+            description: proj.description || null,
+            technologies: proj.technologies || null,
+            role: proj.role || null,
+            team_size: proj.team_size || null,
+            duration: proj.duration || null,
+            link: proj.link || null,
+            outcome: proj.outcome || null
+        })),
+        // Achievements
+        achievements: (cvData.achievements || []).map(ach => ({
+            title: typeof ach === 'string' ? ach : ach.title,
+            description: ach.description || null,
+            date: ach.date || null,
+            issuer: ach.issuer || null
+        })),
+        // Volunteer Experience
+        volunteer: (cvData.volunteer || []).map(vol => ({
+            role: vol.role || null,
+            organization: vol.organization || null,
+            duration: vol.duration || null,
+            responsibilities: vol.responsibilities || []
+        })),
+        // Leadership
+        leadership: (cvData.leadership || []).map(lead => ({
+            role: lead.role || null,
+            organization: lead.organization || null,
+            duration: lead.duration || null,
+            impact: lead.impact || null
+        })),
+        // Awards
+        awards: (cvData.awards || []).map(award => ({
+            name: award.name || null,
+            issuer: award.issuer || null,
+            date: award.date || null,
+            description: award.description || null
+        })),
+        // Publications
+        publications: (cvData.publications || []).map(pub => ({
+            title: pub.title || null,
+            publisher: pub.publisher || null,
+            date: pub.date || null,
+            url: pub.url || null,
+            authors: pub.authors || null
+        })),
+        // Conferences
+        conferences: (cvData.conferences || []).map(conf => ({
+            name: conf.name || null,
+            role: conf.role || null,
+            date: conf.date || null,
+            location: conf.location || null
+        })),
+        // Referees
+        referees: (cvData.referees || []).map(ref => ({
+            name: ref.name || null,
+            position: ref.position || null,
+            company: ref.company || null,
+            email: ref.email || null,
+            phone: ref.phone || null,
+            relationship: ref.relationship || null
+        })),
+        // Interests
+        interests: cvData.interests || [],
+        // Social Media
+        social_media: {
+            linkedin: cvData.social_media?.linkedin || null,
+            github: cvData.social_media?.github || null,
+            twitter: cvData.social_media?.twitter || null,
+            facebook: cvData.social_media?.facebook || null,
+            instagram: cvData.social_media?.instagram || null,
+            portfolio: cvData.social_media?.portfolio || null
+        },
+        // Portfolio Links
+        portfolio: cvData.portfolio || []
+    };
+}
+
+// Batch upload (multiple files) - UPDATED for 18+ categories
 app.post('/admin/upload-batch', adminAuth, upload.array('files', 20), async (req, res) => {
     try {
         const files = req.files;
@@ -47,26 +272,31 @@ app.post('/admin/upload-batch', adminAuth, upload.array('files', 20), async (req
         for (const file of files) {
             try {
                 const extractedData = await documentGenerator.extractFullCVData(file.path, 'cv');
+                const cvData = extractedData.data;
+                
+                // Extract ALL 18+ categories
+                const allData = extractAllCVData(cvData);
                 
                 let client = null;
-                if (extractedData.data.personal?.email) {
-                    client = await db.getClientByEmail(extractedData.data.personal.email);
+                if (allData.personal.email) {
+                    client = await db.getClientByEmail(allData.personal.email);
                 }
                 
                 if (!client) {
-                    client = await db.createClient(
-                        null,
-                        null,
-                        extractedData.data.personal?.full_name?.split(' ')[0] || 'Unknown',
-                        extractedData.data.personal?.full_name?.split(' ').slice(1).join(' ') || ''
-                    );
+                    const firstName = allData.personal.full_name?.split(' ')[0] || 'Unknown';
+                    const lastName = allData.personal.full_name?.split(' ').slice(1).join(' ') || '';
+                    client = await db.createClient(null, null, firstName, lastName);
                     await db.updateClient(client.id, {
-                        email: extractedData.data.personal?.email || null,
-                        phone: extractedData.data.personal?.primary_phone || null,
-                        location: extractedData.data.personal?.location || null,
-                        physical_address: extractedData.data.personal?.physical_address || null,
-                        nationality: extractedData.data.personal?.nationality || null,
-                        special_documents: extractedData.data.personal?.special_documents || null,
+                        email: allData.personal.email,
+                        phone: allData.personal.primary_phone,
+                        location: allData.personal.location,
+                        physical_address: allData.personal.physical_address,
+                        nationality: allData.personal.nationality,
+                        linkedin: allData.personal.linkedin,
+                        github: allData.personal.github,
+                        portfolio: allData.personal.portfolio,
+                        professional_title: allData.personal.professional_title,
+                        special_documents: JSON.stringify(allData.personal.special_documents),
                         is_legacy_client: true
                     });
                 }
@@ -84,18 +314,41 @@ app.post('/admin/upload-batch', adminAuth, upload.array('files', 20), async (req
                     delivery_fee: 0,
                     total_charge: 'MK0',
                     payment_status: 'completed',
-                    cv_data: convertedCV,
+                    cv_data: allData,
                     certificates_appendix: null,
-                    portfolio_links: '[]',
+                    portfolio_links: JSON.stringify(allData.portfolio),
                     status: 'delivered'
                 });
+                
+                // Save all extracted data to a separate JSON file for admin reference
+                const exportPath = path.join(__dirname, 'exports', 'legacy_imports', `${client.id}_${Date.now()}.json`);
+                const exportDir = path.dirname(exportPath);
+                if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
+                fs.writeFileSync(exportPath, JSON.stringify(allData, null, 2));
                 
                 results.push({
                     file: file.originalname,
                     success: true,
                     client_id: client.id,
-                    client_name: extractedData.data.personal?.full_name,
-                    extracted_email: extractedData.data.personal?.email
+                    client_name: allData.personal.full_name,
+                    extracted_email: allData.personal.email,
+                    extracted_phone: allData.personal.primary_phone,
+                    stats: {
+                        employment: allData.employment.length,
+                        education: allData.education.length,
+                        skills: allData.skills.technical.length + allData.skills.soft.length + allData.skills.tools.length,
+                        certifications: allData.certifications.length,
+                        languages: allData.languages.length,
+                        projects: allData.projects.length,
+                        achievements: allData.achievements.length,
+                        volunteer: allData.volunteer.length,
+                        leadership: allData.leadership.length,
+                        awards: allData.awards.length,
+                        publications: allData.publications.length,
+                        conferences: allData.conferences.length,
+                        referees: allData.referees.length,
+                        interests: allData.interests.length
+                    }
                 });
             } catch (fileError) {
                 results.push({
@@ -120,7 +373,7 @@ app.post('/admin/upload-batch', adminAuth, upload.array('files', 20), async (req
     }
 });
 
-// Single CV upload
+// Single CV upload - UPDATED for 18+ categories
 app.post('/admin/upload-cv', adminAuth, upload.single('cv_file'), async (req, res) => {
     try {
         const file = req.file;
@@ -129,26 +382,31 @@ app.post('/admin/upload-cv', adminAuth, upload.single('cv_file'), async (req, re
         }
         
         const extractedData = await documentGenerator.extractFullCVData(file.path, 'cv');
+        const cvData = extractedData.data;
+        
+        // Extract ALL 18+ categories
+        const allData = extractAllCVData(cvData);
         
         let client = null;
-        if (extractedData.data.personal?.email) {
-            client = await db.getClientByEmail(extractedData.data.personal.email);
+        if (allData.personal.email) {
+            client = await db.getClientByEmail(allData.personal.email);
         }
         
         if (!client) {
-            client = await db.createClient(
-                null,
-                null,
-                extractedData.data.personal?.full_name?.split(' ')[0] || 'Unknown',
-                extractedData.data.personal?.full_name?.split(' ').slice(1).join(' ') || ''
-            );
+            const firstName = allData.personal.full_name?.split(' ')[0] || 'Unknown';
+            const lastName = allData.personal.full_name?.split(' ').slice(1).join(' ') || '';
+            client = await db.createClient(null, null, firstName, lastName);
             await db.updateClient(client.id, {
-                email: extractedData.data.personal?.email || null,
-                phone: extractedData.data.personal?.primary_phone || null,
-                location: extractedData.data.personal?.location || null,
-                physical_address: extractedData.data.personal?.physical_address || null,
-                nationality: extractedData.data.personal?.nationality || null,
-                special_documents: extractedData.data.personal?.special_documents || null,
+                email: allData.personal.email,
+                phone: allData.personal.primary_phone,
+                location: allData.personal.location,
+                physical_address: allData.personal.physical_address,
+                nationality: allData.personal.nationality,
+                linkedin: allData.personal.linkedin,
+                github: allData.personal.github,
+                portfolio: allData.personal.portfolio,
+                professional_title: allData.personal.professional_title,
+                special_documents: JSON.stringify(allData.personal.special_documents),
                 is_legacy_client: true
             });
         }
@@ -166,24 +424,51 @@ app.post('/admin/upload-cv', adminAuth, upload.single('cv_file'), async (req, re
             delivery_fee: 0,
             total_charge: 'MK0',
             payment_status: 'completed',
-            cv_data: convertedCV,
+            cv_data: allData,
             certificates_appendix: null,
-            portfolio_links: '[]',
+            portfolio_links: JSON.stringify(allData.portfolio),
             status: 'delivered'
         });
         
+        // Save full extracted data to file
+        const exportPath = path.join(__dirname, 'exports', 'legacy_imports', `${client.id}_${Date.now()}.json`);
+        const exportDir = path.dirname(exportPath);
+        if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
+        fs.writeFileSync(exportPath, JSON.stringify(allData, null, 2));
+        
         res.json({
             success: true,
-            message: `CV processed for ${extractedData.data.personal?.full_name || 'client'}`,
+            message: `CV processed for ${allData.personal.full_name || 'client'}`,
             client_id: client.id,
             extracted_data: {
-                name: extractedData.data.personal?.full_name,
-                email: extractedData.data.personal?.email,
-                phone: extractedData.data.personal?.primary_phone,
-                location: extractedData.data.personal?.location,
-                physical_address: extractedData.data.personal?.physical_address,
-                nationality: extractedData.data.personal?.nationality,
-                special_documents: extractedData.data.personal?.special_documents
+                // Basic info
+                name: allData.personal.full_name,
+                email: allData.personal.email,
+                phone: allData.personal.primary_phone,
+                location: allData.personal.location,
+                physical_address: allData.personal.physical_address,
+                nationality: allData.personal.nationality,
+                linkedin: allData.personal.linkedin,
+                github: allData.personal.github,
+                professional_title: allData.personal.professional_title,
+                special_documents: allData.personal.special_documents,
+                // 18+ categories summary
+                stats: {
+                    employment: allData.employment.length,
+                    education: allData.education.length,
+                    skills: allData.skills.technical.length + allData.skills.soft.length + allData.skills.tools.length,
+                    certifications: allData.certifications.length,
+                    languages: allData.languages.length,
+                    projects: allData.projects.length,
+                    achievements: allData.achievements.length,
+                    volunteer: allData.volunteer.length,
+                    leadership: allData.leadership.length,
+                    awards: allData.awards.length,
+                    publications: allData.publications.length,
+                    conferences: allData.conferences.length,
+                    referees: allData.referees.length,
+                    interests: allData.interests.length
+                }
             }
         });
         
@@ -193,7 +478,7 @@ app.post('/admin/upload-cv', adminAuth, upload.single('cv_file'), async (req, re
     }
 });
 
-// Cover letter upload
+// Cover letter upload - UPDATED
 app.post('/admin/upload-cover', adminAuth, upload.single('cover_file'), async (req, res) => {
     try {
         const { client_name, client_email, client_phone, client_location, position: formPosition, company: formCompany } = req.body;
@@ -206,10 +491,10 @@ app.post('/admin/upload-cover', adminAuth, upload.single('cover_file'), async (r
         const fileUrl = `/uploads/${file.filename}`;
         const extractedData = await aiAnalyzer.extractFromDocument(fileUrl, file.originalname);
         
-        const clientName = extractedData.client_name || 'Unknown Client';
-        const clientEmail = extractedData.client_email || null;
-        const clientPhone = extractedData.client_phone || null;
-        const clientLocation = extractedData.client_location || null;
+        const clientName = extractedData.client_name || client_name || 'Unknown Client';
+        const clientEmail = extractedData.client_email || client_email || null;
+        const clientPhone = extractedData.client_phone || client_phone || null;
+        const clientLocation = extractedData.client_location || client_location || null;
         const position = extractedData.position || formPosition || 'Unknown Position';
         const company = extractedData.company || formCompany || 'Unknown Company';
         
@@ -236,6 +521,22 @@ app.post('/admin/upload-cover', adminAuth, upload.single('cover_file'), async (r
         
         const convertedCover = await documentGenerator.convertLegacyDocument(file.path, client.id, 'cover_letter');
         
+        // Store cover letter with extracted vacancy details
+        const coverData = {
+            cover_letter: convertedCover,
+            vacancy: {
+                position: position,
+                company: company,
+                extracted_at: new Date().toISOString()
+            },
+            client_info: {
+                name: clientName,
+                email: clientEmail,
+                phone: clientPhone,
+                location: clientLocation
+            }
+        };
+        
         await db.createOrder({
             id: `LEGACY_CL_${Date.now()}_${client.id}`,
             client_id: client.id,
@@ -247,14 +548,20 @@ app.post('/admin/upload-cover', adminAuth, upload.single('cover_file'), async (r
             delivery_fee: 0,
             total_charge: 'MK0',
             payment_status: 'completed',
-            cv_data: { cover_letter: convertedCover },
+            cv_data: coverData,
             status: 'delivered'
         });
         
         res.json({ 
             success: true, 
-            message: `Cover letter for ${client_name} uploaded and converted successfully`,
-            client_id: client.id 
+            message: `Cover letter for ${clientName} uploaded and converted successfully`,
+            client_id: client.id,
+            extracted_details: {
+                position: position,
+                company: company,
+                client_name: clientName,
+                client_email: clientEmail
+            }
         });
         
     } catch (error) {
@@ -263,68 +570,760 @@ app.post('/admin/upload-cover', adminAuth, upload.single('cover_file'), async (r
     }
 });
 
-// ============ ADMIN DASHBOARD API ENDPOINTS ============
-
-// Get statistics
-app.get('/admin/stats', adminAuth, async (req, res) => {
+// Get full extracted data for a client (admin view all 18+ categories)
+app.get('/admin/client-full/:clientId', adminAuth, async (req, res) => {
     try {
-        const orders = await db.getAllOrders();
-        const clients = await db.getAllClients();
-        const pendingOrders = orders.filter(o => o.payment_status === 'pending');
-        const completedOrders = orders.filter(o => o.payment_status === 'completed');
-        const totalRevenue = completedOrders.reduce((sum, o) => {
-            const amount = parseInt(o.total_charge?.replace('MK', '').replace(',', '') || 0);
-            return sum + amount;
-        }, 0);
+        const clientId = req.params.clientId;
+        const orders = await db.getClientOrders(clientId);
+        const latestOrder = orders[0];
+        
+        if (!latestOrder || !latestOrder.cv_data) {
+            return res.status(404).json({ error: 'No CV data found for this client' });
+        }
+        
+        const cvData = latestOrder.cv_data;
         
         res.json({
-            total_clients: clients.length,
-            total_orders: orders.length,
-            pending_payment: pendingOrders.length,
-            completed_orders: completedOrders.length,
-            total_revenue: totalRevenue
+            client_id: clientId,
+            client_name: cvData.personal?.full_name || 'Unknown',
+            extracted_at: latestOrder.created_at,
+            data: cvData
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Get all orders
+// Get summary of all imported clients with 18+ categories stats
+app.get('/admin/imports-summary', adminAuth, async (req, res) => {
+    try {
+        const orders = await db.getAllOrders();
+        const legacyOrders = orders.filter(o => o.service === 'legacy_cv');
+        
+        const summary = legacyOrders.map(order => {
+            const cvData = order.cv_data;
+            return {
+                order_id: order.id,
+                client_id: order.client_id,
+                client_name: cvData?.personal?.full_name || 'Unknown',
+                imported_at: order.created_at,
+                stats: {
+                    employment: cvData?.employment?.length || 0,
+                    education: cvData?.education?.length || 0,
+                    skills: (cvData?.skills?.technical?.length || 0) + (cvData?.skills?.soft?.length || 0) + (cvData?.skills?.tools?.length || 0),
+                    certifications: cvData?.certifications?.length || 0,
+                    languages: cvData?.languages?.length || 0,
+                    projects: cvData?.projects?.length || 0,
+                    achievements: cvData?.achievements?.length || 0,
+                    volunteer: cvData?.volunteer?.length || 0,
+                    leadership: cvData?.leadership?.length || 0,
+                    awards: cvData?.awards?.length || 0,
+                    publications: cvData?.publications?.length || 0,
+                    conferences: cvData?.conferences?.length || 0,
+                    referees: cvData?.referees?.length || 0,
+                    interests: cvData?.interests?.length || 0
+                }
+            };
+        });
+        
+        res.json({
+            total_imports: legacyOrders.length,
+            imports: summary
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============ CLIENT MANAGEMENT ENDPOINTS ============
+
+// Delete client and all associated data
+app.delete('/admin/client/:clientId', adminAuth, async (req, res) => {
+    try {
+        const clientId = req.params.clientId;
+        const client = await db.getClientById(clientId);
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+        
+        await db.deleteClientData(clientId);
+        
+        await db.logAdminAction({
+            admin_id: req.body.admin_id || 'web',
+            action: 'delete_client',
+            details: `Deleted client: ${client.first_name} ${client.last_name || ''} (ID: ${clientId})`,
+            timestamp: new Date().toISOString()
+        });
+        
+        res.json({ success: true, message: `Client deleted successfully` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Clear ALL data (emergency only)
+app.delete('/admin/clear-all', adminAuth, async (req, res) => {
+    try {
+        await db.clearAllData();
+        
+        await db.logAdminAction({
+            admin_id: req.body.admin_id || 'web',
+            action: 'clear_all_data',
+            details: 'All client and order data cleared',
+            timestamp: new Date().toISOString()
+        });
+        
+        res.json({ success: true, message: 'All data cleared successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============ ADMIN DASHBOARD API ENDPOINTS (UPDATED) ============
+
+// Helper function to calculate revenue
+function calculateRevenue(orders) {
+    return orders.reduce((sum, o) => {
+        const amount = parseInt(o.total_charge?.replace('MK', '').replace(',', '') || 0);
+        return sum + amount;
+    }, 0);
+}
+
+// Helper function to calculate completion time
+function calculateCompletionTime(createdAt, deliveredAt) {
+    if (!deliveredAt) return null;
+    const created = new Date(createdAt);
+    const delivered = new Date(deliveredAt);
+    const minutes = Math.round((delivered - created) / (1000 * 60));
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return { minutes, hours, mins, formatted: `${hours}h ${mins}m` };
+}
+
+// Get comprehensive statistics (UPDATED)
+app.get('/admin/stats', adminAuth, async (req, res) => {
+    try {
+        const orders = await db.getAllOrders();
+        const clients = await db.getAllClients();
+        const testimonials = await db.getAllTestimonials();
+         const adminLogs = await db.getAdminLogs(100);
+        
+        // Order categorization
+        const cvOrders = orders.filter(o => o.service === 'new cv' || o.service === 'editable cv' || o.service === 'legacy_cv');
+        const coverOrders = orders.filter(o => o.service === 'cover letter' || o.service === 'editable cover letter' || o.service === 'legacy_cover_letter');
+        const updateOrders = orders.filter(o => o.service === 'cv update');
+        
+        const pendingOrders = orders.filter(o => o.payment_status === 'pending');
+        const completedOrders = orders.filter(o => o.payment_status === 'completed');
+        const deliveredOrders = orders.filter(o => o.status === 'delivered');
+        
+        const totalRevenue = calculateRevenue(completedOrders);
+        const cvRevenue = calculateRevenue(cvOrders.filter(o => o.payment_status === 'completed'));
+        const coverRevenue = calculateRevenue(coverOrders.filter(o => o.payment_status === 'completed'));
+        const updateRevenue = calculateRevenue(updateOrders.filter(o => o.payment_status === 'completed'));
+        
+        // Calculate average completion time
+        let totalCompletionMinutes = 0;
+        let completedWithTime = 0;
+        for (const order of deliveredOrders) {
+            if (order.delivered_at) {
+                const created = new Date(order.created_at);
+                const delivered = new Date(order.delivered_at);
+                totalCompletionMinutes += Math.round((delivered - created) / (1000 * 60));
+                completedWithTime++;
+            }
+        }
+        const avgCompletionMinutes = completedWithTime > 0 ? Math.round(totalCompletionMinutes / completedWithTime) : null;
+        const avgHours = avgCompletionMinutes ? Math.floor(avgCompletionMinutes / 60) : null;
+        const avgMins = avgCompletionMinutes ? avgCompletionMinutes % 60 : null;
+        
+        // Payment method distribution
+        const paymentMethods = {};
+        for (const order of completedOrders) {
+            const method = order.payment_method || 'unknown';
+            paymentMethods[method] = (paymentMethods[method] || 0) + 1;
+        }
+        
+        // Service popularity
+        const serviceCount = {};
+        for (const order of orders) {
+            serviceCount[order.service] = (serviceCount[order.service] || 0) + 1;
+        }
+        const mostRequested = Object.entries(serviceCount).sort((a, b) => b[1] - a[1])[0];
+        
+        // Monthly revenue trend (last 6 months)
+        const monthlyRevenue = {};
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        
+        for (const order of completedOrders) {
+            const date = new Date(order.created_at);
+            if (date >= sixMonthsAgo) {
+                const monthYear = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+                const amount = parseInt(order.total_charge?.replace('MK', '').replace(',', '') || 0);
+                monthlyRevenue[monthYear] = (monthlyRevenue[monthYear] || 0) + amount;
+            }
+        }
+        
+        // Active clients (last 30 days)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const activeClients = clients.filter(c => {
+            const clientOrders = orders.filter(o => o.client_id === c.id);
+            return clientOrders.some(o => new Date(o.created_at) >= thirtyDaysAgo);
+        });
+        // Revenue by service
+        const revenueByService = {};
+        for (const order of completedOrders) {
+            const amount = parseInt(order.total_charge?.replace('MK', '').replace(',', '') || 0);
+            revenueByService[order.service] = (revenueByService[order.service] || 0) + amount;
+        }
+        
+        // Category distribution
+        const categoryDistribution = {};
+        for (const order of orders) {
+            categoryDistribution[order.category] = (categoryDistribution[order.category] || 0) + 1;
+        }
+        res.json({
+            total_clients: clients.length,
+            total_orders: orders.length,
+            pending_payment: pendingOrders.length,
+            completed_orders: completedOrders.length,
+            total_revenue: completedOrders.reduce((sum, o) => sum + (parseInt(o.total_charge?.replace('MK', '').replace(',', '') || 0), 0)),
+        });
+        // Testimonial stats
+        const approvedTestimonials = testimonials.filter(t => t.approved).length;
+        const pendingTestimonials = testimonials.filter(t => !t.approved).length;
+        const avgRating = testimonials.reduce((sum, t) => sum + (t.rating || 0), 0) / (testimonials.length || 1);
+        
+        res.json({
+            timestamp: new Date().toISOString(),
+            overview: {
+                total_clients: clients.length,
+                active_clients_30d: activeClients.length,
+                total_orders: orders.length,
+                pending_payment: pendingOrders.length,
+                completed_orders: completedOrders.length,
+                delivered_orders: deliveredOrders.length,
+                conversion_rate: orders.length > 0 ? ((completedOrders.length / orders.length) * 100).toFixed(1) : 0
+            },
+            revenue: {
+                total: totalRevenue,
+                cv: cvRevenue,
+                cover_letter: coverRevenue,
+                cv_update: updateRevenue,
+                average_order_value: completedOrders.length > 0 ? Math.round(totalRevenue / completedOrders.length) : 0,
+                monthly_trend: monthlyRevenue
+            },
+            delivery: {
+                average_completion_minutes: avgCompletionMinutes,
+                average_completion_formatted: avgHours ? `${avgHours}h ${avgMins}m` : null,
+                fastest_order: null,
+                slowest_order: null
+            },
+            services: {
+                most_requested: mostRequested ? mostRequested[0] : 'None',
+                most_requested_count: mostRequested ? mostRequested[1] : 0,
+                service_breakdown: serviceCount
+            },
+            payments: {
+                method_distribution: paymentMethods,
+                pending_count: pendingOrders.length,
+                pending_total: calculateRevenue(pendingOrders)
+            },
+            testimonials: {
+                approved: approvedTestimonials,
+                pending: pendingTestimonials,
+                total: testimonials.length,
+                average_rating: avgRating.toFixed(1)
+            }
+        });
+    } catch (error) {
+        console.error('Stats error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Get order completion time
+app.get('/api/order-time/:orderId', async (req, res) => {
+    try {
+        const order = await db.getOrder(req.params.orderId);
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+        
+        const created = new Date(order.created_at);
+        const delivered = order.delivered_at ? new Date(order.delivered_at) : null;
+        const expectedHours = parseInt(order.delivery_time) || 6;
+        const expectedBy = new Date(created);
+        expectedBy.setHours(created.getHours() + expectedHours);
+        
+        res.json({
+            order_id: order.id,
+            created_at: order.created_at,
+            expected_by: expectedBy.toISOString(),
+            delivered_at: order.delivered_at,
+            is_delivered: !!delivered,
+            status: order.status,
+            payment_status: order.payment_status
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// Get all orders with detailed information (UPDATED - includes cover letter data)
 app.get('/admin/orders', adminAuth, async (req, res) => {
     try {
         const orders = await db.getAllOrders();
-        res.json(orders);
+        const ordersWithDetails = await Promise.all(orders.map(async (order) => {
+            const client = await db.getClientById(order.client_id);
+            const cvData = order.cv_data || {};
+            
+            // Extract cover letter specific data if applicable
+            let coverDetails = null;
+            if (order.service === 'cover letter' || order.service === 'editable cover letter' || order.service === 'legacy_cover_letter') {
+                coverDetails = {
+                    position: cvData.position || cvData.cover_letter?.position || 'Not specified',
+                    company: cvData.company || cvData.cover_letter?.company || 'Not specified',
+                    has_vacancy: !!(cvData.vacancy || cvData.vacancy_data)
+                };
+            }
+            
+            // Extract CV specific stats
+            let cvStats = null;
+            if (order.service === 'new cv' || order.service === 'editable cv' || order.service === 'legacy_cv') {
+                cvStats = {
+                    employment_count: cvData.employment?.length || 0,
+                    education_count: cvData.education?.length || 0,
+                    skills_count: (cvData.skills?.technical?.length || 0) + (cvData.skills?.soft?.length || 0) + (cvData.skills?.tools?.length || 0),
+                    projects_count: cvData.projects?.length || 0,
+                    achievements_count: cvData.achievements?.length || 0,
+                    referees_count: cvData.referees?.length || 0
+                };
+            }
+            
+            return {
+                id: order.id,
+                service: order.service,
+                category: order.category,
+                status: order.status,
+                payment_status: order.payment_status,
+                total_charge: order.total_charge,
+                created_at: order.created_at,
+                delivered_at: order.delivered_at,
+                delivery_time: order.delivery_time,
+                completion_time: calculateCompletionTime(order.created_at, order.delivered_at),
+                client: {
+                    id: client?.id,
+                    name: client ? `${client.first_name} ${client.last_name || ''}` : 'Unknown',
+                    email: client?.email,
+                    phone: client?.phone
+                },
+                cover_details: coverDetails,
+                cv_stats: cvStats,
+                version: order.version,
+                review_count: await db.getDocumentReviews(order.id).then(r => r.length)
+            };
+        }));
+        
+        // Sort by newest first
+        ordersWithDetails.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        
+        res.json({
+            total: ordersWithDetails.length,
+            orders: ordersWithDetails
+        });
     } catch (error) {
+        console.error('Orders fetch error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// Get all clients
+// Get all clients with detailed stats (UPDATED)
 app.get('/admin/clients', adminAuth, async (req, res) => {
     try {
         const clients = await db.getAllClients();
-        res.json(clients);
+        const orders = await db.getAllOrders();
+        
+        const clientsWithDetails = await Promise.all(clients.map(async (client) => {
+            const clientOrders = orders.filter(o => o.client_id === client.id);
+            const completedOrders = clientOrders.filter(o => o.payment_status === 'completed');
+            const totalSpent = calculateRevenue(completedOrders);
+            
+            const cvOrders = clientOrders.filter(o => o.service === 'new cv' || o.service === 'editable cv');
+            const coverOrders = clientOrders.filter(o => o.service === 'cover letter' || o.service === 'editable cover letter');
+            const updateOrders = clientOrders.filter(o => o.service === 'cv update');
+            
+            const lastOrder = clientOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+            const referralInfo = await db.getReferralInfo(client.id);
+            
+            return {
+                id: client.id,
+                telegram_id: client.telegram_id,
+                name: `${client.first_name} ${client.last_name || ''}`,
+                email: client.email,
+                phone: client.phone,
+                location: client.location,
+                nationality: client.nationality,
+                registered_at: client.created_at,
+                last_active: client.last_active,
+                total_orders: clientOrders.length,
+                completed_orders: completedOrders.length,
+                total_spent: totalSpent,
+                orders_by_type: {
+                    cv: cvOrders.length,
+                    cover_letter: coverOrders.length,
+                    update: updateOrders.length
+                },
+                last_order: lastOrder ? {
+                    id: lastOrder.id,
+                    service: lastOrder.service,
+                    date: lastOrder.created_at,
+                    amount: lastOrder.total_charge
+                } : null,
+                referral: {
+                    code: referralInfo.referral_code,
+                    total_referrals: referralInfo.total_referrals,
+                    pending_reward: referralInfo.pending_reward
+                },
+                has_active_session: !!(await db.getActiveSession(client.id))
+            };
+        }));
+        
+        clientsWithDetails.sort((a, b) => new Date(b.registered_at) - new Date(a.registered_at));
+        
+        res.json({
+            total: clientsWithDetails.length,
+            clients: clientsWithDetails
+        });
     } catch (error) {
+        console.error('Clients fetch error:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// Get single order with full CV data
+// Get single order with full CV data (UPDATED - includes all 18+ categories)
 app.get('/admin/order/:orderId', adminAuth, async (req, res) => {
     try {
         const order = await db.getOrder(req.params.orderId);
         if (!order) return res.status(404).json({ error: 'Order not found' });
-        res.json(order);
+        
+        const client = await db.getClientById(order.client_id);
+        const reviews = await db.getDocumentReviews(order.id);
+        const cvData = order.cv_data || {};
+        
+        // Format CV data with all 18+ categories
+        const formattedCV = {
+            personal: cvData.personal || {},
+            professional_summary: cvData.professional_summary || null,
+            employment: cvData.employment || [],
+            education: cvData.education || [],
+            skills: cvData.skills || { technical: [], soft: [], tools: [] },
+            certifications: cvData.certifications || [],
+            languages: cvData.languages || [],
+            projects: cvData.projects || [],
+            achievements: cvData.achievements || [],
+            volunteer: cvData.volunteer || [],
+            leadership: cvData.leadership || [],
+            awards: cvData.awards || [],
+            publications: cvData.publications || [],
+            conferences: cvData.conferences || [],
+            referees: cvData.referees || [],
+            interests: cvData.interests || [],
+            social_media: cvData.social_media || {},
+            portfolio: cvData.portfolio || []
+        };
+        
+        // Calculate stats from all categories
+        const stats = {
+            employment: formattedCV.employment.length,
+            education: formattedCV.education.length,
+            skills: (formattedCV.skills.technical?.length || 0) + (formattedCV.skills.soft?.length || 0) + (formattedCV.skills.tools?.length || 0),
+            certifications: formattedCV.certifications.length,
+            languages: formattedCV.languages.length,
+            projects: formattedCV.projects.length,
+            achievements: formattedCV.achievements.length,
+            volunteer: formattedCV.volunteer.length,
+            leadership: formattedCV.leadership.length,
+            awards: formattedCV.awards.length,
+            publications: formattedCV.publications.length,
+            conferences: formattedCV.conferences.length,
+            referees: formattedCV.referees.length,
+            interests: formattedCV.interests.length
+        };
+        
+        res.json({
+            order: {
+                id: order.id,
+                service: order.service,
+                category: order.category,
+                status: order.status,
+                payment_status: order.payment_status,
+                total_charge: order.total_charge,
+                delivery_option: order.delivery_option,
+                delivery_time: order.delivery_time,
+                created_at: order.created_at,
+                delivered_at: order.delivered_at,
+                version: order.version,
+                completion_time: calculateCompletionTime(order.created_at, order.delivered_at)
+            },
+            client: {
+                id: client?.id,
+                name: client ? `${client.first_name} ${client.last_name || ''}` : 'Unknown',
+                email: client?.email,
+                phone: client?.phone,
+                telegram_id: client?.telegram_id
+            },
+            cv_data: formattedCV,
+            stats: stats,
+            review_history: reviews,
+            portfolio_links: order.portfolio_links ? JSON.parse(order.portfolio_links) : []
+        });
+    } catch (error) {
+        console.error('Order fetch error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get single cover letter order (NEW)
+app.get('/admin/cover-order/:orderId', adminAuth, async (req, res) => {
+    try {
+        const order = await db.getOrder(req.params.orderId);
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+        
+        if (order.service !== 'cover letter' && order.service !== 'editable cover letter' && order.service !== 'legacy_cover_letter') {
+            return res.status(400).json({ error: 'This order is not a cover letter order' });
+        }
+        
+        const client = await db.getClientById(order.client_id);
+        const reviews = await db.getDocumentReviews(order.id);
+        const coverData = order.cv_data || {};
+        
+        res.json({
+            order: {
+                id: order.id,
+                service: order.service,
+                status: order.status,
+                payment_status: order.payment_status,
+                total_charge: order.total_charge,
+                delivery_option: order.delivery_option,
+                delivery_time: order.delivery_time,
+                created_at: order.created_at,
+                delivered_at: order.delivered_at,
+                completion_time: calculateCompletionTime(order.created_at, order.delivered_at)
+            },
+            client: {
+                id: client?.id,
+                name: client ? `${client.first_name} ${client.last_name || ''}` : 'Unknown',
+                email: client?.email,
+                phone: client?.phone
+            },
+            cover_letter: {
+                position: coverData.position || coverData.cover_letter?.position || 'Not specified',
+                company: coverData.company || coverData.cover_letter?.company || 'Not specified',
+                experience: coverData.experience_highlight || coverData.experience || null,
+                skills: coverData.skills || coverData.cover_letter?.skills || [],
+                achievement: coverData.achievement || coverData.cover_letter?.achievement || null,
+                motivation: coverData.motivation || coverData.why || coverData.cover_letter?.motivation || null,
+                availability: coverData.availability || coverData.cover_letter?.availability || null
+            },
+            vacancy_data: coverData.vacancy || coverData.vacancy_data || null,
+            review_history: reviews
+        });
+    } catch (error) {
+        console.error('Cover order fetch error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get all cover letter orders (NEW)
+app.get('/admin/cover-orders', adminAuth, async (req, res) => {
+    try {
+        const orders = await db.getAllOrders();
+        const coverOrders = orders.filter(o => 
+            o.service === 'cover letter' || 
+            o.service === 'editable cover letter' || 
+            o.service === 'legacy_cover_letter'
+        );
+        
+        const coverOrdersWithDetails = await Promise.all(coverOrders.map(async (order) => {
+            const client = await db.getClientById(order.client_id);
+            const coverData = order.cv_data || {};
+            
+            return {
+                id: order.id,
+                service: order.service,
+                status: order.status,
+                payment_status: order.payment_status,
+                total_charge: order.total_charge,
+                created_at: order.created_at,
+                delivered_at: order.delivered_at,
+                completion_time: calculateCompletionTime(order.created_at, order.delivered_at),
+                client: {
+                    id: client?.id,
+                    name: client ? `${client.first_name} ${client.last_name || ''}` : 'Unknown',
+                    email: client?.email
+                },
+                position: coverData.position || coverData.cover_letter?.position || 'Not specified',
+                company: coverData.company || coverData.cover_letter?.company || 'Not specified',
+                has_vacancy: !!(coverData.vacancy || coverData.vacancy_data),
+                version: order.version
+            };
+        }));
+        
+        coverOrdersWithDetails.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        
+        res.json({
+            total: coverOrders.length,
+            orders: coverOrdersWithDetails
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
+
+// Get orders by date range (NEW - for reporting)
+app.get('/admin/orders-by-date', adminAuth, async (req, res) => {
+    try {
+        const { start, end } = req.query;
+        if (!start || !end) {
+            return res.status(400).json({ error: 'Please provide start and end dates (YYYY-MM-DD)' });
+        }
+        
+        const orders = await db.getAllOrders();
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        endDate.setHours(23, 59, 59);
+        
+        const filteredOrders = orders.filter(o => {
+            const orderDate = new Date(o.created_at);
+            return orderDate >= startDate && orderDate <= endDate;
+        });
+        
+        const completedOrders = filteredOrders.filter(o => o.payment_status === 'completed');
+        const totalRevenue = calculateRevenue(completedOrders);
+        
+        // Group by day
+        const byDay = {};
+        filteredOrders.forEach(order => {
+            const day = new Date(order.created_at).toISOString().split('T')[0];
+            if (!byDay[day]) {
+                byDay[day] = { orders: 0, revenue: 0, completed: 0 };
+            }
+            byDay[day].orders++;
+            if (order.payment_status === 'completed') {
+                byDay[day].completed++;
+                byDay[day].revenue += parseInt(order.total_charge?.replace('MK', '').replace(',', '') || 0);
+            }
+        });
+        
+        res.json({
+            period: { start, end },
+            summary: {
+                total_orders: filteredOrders.length,
+                completed_orders: completedOrders.length,
+                total_revenue: totalRevenue,
+                average_order_value: completedOrders.length > 0 ? Math.round(totalRevenue / completedOrders.length) : 0
+            },
+            daily_breakdown: byDay,
+            orders: filteredOrders.map(o => ({
+                id: o.id,
+                service: o.service,
+                total_charge: o.total_charge,
+                payment_status: o.payment_status,
+                created_at: o.created_at
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get admin dashboard summary (quick view for admin.html)
+app.get('/admin/dashboard-summary', adminAuth, async (req, res) => {
+    try {
+        const orders = await db.getAllOrders();
+        const clients = await db.getAllClients();
+        const testimonials = await db.getAllTestimonials();
+        
+        const today = new Date().toISOString().split('T')[0];
+        const todayOrders = orders.filter(o => o.created_at.split('T')[0] === today);
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const weekOrders = orders.filter(o => new Date(o.created_at) >= weekAgo);
+        
+        const pendingPayments = orders.filter(o => o.payment_status === 'pending');
+        const recentClients = clients.filter(c => new Date(c.created_at) >= weekAgo);
+        
+        res.json({
+            quick_stats: {
+                total_clients: clients.length,
+                total_orders: orders.length,
+                pending_payments: pendingPayments.length,
+                pending_amount: calculateRevenue(pendingPayments),
+                total_revenue: calculateRevenue(orders.filter(o => o.payment_status === 'completed'))
+            },
+            today: {
+                orders: todayOrders.length,
+                revenue: calculateRevenue(todayOrders.filter(o => o.payment_status === 'completed'))
+            },
+            this_week: {
+                orders: weekOrders.length,
+                new_clients: recentClients.length,
+                revenue: calculateRevenue(weekOrders.filter(o => o.payment_status === 'completed'))
+            },
+            testimonials: {
+                pending: testimonials.filter(t => !t.approved).length,
+                total: testimonials.length
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============ DEEPSEEK STATUS ENDPOINT ============
+app.get('/api/deepseek-status', async (req, res) => {
+    try {
+        const { OpenAI } = require('openai');
+        const deepseek = new OpenAI({
+            apiKey: process.env.DEEPSEEK_API_KEY,
+            baseURL: 'https://api.deepseek.com/v1'
+        });
+        
+        const startTime = Date.now();
+        const response = await deepseek.chat.completions.create({
+            model: 'deepseek-chat',
+            messages: [{ role: 'user', content: 'OK' }],
+            max_tokens: 5
+        });
+        const responseTime = Date.now() - startTime;
+        
+        res.json({
+            status: 'online',
+            response_time_ms: responseTime,
+            message: response.choices[0].message.content,
+            api_key_configured: true
+        });
+    } catch (error) {
+        res.json({
+            status: 'offline',
+            error: error.message,
+            api_key_configured: !!process.env.DEEPSEEK_API_KEY
+        });
+    }
+});
+
+console.log(`📤 Admin upload endpoints available`);
+console.log(`🔑 Admin API Key required in header: x-admin-key`);
+console.log(`❤️ Health check: GET /health`);
+console.log(`🌐 Landing page: GET /`);
+console.log(`📊 Admin panel: GET /admin`);
 
 // Health check
 const HEALTH_PORT = process.env.PORT || 3000;
 const PORT = process.env.PORT || 10000;
 console.log(`📤 Admin upload endpoints: POST /admin/upload-cv, POST /admin/upload-batch`);
 console.log(`🔑 Admin API Key required in header: x-admin-key`);
+
 
 // ============ TELEGRAM BOT ============
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -334,13 +1333,8 @@ async function sendMarkdown(ctx, message, extra = {}) {
     return await ctx.reply(message, { parse_mode: 'Markdown', ...extra });
 }
 
-// ============ HUMAN-LIKE DYNAMIC RESPONSES ============
+// ============ HUMAN-LIKE DYNAMIC RESPONSES (NO GREETING) ============
 const RESPONSES = {
-    greetings: [
-        (name) => `👋 Hey ${name}! Great to see you! I'm EasySuccor, your career assistant. Let's create something amazing together! 🚀`,
-        (name) => `✨ Hello ${name}! Ready to take your career to the next level? I'm here to help! 💪`,
-        (name) => `🎯 ${name}! Welcome back! Let's build a CV that opens doors for you. Shall we?`
-    ],
     encouragements: {
         start: ["Awesome choice! 🎯", "You've got this! 💪", "Let's make it happen! ✨", "Perfect! Let's go! 🚀"],
         progress: [
@@ -360,90 +1354,453 @@ const RESPONSES = {
         ]
     },
     questions: {
-        name: ["First things first - what's your full name? 📛", "Tell me your name so I can personalize your CV. 📛", "Let's start with your name? 📛"],
-        email: ["What's your email address? 📧", "Your email please? 📧", "How can employers reach you? Email? 📧"],
-        phone: ["Phone number? (Employers will call this) 📞", "What's the best number to reach you? 📞", "Your contact number? 📞"],
-        location: ["Where are you based? (City, Country) 📍", "What's your location? 📍", "City and country you're in? 📍"],
-        summary: ["Tell me about yourself in 2-3 sentences. What makes you unique? ✨", "Describe yourself professionally - your passion, your drive ✍️", "What's your professional story? (2-3 sentences) 💫"],
-        education: ["What's your highest qualification? 🎓", "What is your highest level of education? (e.g., Bachelor's, Master's, Diploma) 🎓", "What's the highest degree or certificate you've earned? 🎓"],
-        jobTitle: ["Your most recent job title? 💼", "What position did you last hold? 💼", "Current or most recent role? 💼"],
-        skills: ["What are your superpowers? List your key skills (comma separated) ⚡", "What skills make you stand out? ⚡", "Tell me your top skills (comma separated) 💪"]
+        name: ["What's your full name? 📛", "Tell me your name so I can personalize your CV. 📛"],
+        email: ["What's your email address? 📧", "Your email please? 📧"],
+        phone: ["Phone number? (Employers will call this) 📞", "What's the best number to reach you? 📞"],
+        location: ["Where are you based? (City, Country) 📍", "What's your location? 📍"],
+        education: ["What's your highest qualification? 🎓", "What is your highest level of education? 🎓"],
+        jobTitle: ["Your most recent job title? 💼", "What position did you last hold? 💼"],
+        skills: ["List your key skills (comma separated) ⚡", "What skills make you stand out? ⚡"]
     },
     reactions: { 
         positive: ["Love it! 💯", "Got it! 🎯", "Perfect! ✨", "Excellent! 🌟", "Great choice! 👍", "Fantastic! 💪"], 
-        funny: ["Nice one! 😄", "Awesome! 🎉", "Sweet! 🔥", "You're doing great! 💪", "That's the spirit! ✨"] 
+        funny: ["Nice one! 😄", "Awesome! 🎉", "Sweet! 🔥", "You're doing great! 💪"] 
     },
     help: ["Need help? Just type what you're unsure about. Or type /pause to save progress. I'm here for you! 💙"],
+    
+    // ============ UPDATED PAYMENT SECTION WITH CLICKABLE BUTTONS ============
     payment: {
-        order_created: (orderId, service, deliveryTime, total) => `✅ *Order Created!* 🎉
+        // Step 1: After order creation - show payment method options
+        order_created: (orderId, service, deliveryTime, total) => `✅ *ORDER CREATED!* 🎉
 
-Your order number: \`${orderId}\`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order Number: \`${orderId}\`
 Service: ${service}
 ⏰ Delivery: ${deliveryTime}
 💰 Amount: ${total}
 
-I'll start working on your document as soon as payment is confirmed!`,
-        payment_options: (reference, total) => `💳 *How to Pay*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 SELECT PAYMENT METHOD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Send *${total}* to any of these:
+Choose how you would like to pay:`,
+        
+        // Step 2: After selecting payment method - show instructions
+        payment_options: (reference, total) => `💳 *COMPLETE YOUR PAYMENT*
 
-📱 *Mobile Money*
-   Airtel: 0991295401
-   Mpamba: 0886928639
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📞 *USSD*
-   Dial *211# (Airtel)
-   Dial *444# (Mpamba)
+Amount: *${total}*
+Reference: \`${reference}\`
 
-⏳ *Pay Later* - within 7 days
-📅 *Installments* - 2 parts over 7 days
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT METHODS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-*Your Payment Reference:* \`${reference}\`
+Select your preferred payment method:`,
+        
+        // Mobile Money payment instructions
+        mobile_payment: (reference, total, airtelNumber, mpambaNumber) => `💳 *MOBILE MONEY PAYMENT*
 
-After sending money, type: \`/confirm ${reference}\`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 PAYMENT DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Need help? Just ask! 🤗`
+Amount: *${total}*
+Reference: \`${reference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📱 SEND TO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*Airtel Money:*
+📞 ${airtelNumber}
+
+*Mpamba:*
+📞 ${mpambaNumber}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 INSTRUCTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Open Airtel Money or Mpamba
+2️⃣ Select "Send Money"
+3️⃣ Enter the number above
+4️⃣ Enter amount: *${total}*
+5️⃣ Add reference: \`${reference}\`
+6️⃣ Complete the transaction
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ AFTER PAYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Click the button below to confirm your payment:`,
+        
+        // Bank Transfer payment instructions
+        bank_payment: (reference, total, bankAccount) => `💳 *BANK TRANSFER PAYMENT*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 PAYMENT DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Amount: *${total}*
+Reference: \`${reference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏦 BANK DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*Bank:* MO626
+*Account Number:* ${bankAccount}
+*Account Name:* EasySuccor Enterprises
+*Reference:* ${reference}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 INSTRUCTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Log into your internet banking
+2️⃣ Transfer the exact amount
+3️⃣ Use the reference above
+4️⃣ Save your transaction receipt
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ AFTER PAYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Click the button below to confirm your payment:`,
+        
+        // Pay Later plan created
+        pay_later_created: (orderId, total, reference, dueDate) => `⏳ *PAY LATER PLAN ACTIVATED*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order: \`${orderId}\`
+Amount: *${total}*
+Reference: \`${reference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏰ PAYMENT DEADLINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*Due Date:* ${dueDate}
+*Time Remaining:* 7 days
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ IMPORTANT NOTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Your document will be delivered AFTER payment
+• 10% penalty if payment is late
+• Reminders will be sent before due date
+• You can request a 3-day extension (max 2 times)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 WHEN READY TO PAY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Click the button below when you make payment:`,
+        
+        // Installment plan created
+        installment_created: (orderId, total, firstAmount, secondAmount, reference, dueDate) => `📅 *INSTALLMENT PLAN ACTIVATED*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ORDER DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Order: \`${orderId}\`
+Total Amount: *${total}*
+Reference: \`${reference}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 PAYMENT SCHEDULE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*1st Payment (50%):* MK${firstAmount.toLocaleString()}
+   ➜ Pay now to start CV creation
+
+*2nd Payment (50%):* MK${secondAmount.toLocaleString()}
+   ➜ Due by: ${dueDate}
+   ➜ Receive your final document
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 HOW IT WORKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Make the first payment now
+2️⃣ We start working on your CV immediately
+3️⃣ You receive a preview within 24 hours
+4️⃣ Make the second payment within 7 days
+5️⃣ Receive your final downloadable document
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ LATE PAYMENT POLICY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• 10% penalty if more than 7 days overdue
+• Extensions available upon request
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 MAKE FIRST PAYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Click the button below when you make your first payment:`,
+        
+        // First installment confirmed
+        first_installment_confirmed: (firstAmount, secondAmount, dueDate) => `✅ *FIRST INSTALLMENT CONFIRMED!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 PAYMENT RECEIVED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Amount Paid: *MK${firstAmount.toLocaleString()}*
+Remaining: *MK${secondAmount.toLocaleString()}*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 WHAT HAPPENS NEXT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Your CV creation has started!
+⏰ You will receive a preview within 24 hours
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📅 SECOND PAYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Amount: *MK${secondAmount.toLocaleString()}*
+Due Date: *${dueDate}*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ REMINDERS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• You will receive reminders before due date
+• Late payments incur 10% penalty
+• Extensions available on request
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ AFTER FINAL PAYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You will receive your downloadable document immediately.
+
+Thank you for choosing EasySuccor! 🙏`,
+        
+        // Second installment confirmed (final)
+        second_installment_confirmed: (totalAmount) => `✅ *FINAL INSTALLMENT CONFIRMED!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 PAYMENT COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Total Paid: *MK${totalAmount.toLocaleString()}*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 YOUR DOCUMENT IS READY!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your document will be delivered in this chat immediately.
+
+Thank you for completing your payment! 🎉
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⭐ *NEXT STEPS*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Your document is being delivered
+• You have 2 free revision requests
+• Share your experience with /feedback
+
+Thank you for choosing EasySuccor! 🙏`,
+        
+        // Payment confirmed by user
+        payment_confirmed: (amount, orderId, deliveryTime) => `✅ *PAYMENT CONFIRMED!* 🎉
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 PAYMENT RECEIVED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Amount: *${amount}*
+Order: \`${orderId}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 YOUR DOCUMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your document will be delivered within *${deliveryTime}*.
+
+Thank you for your trust in EasySuccor! 🙏`,
+        
+        // Payment verified by admin
+        payment_verified: (amount, orderId) => `✅ *PAYMENT VERIFIED!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 PAYMENT DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Amount: *${amount}*
+Order: \`${orderId}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 WHAT HAPPENS NEXT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your document is now being prepared. You will receive it within the delivery timeframe.
+
+Thank you for choosing EasySuccor! 🙏`
     }
 };
 
 function random(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function getGreeting(name) { return random(RESPONSES.greetings)(name); }
 function getQuestion(type) { return random(RESPONSES.questions[type]); }
 function getReaction() { return random([...RESPONSES.reactions.positive, ...RESPONSES.reactions.funny]); }
 function getEncouragement(type, value) { 
     if (type === 'progress') return random(RESPONSES.encouragements.progress)(value);
     if (type === 'sectionComplete') return random(RESPONSES.encouragements.sectionComplete)(value);
     return random(RESPONSES.encouragements[type]);
-    const yesWords = ['yes', 'yeah', 'yep', 'sure', 'ok', 'y'];
-function isAffirmative(text) { return yesWords.some(w => text.toLowerCase().includes(w)); }
 }
 
-// ============ SAFE CV DATA ACCESS HELPER ============
+// ============ SAFE CV DATA ACCESS HELPER (UPDATED - 18+ CATEGORIES) ============
 function ensureCVData(session) {
     if (!session.data) session.data = {};
     if (!session.data.cv_data) {
         session.data.cv_data = {
-            personal: { full_name: '', email: '', primary_phone: '', alternative_phone: '', whatsapp_phone: '', location: '', physical_address: '', nationality: '', special_documents: [] },
-            professional_summary: '', education: [], employment: [], skills: [], certifications: [], languages: [], projects: [], achievements: [], referees: [], portfolio: []
+            // Personal Information (10+ fields)
+            personal: { 
+                full_name: '', 
+                email: '', 
+                primary_phone: '', 
+                alternative_phone: '', 
+                whatsapp_phone: '', 
+                location: '', 
+                physical_address: '', 
+                nationality: '', 
+                linkedin: '',
+                github: '',
+                portfolio: '',
+                professional_title: '',
+                date_of_birth: '',
+                special_documents: [] 
+            },
+            // Professional Summary (AI generated)
+            professional_summary: '',
+            
+            // Work Experience (with all details)
+            employment: [],
+            
+            // Education (with all details)
+            education: [],
+            
+            // Skills (categorized)
+            skills: { technical: [], soft: [], tools: [], certifications: [] },
+            
+            // Certifications (with issuer, date, expiry)
+            certifications: [],
+            
+            // Languages (with proficiency)
+            languages: [],
+            
+            // Projects (with description, technologies, role, link)
+            projects: [],
+            
+            // Achievements (with date, issuer)
+            achievements: [],
+            
+            // Volunteer Experience
+            volunteer: [],
+            
+            // Leadership Roles
+            leadership: [],
+            
+            // Awards & Recognition
+            awards: [],
+            
+            // Publications
+            publications: [],
+            
+            // Conferences Attended
+            conferences: [],
+            
+            // Referees (with position, company, contact)
+            referees: [],
+            
+            // Interests & Hobbies
+            interests: [],
+            
+            // Social Media Links
+            social_media: {
+                linkedin: '',
+                github: '',
+                twitter: '',
+                facebook: '',
+                instagram: '',
+                portfolio: ''
+            },
+            
+            // Portfolio Links (array)
+            portfolio: []
         };
     }
+    
+    // Ensure personal object has all fields
     if (!session.data.cv_data.personal) {
-        session.data.cv_data.personal = { full_name: '', email: '', primary_phone: '', alternative_phone: '', whatsapp_phone: '', location: '', physical_address: '', nationality: '', special_documents: [] };
+        session.data.cv_data.personal = { 
+            full_name: '', email: '', primary_phone: '', alternative_phone: '', 
+            whatsapp_phone: '', location: '', physical_address: '', nationality: '',
+            linkedin: '', github: '', portfolio: '', professional_title: '', 
+            date_of_birth: '', special_documents: [] 
+        };
     }
-    if (!session.data.cv_data.personal.special_documents) session.data.cv_data.personal.special_documents = [];
-    if (!Array.isArray(session.data.cv_data.personal.special_documents)) session.data.cv_data.personal.special_documents = [];
+    
+    // Ensure personal special_documents is array
+    if (!session.data.cv_data.personal.special_documents) {
+        session.data.cv_data.personal.special_documents = [];
+    }
+    if (!Array.isArray(session.data.cv_data.personal.special_documents)) {
+        session.data.cv_data.personal.special_documents = [];
+    }
+    
+    // Ensure all arrays exist
     if (!session.data.cv_data.education) session.data.cv_data.education = [];
     if (!session.data.cv_data.employment) session.data.cv_data.employment = [];
-    if (!session.data.cv_data.skills) session.data.cv_data.skills = [];
     if (!session.data.cv_data.certifications) session.data.cv_data.certifications = [];
     if (!session.data.cv_data.languages) session.data.cv_data.languages = [];
     if (!session.data.cv_data.referees) session.data.cv_data.referees = [];
     if (!session.data.cv_data.projects) session.data.cv_data.projects = [];
     if (!session.data.cv_data.achievements) session.data.cv_data.achievements = [];
+    if (!session.data.cv_data.volunteer) session.data.cv_data.volunteer = [];
+    if (!session.data.cv_data.leadership) session.data.cv_data.leadership = [];
+    if (!session.data.cv_data.awards) session.data.cv_data.awards = [];
+    if (!session.data.cv_data.publications) session.data.cv_data.publications = [];
+    if (!session.data.cv_data.conferences) session.data.cv_data.conferences = [];
+    if (!session.data.cv_data.interests) session.data.cv_data.interests = [];
+    if (!session.data.cv_data.portfolio) session.data.cv_data.portfolio = [];
+    
+    // Ensure skills object has all categories
+    if (!session.data.cv_data.skills || typeof session.data.cv_data.skills !== 'object') {
+        session.data.cv_data.skills = { technical: [], soft: [], tools: [], certifications: [] };
+    }
+    if (!session.data.cv_data.skills.technical) session.data.cv_data.skills.technical = [];
+    if (!session.data.cv_data.skills.soft) session.data.cv_data.skills.soft = [];
+    if (!session.data.cv_data.skills.tools) session.data.cv_data.skills.tools = [];
+    if (!session.data.cv_data.skills.certifications) session.data.cv_data.skills.certifications = [];
+    
+    // Ensure social_media object exists
+    if (!session.data.cv_data.social_media) {
+        session.data.cv_data.social_media = { linkedin: '', github: '', twitter: '', facebook: '', instagram: '', portfolio: '' };
+    }
+    
     return session.data.cv_data;
 }
 
-// ============ SAFE COVER LETTER DATA ACCESS HELPER ============
+// ============ SAFE COVER LETTER DATA ACCESS HELPER (UPDATED) ============
 function ensureCoverLetterData(session) {
     if (!session.data) session.data = {};
     if (!session.data.coverletter) session.data.coverletter = {};
@@ -451,8 +1808,12 @@ function ensureCoverLetterData(session) {
     if (session.data.coverletter_company === undefined) session.data.coverletter_company = '';
     if (session.data.vacancy_data === undefined) session.data.vacancy_data = null;
     if (session.data.awaiting_vacancy === undefined) session.data.awaiting_vacancy = false;
+    
+    // Ensure cover_data exists
+    if (!session.data.cover_data) session.data.cover_data = {};
+    
     return session.data;
-}
+};
 
 // ============ PRICES ============
 const PRICES = {
@@ -481,7 +1842,6 @@ function calculateTotal(category, service, delivery) {
 function generatePaymentReference() {
     return `EASY${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 10000)}`;
 }
-
 // ============ DATABASE HELPERS ============
 async function getOrCreateClient(ctx) {
     let client = await db.getClient(ctx.from.id);
@@ -500,7 +1860,8 @@ async function debugSession(ctx, session, message) {
 async function getOrCreateSession(clientId) {
     let session = await db.getActiveSession(clientId);
     if (!session) {
-        await db.saveSession(clientId, 'greeting', null, {});
+        // DIRECT TO CATEGORY - NO WELCOME MESSAGE
+        await db.saveSession(clientId, 'selecting_category', null, {});
         session = await db.getActiveSession(clientId);
     }
     if (!session.data) session.data = {};
@@ -517,28 +1878,9 @@ const mainMenuKeyboard = Markup.keyboard([
     ["ℹ️ About", "📞 Contact", "🏠 Portal"]
 ]).resize().persistent();
 
-// ============ GREETING WITH CLICKABLE CATEGORY BUTTONS ============
-async function handleGreeting(ctx, client, session) {
-    const name = ctx.from.first_name;
-    const testimonial = getRandomTestimonial();
-    
-    let message = `👋 *Welcome to EasySuccor,${getGreeting(name)}!*
- We help you create professional CVs and cover letters that get noticed.
-
-${testimonial ? testimonial : ''}   
-
-*What we offer:*
-📄 Professional CV writing
-📝 Editable CV (Word format)
-💌 Cover letters tailored to your dream job
-📎 Editable Cover Letter (Word format)
-✏️ CV updates and revisions
-
-*Ready to get started?*
-
-Select your category below:`;
-
-    await sendMarkdown(ctx, message, {
+// ============ START - DIRECT TO CATEGORY (NO WELCOME) ============
+async function startDirect(ctx, client, session) {
+    await sendMarkdown(ctx, `📋 *Welcome! Select your category to get started:*`, {
         reply_markup: { inline_keyboard: [
             [{ text: "🎓 Student - still studying", callback_data: "cat_student" }],
             [{ text: "📜 Recent Graduate < a year", callback_data: "cat_recent" }],
@@ -581,11 +1923,14 @@ Now, which service would you like?`, {
     
     await db.updateSession(session.id, 'selecting_service', null, session.data);
 }
-// ============ SERVICE SELECTION ============
+
+// ============ SERVICE SELECTION (UPDATED) ============
 async function handleServiceSelection(ctx, client, session, data) {
     const serviceMap = {
-        service_new: 'new cv', service_editable: 'editable cv',
-        service_cover: 'cover letter', service_editable_cover: 'editable cover letter',
+        service_new: 'new cv', 
+        service_editable: 'editable cv',
+        service_cover: 'cover letter', 
+        service_editable_cover: 'editable cover letter',
         service_update: 'cv update'
     };
     
@@ -602,11 +1947,32 @@ async function handleServiceSelection(ctx, client, session, data) {
         return;
     }
     
+    // For CV services, ensure 18+ categories data structure is ready
+    const cvData = ensureCVData(session);
+    
     await sendMarkdown(ctx, `${getReaction()} *Service selected:* ${selectedService}
 
 *Would you like to upload an existing draft to save time?*
 
-I can extract information from your existing CV and only ask for what's missing.`, {
+I can extract ALL information from your existing CV including:
+📋 Personal Info
+💼 Work Experience (with responsibilities & achievements)
+🎓 Education
+⚡ Skills (categorized)
+📜 Certifications
+🌍 Languages
+📁 Projects
+🏆 Achievements
+🤝 Volunteer Experience
+👔 Leadership Roles
+🏅 Awards
+📖 Publications
+🎤 Conferences
+👥 Referees
+💡 Interests
+🌐 Social Media Links
+
+*I'll only ask for what's missing!*`, {
         reply_markup: { inline_keyboard: [
             [{ text: "📎 Yes, upload draft", callback_data: "build_draft" }],
             [{ text: "✍️ No, enter manually", callback_data: "build_manual" }]
@@ -616,7 +1982,7 @@ I can extract information from your existing CV and only ask for what's missing.
     await db.updateSession(session.id, 'selecting_build_method', null, session.data);
 }
 
-// ============ COVER LETTER HANDLERS ============
+// ============ COVER LETTER HANDLERS (UPDATED with better prompts) ============
 async function handleCoverLetterStart(ctx, client, session) {
     ensureCoverLetterData(session);
     
@@ -624,7 +1990,14 @@ async function handleCoverLetterStart(ctx, client, session) {
 
 I'll help you create a professional cover letter tailored to your dream job.
 
-First, let me understand what you need.
+*What I'll need from you:*
+• Position you're applying for
+• Company name
+• Your relevant experience
+• Top skills for this role
+• Key achievement
+• Why you're interested
+• Availability to start
 
 *Do you have a job vacancy in mind?*
 
@@ -645,10 +2018,15 @@ async function handleCoverVacancyChoice(ctx, client, session, data) {
 
 You can send me:
 • 📎 PDF or DOCX file
-• 📸 Screenshot
-• 📝 Paste the job description
+• 📸 Screenshot (image)
+• 📝 Paste the job description text
 
-I'll extract all the necessary requirements.
+I'll extract:
+• Position title
+• Company name
+• Requirements
+• Responsibilities
+• Deadline
 
 Send the vacancy details now:`);
         session.data.awaiting_vacancy = true;
@@ -667,7 +2045,9 @@ async function askCoverLetterQuestions(ctx, client, session) {
 
 *What position are you applying for?*
 
-Example: "Senior Software Engineer", "Project Manager.\nType the job title:"`);
+*Example:* "Senior Software Engineer", "Project Manager", "Data Collector"
+
+Type the job title:`);
     await db.updateSession(session.id, 'cover_collecting_position', 'cover', session.data);
 }
 
@@ -678,7 +2058,7 @@ async function handleCoverPosition(ctx, client, session, text) {
 
 *Which company are you applying to?*
 
-Example: "ABC Corporation", "UNDP Malawi", "Google"
+*Example:* "ABC Corporation", "UNDP Malawi", "Google", "National Statistics Office"
 
 Type the company name:`);
     await db.updateSession(session.id, 'cover_collecting_company', 'cover', session.data);
@@ -691,7 +2071,7 @@ async function handleCoverCompany(ctx, client, session, text) {
 
 *What's your most relevant experience for this role?* (2-3 sentences)
 
-Example: "5 years of project management experience leading teams of 10+"
+*Example:* "5 years of project management experience leading teams of 10+"
 
 Type your key experience (2-3 sentences):`);
     await db.updateSession(session.id, 'cover_collecting_experience', 'cover', session.data);
@@ -704,7 +2084,9 @@ async function handleCoverExperience(ctx, client, session, text) {
 
 *What are your top 3 skills for this role?* (comma separated)
 
-Example: "Project Management, Team Leadership, Budget Planning"`);
+*Example:* "Project Management, Team Leadership, Budget Planning"
+
+Type your skills (comma separated):`);
     await db.updateSession(session.id, 'cover_collecting_skills', 'cover', session.data);
 }
 
@@ -715,7 +2097,7 @@ async function handleCoverSkills(ctx, client, session, text) {
 
 *What's your biggest professional achievement?*
 
-Example: "Increased sales by 40% in 6 months", "Successfully delivered 2M project under budget"
+*Example:* "Increased sales by 40% in 6 months", "Successfully delivered MK2M project under budget"
 
 Type your key achievement:`);
     await db.updateSession(session.id, 'cover_collecting_achievement', 'cover', session.data);
@@ -726,9 +2108,9 @@ async function handleCoverAchievement(ctx, client, session, text) {
     session.data.cover_step = 'why_you';
     await sendMarkdown(ctx, `✅ Impressive!
 
-*Why are you interested in this role/company?*
+*Why are you interested in this role/company?* (2-3 sentences)
 
-Example: "I'm passionate about your mission to improve education", "I admire your innovative approach to technology"
+*Example:* "I'm passionate about your mission to improve education", "I admire your innovative approach to technology"
 
 Type your motivation (2-3 sentences):`);
     await db.updateSession(session.id, 'cover_collecting_why', 'cover', session.data);
@@ -741,49 +2123,195 @@ async function handleCoverWhy(ctx, client, session, text) {
 
 *When are you available to start?*
 
-Options:
-• Immediately
-• 2 weeks notice
-• 1 month notice
-• Specific date
-
-Type your availability:`);
+Select an option:`, {
+        reply_markup: { inline_keyboard: [
+            [{ text: "📅 Immediately", callback_data: "cover_availability_immediate" }],
+            [{ text: "📅 2 weeks notice", callback_data: "cover_availability_2weeks" }],
+            [{ text: "📅 1 month notice", callback_data: "cover_availability_1month" }],
+            [{ text: "📝 Specific date", callback_data: "cover_availability_specific" }]
+        ] }
+    });
     await db.updateSession(session.id, 'cover_collecting_availability', 'cover', session.data);
 }
 
-// Collect availability and finalize
-async function handleCoverAvailability(ctx, client, session, text) {
-    session.data.cover_data.availability = text;
+// Handle availability with clickable buttons
+async function handleCoverAvailabilityChoice(ctx, client, session, data) {
+    let availability = '';
+    if (data === 'cover_availability_immediate') availability = 'Immediately';
+    else if (data === 'cover_availability_2weeks') availability = '2 weeks notice';
+    else if (data === 'cover_availability_1month') availability = '1 month notice';
+    else if (data === 'cover_availability_specific') {
+        await sendMarkdown(ctx, `📅 Please enter your specific start date (e.g., "1st June 2025"):`);
+        session.data.cover_step = 'availability_specific';
+        await db.updateSession(session.id, 'cover_collecting_availability_specific', 'cover', session.data);
+        return;
+    }
     
-    // Now generate the cover letter
+    session.data.cover_data.availability = availability;
     await finalizeCoverLetter(ctx, client, session);
 }
 
-// ============ PORTFOLIO COLLECTION ============
+// Handle specific date availability
+async function handleCoverAvailabilitySpecific(ctx, client, session, text) {
+    session.data.cover_data.availability = text;
+    await finalizeCoverLetter(ctx, client, session);
+}
+
+// ============ UPDATED FINALIZE COVER LETTER ============
+async function finalizeCoverLetter(ctx, client, session) {
+    const cvData = ensureCVData(session);
+    const personal = cvData.personal || {};
+    const coverData = session.data.cover_data || {};
+    const vacancyData = session.data.vacancy_data || {};
+    
+    if (session.data.cover_has_vacancy && vacancyData) {
+        if (vacancyData.position && !coverData.position) coverData.position = vacancyData.position;
+        if (vacancyData.company && !coverData.company) coverData.company = vacancyData.company;
+    }
+    
+    const orderId = `CL_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    const basePrice = 5000;
+    const deliveryOption = session.data.delivery_option || 'standard';
+    const deliveryFee = DELIVERY_PRICES[deliveryOption] || 0;
+    const totalCharge = formatPrice(basePrice + deliveryFee);
+    const deliveryTime = DELIVERY_TIMES[deliveryOption];
+    
+    // Show summary before finalizing
+    const summary = `📝 *COVER LETTER SUMMARY*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Position: ${coverData.position || vacancyData.position || 'Not specified'}
+Company: ${coverData.company || vacancyData.company || 'Not specified'}
+Experience: ${coverData.experience_highlight || 'Provided'}
+Skills: ${(coverData.skills || []).join(', ') || 'Provided'}
+Achievement: ${coverData.achievement || 'Provided'}
+Availability: ${coverData.availability || 'Not specified'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 PRICE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Base Price: MK5,000
+Delivery Fee: +${deliveryFee}
+Total: ${totalCharge}
+Delivery: ${deliveryTime}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Type *CONFIRM* to proceed or *EDIT* to make changes.`;
+
+    await sendMarkdown(ctx, summary);
+    session.data.awaiting_cover_confirmation = true;
+    session.data.pending_cover_order = {
+        orderId, coverData, vacancyData, deliveryOption, deliveryFee, totalCharge, deliveryTime, basePrice
+    };
+    await db.updateSession(session.id, 'awaiting_cover_confirmation', 'cover', session.data);
+}
+
+// Handle cover letter confirmation
+async function handleCoverConfirmation(ctx, client, session, text) {
+    if (text.toUpperCase() === 'CONFIRM') {
+        const pending = session.data.pending_cover_order;
+        
+        const coverResult = await documentGenerator.generateCoverLetter({
+            position: pending.coverData.position || pending.vacancyData.position || 'Not specified',
+            company: pending.coverData.company || pending.vacancyData.company || 'Not specified',
+            experience: pending.coverData.experience_highlight,
+            skills: pending.coverData.skills,
+            achievement: pending.coverData.achievement,
+            motivation: pending.coverData.motivation,
+            availability: pending.coverData.availability
+        }, cvData, personal, false);
+        
+        await db.createOrder({
+            id: pending.orderId, client_id: client.id, service: 'cover letter', 
+            category: session.data.category || 'professional',
+            delivery_option: pending.deliveryOption, delivery_time: pending.deliveryTime, 
+            base_price: pending.basePrice, delivery_fee: pending.deliveryFee,
+            total_charge: pending.totalCharge, payment_status: 'pending',
+            cv_data: { cover_letter: pending.coverData, vacancy: pending.vacancyData }
+        });
+        
+        const paymentReference = generatePaymentReference();
+        await db.updateOrderPaymentReference(pending.orderId, paymentReference);
+        
+        // Show payment options with clickable buttons
+        await showPaymentOptions(ctx, pending.orderId, pending.totalCharge, paymentReference);
+        
+        session.data.awaiting_cover_confirmation = false;
+        await db.updateSession(session.id, 'awaiting_payment', 'payment', session.data);
+    } else if (text.toUpperCase().startsWith('EDIT')) {
+        await sendMarkdown(ctx, `What would you like to change? Type the field name (position, company, experience, skills, achievement, motivation, availability):`);
+        session.data.editing_cover = true;
+        await db.updateSession(session.id, 'editing_cover', 'cover', session.data);
+    }
+}
+// ============ PORTFOLIO COLLECTION (UPDATED - Supports all social media) ============
 class PortfolioCollector {
     async askForPortfolio(ctx) {
-        await sendMarkdown(ctx, `📎 *Portfolio (Optional)*
+        await sendMarkdown(ctx, `📎 *Portfolio & Social Media (Optional)*
 
-Would you like to include links to your work?
+Would you like to include links to your work and professional profiles?
 
+*What you can add:*
+• LinkedIn profile
 • GitHub repositories
-• Behance/Dribbble portfolio
-• Personal website
-• Case studies
+• Twitter/X profile
+• Facebook profile
+• Instagram (professional)
+• Personal website/portfolio
+• Behance/Dribbble (creatives)
+• Case studies or project links
 
-*Why this matters:* Employers love seeing real work examples!
+*Why this matters:* Employers love seeing real work examples and professional presence!
 
-Type your portfolio links (one per line) or click the button below to skip.
+Type your links (one per line) or click SKIP.
 
-*Example:* 
-https://github.com/yourusername`, {
+*Examples:* 
+https://linkedin.com/in/username
+https://github.com/username
+https://yourportfolio.com`, {
             reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Portfolio", callback_data: "portfolio_skip" }]] }
         });
     }
     
     parsePortfolioLinks(text) {
         if (!text || text.toLowerCase() === 'skip') return [];
-        return text.split('\n').filter(line => line && line.trim().startsWith('http'));
+        const links = [];
+        const lines = text.split('\n');
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed && (trimmed.startsWith('http://') || trimmed.startsWith('https://'))) {
+                links.push(trimmed);
+            }
+        }
+        return links;
+    }
+    
+    categorizeSocialLinks(links) {
+        const social = {
+            linkedin: null,
+            github: null,
+            twitter: null,
+            facebook: null,
+            instagram: null,
+            portfolio: null,
+            other: []
+        };
+        
+        for (const link of links) {
+            if (link.includes('linkedin.com')) social.linkedin = link;
+            else if (link.includes('github.com')) social.github = link;
+            else if (link.includes('twitter.com') || link.includes('x.com')) social.twitter = link;
+            else if (link.includes('facebook.com')) social.facebook = link;
+            else if (link.includes('instagram.com')) social.instagram = link;
+            else if (link.includes('behance.net') || link.includes('dribbble.com') || link.includes('medium.com')) social.portfolio = link;
+            else social.other.push(link);
+        }
+        
+        return social;
     }
 }
 
@@ -791,23 +2319,35 @@ const portfolioCollector = new PortfolioCollector();
 
 async function handlePortfolioCollection(ctx, client, session, text) {
     try {
-        if (!session) session = { data: {} };
-        if (!session.data) session.data = {};
-        
         let portfolioLinks = [];
+        let socialMedia = { linkedin: null, github: null, twitter: null, facebook: null, instagram: null, portfolio: null };
+        
         if (text !== 'skip' && text?.toLowerCase() !== 'skip') {
             const lines = text.split('\n');
             for (const line of lines) {
                 const trimmed = line.trim();
                 if (trimmed && (trimmed.startsWith('http://') || trimmed.startsWith('https://'))) {
                     portfolioLinks.push(trimmed);
+                    
+                    // Categorize social links
+                    if (trimmed.includes('linkedin.com')) socialMedia.linkedin = trimmed;
+                    else if (trimmed.includes('github.com')) socialMedia.github = trimmed;
+                    else if (trimmed.includes('twitter.com') || trimmed.includes('x.com')) socialMedia.twitter = trimmed;
+                    else if (trimmed.includes('facebook.com')) socialMedia.facebook = trimmed;
+                    else if (trimmed.includes('instagram.com')) socialMedia.instagram = trimmed;
+                    else if (trimmed.includes('behance.net') || trimmed.includes('dribbble.com') || trimmed.includes('medium.com')) socialMedia.portfolio = trimmed;
                 }
             }
         }
         
         session.data.portfolio_links = portfolioLinks;
         
-        await sendMarkdown(ctx, `${getReaction()} ${portfolioLinks.length > 0 ? 'Portfolio saved!' : 'No portfolio added.'}
+        // Store categorized social media in cv_data
+        const cvData = ensureCVData(session);
+        cvData.social_media = socialMedia;
+        cvData.portfolio = portfolioLinks;
+        
+        await sendMarkdown(ctx, `${getReaction()} ${portfolioLinks.length > 0 ? `${portfolioLinks.length} link(s) saved!` : 'No portfolio added.'}
 
 Now let's build your CV! 
 
@@ -833,7 +2373,7 @@ async function startDataCollection(ctx, client, session) {
     await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
 }
 
-// ============ PERSONAL COLLECTION ============
+// ============ PERSONAL COLLECTION (UPDATED - includes LinkedIn, GitHub, etc.) ============
 async function handlePersonalCollection(ctx, client, session, text) {
     const cvData = ensureCVData(session);
     const personal = cvData.personal;
@@ -852,38 +2392,71 @@ async function handlePersonalCollection(ctx, client, session, text) {
     else if (step === 'phone') {
         personal.primary_phone = text;
         session.data.collection_step = 'alt_phone';
-        await sendMarkdown(ctx, "📞 Alternative phone number? (or type 'Skip')");
+        await sendMarkdown(ctx, "📞 Alternative phone number?", {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_alt_phone" }]] }
+        });
     }
     else if (step === 'alt_phone') {
         personal.alternative_phone = text === 'Skip' ? null : text;
         session.data.collection_step = 'whatsapp';
-        await sendMarkdown(ctx, "📱 WhatsApp for delivery? (or type 'Same')");
+        await sendMarkdown(ctx, "📱 WhatsApp for delivery?", {
+            reply_markup: { inline_keyboard: [[{ text: "📱 Same", callback_data: "whatsapp_same" }, { text: "✏️ Type New", callback_data: "whatsapp_type" }]] }
+        });
     }
     else if (step === 'whatsapp') {
-        personal.whatsapp_phone = text === 'Same' ? personal.primary_phone : text;
+        if (text !== 'whatsapp_type' && text !== 'Same') {
+            personal.whatsapp_phone = text === 'Same' ? personal.primary_phone : text;
+        } else if (text === 'whatsapp_type') {
+            await sendMarkdown(ctx, "Please type your WhatsApp number:");
+            return;
+        }
         session.data.collection_step = 'location';
         await sendMarkdown(ctx, getQuestion('location'));
     }
     else if (step === 'location') {
         personal.location = text;
+        session.data.collection_step = 'professional_title';
+        await sendMarkdown(ctx, "💼 *Professional title?* (Optional)\n\n*Example:* Senior Software Engineer, Project Manager\n\nType 'Skip' to continue.", {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_professional_title" }]] }
+        });
+    }
+    else if (step === 'professional_title') {
+        if (text.toLowerCase() !== 'skip') personal.professional_title = text;
+        session.data.collection_step = 'linkedin';
+        await sendMarkdown(ctx, "🔗 *LinkedIn URL?* (Optional)\n\n*Example:* https://linkedin.com/in/yourname\n\nType 'Skip' to continue.", {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_linkedin" }]] }
+        });
+    }
+    else if (step === 'linkedin') {
+        if (text.toLowerCase() !== 'skip') personal.linkedin = text;
+        session.data.collection_step = 'github';
+        await sendMarkdown(ctx, "💻 *GitHub URL?* (Optional)\n\n*Example:* https://github.com/yourusername\n\nType 'Skip' to continue.", {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_github" }]] }
+        });
+    }
+    else if (step === 'github') {
+        if (text.toLowerCase() !== 'skip') personal.github = text;
         session.data.collection_step = 'physical_address';
-        await sendMarkdown(ctx, `🏠 Physical address? (Street, building, area)
-
-Type 'Skip' to continue.`, {
+        await sendMarkdown(ctx, `🏠 *Physical address?* (Street, building, area)\n\nType 'Skip' to continue.`, {
             reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_physical_address" }]] }
         });
     }
     else if (step === 'physical_address') {
         if (text.toLowerCase() !== 'skip') personal.physical_address = text;
         session.data.collection_step = 'nationality';
-        await sendMarkdown(ctx, `🌍 What's your nationality?
-
-Type 'Skip' to continue.`, {
+        await sendMarkdown(ctx, `🌍 *Nationality?*\n\nType 'Skip' to continue.`, {
             reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_nationality" }]] }
         });
     }
     else if (step === 'nationality') {
         if (text.toLowerCase() !== 'skip') personal.nationality = text;
+        session.data.collection_step = 'date_of_birth';
+        await sendMarkdown(ctx, `🎂 *Date of Birth?* (Optional)\n\n*Example:* 15 May 1990\n\nType 'Skip' to continue.`, {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_dob" }]] }
+        });
+    }
+    else if (step === 'date_of_birth') {
+        if (text.toLowerCase() !== 'skip') personal.date_of_birth = text;
         session.data.collection_step = 'special_docs';
         await sendMarkdown(ctx, `📋 *Special Documents (Optional)*
 
@@ -896,26 +2469,32 @@ Type each document name and number, one per line.
 • Passport: MW987654
 • Professional License: TEVETA/2024/001
 
-Type 'Skip' to continue or 'Done' when finished.`);
+Click 'Skip' to continue or 'Done' when finished.`, {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_special_docs" }, { text: "✅ Done", callback_data: "done_special_docs" }]] }
+        });
         session.data.special_docs_list = [];
     }
     else if (step === 'special_docs') {
-        if (text.toLowerCase() === 'skip') {
+        if (text === 'skip_special_docs') {
             personal.special_documents = [];
-            session.current_section = 'summary';
-            session.data.collection_step = 'summary';
-            await sendMarkdown(ctx, `${getReaction()}\n\n${getQuestion('summary')}`);
-            await db.updateSession(session.id, 'collecting_summary', 'summary', session.data);
-        } else if (text.toLowerCase() === 'done') {
+            session.current_section = 'education';
+            session.data.collection_step = 'level';
+            await sendMarkdown(ctx, `${getReaction()}\n\nNow let's add your education.\n\n${getQuestion('education')}`);
+            await db.updateSession(session.id, 'collecting_education', 'education', session.data);
+            return;
+        } else if (text === 'done_special_docs') {
             personal.special_documents = session.data.special_docs_list || [];
-            session.current_section = 'summary';
-            session.data.collection_step = 'summary';
-            await sendMarkdown(ctx, `${getReaction()}\n\n${getQuestion('summary')}`);
-            await db.updateSession(session.id, 'collecting_summary', 'summary', session.data);
+            session.current_section = 'education';
+            session.data.collection_step = 'level';
+            await sendMarkdown(ctx, `${getReaction()}\n\nNow let's add your education.\n\n${getQuestion('education')}`);
+            await db.updateSession(session.id, 'collecting_education', 'education', session.data);
+            return;
         } else {
             if (!session.data.special_docs_list) session.data.special_docs_list = [];
             session.data.special_docs_list.push(text);
-            await sendMarkdown(ctx, `✓ Added. Add another? (Type 'Done' to finish, 'Skip' to skip this section)`);
+            await sendMarkdown(ctx, `✓ Added. Add another? (Click 'Done' to finish, 'Skip' to skip this section)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_special_docs" }, { text: "✅ Done", callback_data: "done_special_docs" }]] }
+            });
         }
         return;
     }
@@ -923,235 +2502,51 @@ Type 'Skip' to continue or 'Done' when finished.`);
     await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
 }
 
-async function handleSummaryCollection(ctx, client, session, text) {
-    const cvData = ensureCVData(session);
-    cvData.professional_summary = text;
-    session.current_section = 'education';
-    session.data.collection_step = 'level';
-    await db.updateSession(session.id, 'collecting_education', 'education', session.data);
-    await sendMarkdown(ctx, `${getReaction()} Thanks for sharing!\n\nNow, let's add your education.\n\n${getQuestion('education')}`);
-}
-// ============ EDUCATION COLLECTION ============
-async function handleEducationCollection(ctx, client, session, text, callbackData = null) {
-    console.log(`[EDUCATION] Step: ${session.data.collection_step}, Text: "${text}"`);
-    
-    const cvData = ensureCVData(session);
-    let step = session.data.collection_step;
-    const education = cvData.education;
-    
-    if (!session.data.current_edu) session.data.current_edu = {};
-    const currentEdu = session.data.current_edu;
-    
-    // Step 1: Level (highest qualification)
-    if (step === 'level') {
-        currentEdu.level = text;
-        session.data.current_edu = currentEdu;
-        session.data.collection_step = 'field';
-        await db.updateSession(session.id, 'collecting_education', 'education', session.data);
-        await sendMarkdown(ctx, "📚 **Field of study?**\n*Example:* Computer Science, Business, Engineering");
-        return;
-    }
-    
-    // Step 2: Field of study
-    if (step === 'field') {
-        currentEdu.field = text;
-        session.data.current_edu = currentEdu;
-        session.data.collection_step = 'institution';
-        await db.updateSession(session.id, 'collecting_education', 'education', session.data);
-        await sendMarkdown(ctx, "🏛️ **Institution name?**\n*Example:* University of Malawi");
-        return;
-    }
-    
-    // Step 3: Institution
-    if (step === 'institution') {
-        currentEdu.institution = text;
-        session.data.current_edu = currentEdu;
-        session.data.collection_step = 'year';
-        await db.updateSession(session.id, 'collecting_education', 'education', session.data);
-        await sendMarkdown(ctx, "📅 **Year of completion?**\n*Example:* 2020, 2025 (expected)");
-        return;
-    }
-    
-    // Step 4: Year
-    if (step === 'year') {
-        currentEdu.year = text;
-        education.push({ ...currentEdu });
-        session.data.current_edu = {};
-        session.data.collection_step = 'add_more';
-        await db.updateSession(session.id, 'collecting_education', 'education', session.data);
-        await sendMarkdown(ctx, `${getReaction()} Education saved! Another qualification?`, {
-            reply_markup: { inline_keyboard: [[{ text: "✅ Yes, add another", callback_data: "edu_yes" }, { text: "❌ No, continue", callback_data: "edu_no" }]] }
-        });
-        return;
-    }
-    
-    // Step 5: Add more (callback handling)
-    if (step === 'add_more') {
-        if (callbackData === 'edu_yes') {
-            session.data.collection_step = 'level';
-            session.data.current_edu = {};
-            await db.updateSession(session.id, 'collecting_education', 'education', session.data);
-            await sendMarkdown(ctx, "Great! What's your next qualification? 🎓");
-        } else {
-            // Move to employment
-            session.current_section = 'employment';
-            session.data.collection_step = 'title';
-            session.data.current_job = {};
-            cvData.employment = [];
-            await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
-            await sendMarkdown(ctx, `${getEncouragement('sectionComplete', 'Education')}\n\nNow, your work experience.\n\n${getQuestion('jobTitle')}`);
-        }
-        return;
-    }
-    
-    // Fallback: reset to level
-    console.log(`[EDUCATION] Unknown step: ${step}, resetting to level`);
-    session.data.collection_step = 'level';
-    await db.updateSession(session.id, 'collecting_education', 'education', session.data);
-    await sendMarkdown(ctx, "Let's start over. What's your highest qualification? 🎓");
-}
-
-// ============ EMPLOYMENT COLLECTION ============
-async function handleEmploymentCollection(ctx, client, session, text, callbackData = null) {
-    console.log(`[EMPLOYMENT] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
-    const cvData = ensureCVData(session);
-    
-    // Initialize employment array if not exists
-    if (!cvData.employment) {
-        cvData.employment = [];
-    }
-    
-    // Initialize current job if not exists
-    if (!session.data.current_job) {
-        session.data.current_job = {};
-    }
-    
-    const step = session.data.collection_step;
-    const currentJob = session.data.current_job;
-    
-    // ============ STEP 1: TITLE ============
-    if (step === 'title') {
-        // Save the job title
-        currentJob.title = text;
-        session.data.current_job = currentJob;
-        session.data.collection_step = 'company';
-        
-        console.log(`[EMPLOYMENT] Title saved: ${text}, moving to company`);
-        
-        await sendMarkdown(ctx, "✅ Got it!\n\nNow, **company name?** 🏢\n*Example:* ABC Corporation, Google, UNDP");
-        await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
-        return;
-    }
-    
-    // ============ STEP 2: COMPANY ============
-    if (step === 'company') {
-        // Save the company name
-        currentJob.company = text;
-        session.data.current_job = currentJob;
-        session.data.collection_step = 'duration';
-        
-        console.log(`[EMPLOYMENT] Company saved: ${text}, moving to duration`);
-        
-        await sendMarkdown(ctx, "✅ Got it!\n\nHow long did you work there? 📅\n*Example:* Jan 2020 - Present (3 years)");
-        await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
-        return;
-    }
-    
-    // ============ STEP 3: DURATION ============
-    if (step === 'duration') {
-        // Save the duration
-        currentJob.duration = text;
-        session.data.current_job = currentJob;
-        session.data.collection_step = 'responsibilities';
-        currentJob.responsibilities = [];
-        
-        console.log(`[EMPLOYMENT] Duration saved: ${text}, moving to responsibilities`);
-        
-        await sendMarkdown(ctx, `✅ Got it!\n\nNow list your **key responsibilities** (one per line)\n\n*Example:*\n• Led a team of 5 developers\n• Increased efficiency by 30%\n\nType \`DONE\` when finished.`);
-        await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
-        return;
-    }
-    
-    // ============ STEP 4: RESPONSIBILITIES ============
-    if (step === 'responsibilities') {
-        // Check if user typed DONE
-        if (text.toUpperCase() === 'DONE') {
-            // Save the job to employment array
-            cvData.employment.push({ ...currentJob });
-            session.data.current_job = {};
-            session.data.collection_step = 'add_more';
-            
-            console.log(`[EMPLOYMENT] Job saved: ${currentJob.title} at ${currentJob.company}, responsibilities: ${currentJob.responsibilities.length}`);
-            
-            await sendMarkdown(ctx, `✅ Job saved! Another work experience?`, {
-                reply_markup: { inline_keyboard: [
-                    [{ text: "✅ Yes, add another", callback_data: "emp_yes" }],
-                    [{ text: "❌ No, continue", callback_data: "emp_no" }]
-                ] }
-            });
-            await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
-            return;
-        }
-        
-        // Add responsibility
-        currentJob.responsibilities.push(text);
-        session.data.current_job = currentJob;
-        
-        console.log(`[EMPLOYMENT] Added responsibility (${currentJob.responsibilities.length}): ${text.substring(0, 50)}`);
-        
-        await sendMarkdown(ctx, `✓ Added. Type another responsibility or \`DONE\` to finish.`);
-        await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
-        return;
-    }
-    
-    // ============ STEP 5: ADD MORE JOBS ============
-    if (step === 'add_more') {
-        if (callbackData === 'emp_yes') {
-            // Add another job
-            session.data.collection_step = 'title';
-            session.data.current_job = {};
-            
-            console.log(`[EMPLOYMENT] Adding another job, resetting to title`);
-            
-            await sendMarkdown(ctx, "Great! What's your next job title? 💼\n*Example:* Senior Developer, Marketing Manager");
-            await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
-            return;
-        } else {
-            // Move to skills
-            session.current_section = 'skills';
-            session.data.collection_step = 'skills';
-            
-            console.log(`[EMPLOYMENT] Employment complete, moving to skills`);
-            
-            await sendMarkdown(ctx, `✓ Employment complete! Moving on.\n\n${getQuestion('skills')}`);
-            await db.updateSession(session.id, 'collecting_skills', 'skills', session.data);
-            return;
-        }
-    }
-    
-    // ============ FALLBACK ============
-    console.log(`[EMPLOYMENT] UNKNOWN STEP: ${step}`);
-    await sendMarkdown(ctx, `Let's continue. What's your most recent job title? 💼`);
-    session.data.collection_step = 'title';
-    await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
-}
-
-// ============ SKILLS COLLECTION ============
+// ============ SKILLS COLLECTION (UPDATED - Categorized skills) ============
 async function handleSkillsCollection(ctx, client, session, text) {
     const cvData = ensureCVData(session);
-    cvData.skills = text.split(',').map(s => s.trim());
+    const skillsArray = text.split(',').map(s => s.trim());
+    
+    // Categorize skills intelligently
+    const categorized = {
+        technical: [],
+        soft: [],
+        tools: []
+    };
+    
+    const techKeywords = ['python', 'javascript', 'java', 'react', 'node', 'sql', 'mongodb', 'aws', 'docker', 'kubernetes', 'html', 'css', 'c++', 'c#', 'php', 'laravel', 'django', 'flask', 'api', 'git', 'linux', 'excel', 'power bi', 'tableau', 'spss', 'matlab', 'autocad', 'solidworks'];
+    const softKeywords = ['leadership', 'communication', 'teamwork', 'problem solving', 'critical thinking', 'time management', 'organization', 'adaptability', 'creativity', 'collaboration', 'negotiation', 'conflict resolution', 'decision making', 'project management', 'agile', 'scrum'];
+    
+    for (const skill of skillsArray) {
+        const lowerSkill = skill.toLowerCase();
+        if (techKeywords.some(k => lowerSkill.includes(k))) {
+            categorized.technical.push(skill);
+        } else if (softKeywords.some(k => lowerSkill.includes(k))) {
+            categorized.soft.push(skill);
+        } else {
+            categorized.tools.push(skill);
+        }
+    }
+    
+    // If no categorization was possible, put all in technical
+    if (categorized.technical.length === 0 && categorized.soft.length === 0 && categorized.tools.length > 0) {
+        categorized.technical = categorized.tools;
+        categorized.tools = [];
+    }
+    
+    cvData.skills = categorized;
+    
     session.current_section = 'certifications';
     session.data.collection_step = 'name';
     cvData.certifications = [];
-    await sendMarkdown(ctx, `${getReaction()} ${cvData.skills.length} skills saved!
-
-Now, any certifications? (Click SKIP if none)`, {
+    
+    await sendMarkdown(ctx, `${getReaction()} ${skillsArray.length} skills saved!\n\n📊 *Skills Categorized:*\n• Technical: ${categorized.technical.length}\n• Soft: ${categorized.soft.length}\n• Tools: ${categorized.tools.length}\n\nAny certifications? (Click SKIP if none)`, {
         reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Certifications", callback_data: "cert_skip" }]] }
     });
     await db.updateSession(session.id, 'collecting_certifications', 'certifications', session.data);
 }
 
-// ============ CERTIFICATIONS COLLECTION ============
+// ============ CERTIFICATIONS COLLECTION (UPDATED - Full details) ============
 async function handleCertificationsCollection(ctx, client, session, text, callbackData = null) {
     const cvData = ensureCVData(session);
     const step = session.data.collection_step;
@@ -1161,34 +2556,60 @@ async function handleCertificationsCollection(ctx, client, session, text, callba
     
     if (step === 'name') {
         if (callbackData === 'cert_skip') {
-            session.current_section = 'languages';
+            session.current_section = 'projects';
             session.data.collection_step = 'name';
-            cvData.languages = [];
-            await sendMarkdown(ctx, `${getReaction()} Let's move to languages.\n\nWhat languages do you speak? (Click SKIP if none)`, {
-                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Languages", callback_data: "lang_skip" }]] }
+            cvData.projects = [];
+            await sendMarkdown(ctx, `${getReaction()} Let's move to projects.\n\n*Any projects you want to showcase?* (Click SKIP if none)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Projects", callback_data: "proj_skip" }]] }
             });
-            await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
+            await db.updateSession(session.id, 'collecting_projects', 'projects', session.data);
             return;
         }
         currentCert.name = text;
         session.data.collection_step = 'issuer';
-        await sendMarkdown(ctx, "🏛️ **Issuing organization?**\n*Example:* TEVETA, Google");
+        await sendMarkdown(ctx, "🏛️ **Issuing organization?**\n*Example:* TEVETA, Google, Microsoft");
     }
     else if (step === 'issuer') {
         currentCert.issuer = text;
-        session.data.collection_step = 'year';
-        await sendMarkdown(ctx, "📅 **Year obtained?**\n*Example:* 2022");
+        session.data.collection_step = 'date';
+        await sendMarkdown(ctx, "📅 **Date obtained?**\n*Example:* 2022, June 2023");
     }
-    else if (step === 'year') {
-        currentCert.year = text;
+    else if (step === 'date') {
+        currentCert.date = text;
+        session.data.collection_step = 'expiry';
+        await sendMarkdown(ctx, "⏰ **Expiry date?** (if applicable)\n*Example:* 2025, Never expires\n\nType 'Skip' to continue.", {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_expiry" }]] }
+        });
+    }
+    else if (step === 'expiry') {
+        if (callbackData !== 'skip_expiry' && text.toLowerCase() !== 'skip') {
+            currentCert.expiry = text;
+        }
+        session.data.collection_step = 'credential_id';
+        await sendMarkdown(ctx, "🆔 **Credential ID?** (if any)\n*Example:* 123456789\n\nType 'Skip' to continue.", {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_credential_id" }]] }
+        });
+    }
+    else if (step === 'credential_id') {
+        if (callbackData !== 'skip_credential_id' && text.toLowerCase() !== 'skip') {
+            currentCert.credential_id = text;
+        }
+        session.data.collection_step = 'url';
+        await sendMarkdown(ctx, "🔗 **Certificate URL?** (if available)\n*Example:* https://certification.com/verify/123\n\nType 'Skip' to continue.", {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_cert_url" }]] }
+        });
+    }
+    else if (step === 'url') {
+        if (callbackData !== 'skip_cert_url' && text.toLowerCase() !== 'skip') {
+            currentCert.url = text;
+        }
         certifications.push({ ...currentCert });
         session.data.current_cert = null;
         session.data.collection_step = 'add_more';
-        await sendMarkdown(ctx, `${getReaction()} Certification added! Another one?`, {
+        await sendMarkdown(ctx, `${getReaction()} Certification added!\n\nAnother certification?`, {
             reply_markup: { inline_keyboard: [
                 [{ text: "✅ Yes", callback_data: "cert_yes" }],
-                [{ text: "⏭️ No", callback_data: "cert_no" }],
-                [{ text: "⏭️ Skip All", callback_data: "cert_skip" }]
+                [{ text: "❌ No", callback_data: "cert_no" }]
             ] }
         });
     }
@@ -1198,764 +2619,654 @@ async function handleCertificationsCollection(ctx, client, session, text, callba
             session.data.current_cert = {};
             await sendMarkdown(ctx, "Certification name? 📜");
         } else {
-            session.current_section = 'languages';
+            session.current_section = 'projects';
             session.data.collection_step = 'name';
-            cvData.languages = [];
-            await sendMarkdown(ctx, `${getReaction()} Let's talk about languages.\n\nWhat languages do you speak? (Click SKIP if none)`, {
-                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Languages", callback_data: "lang_skip" }]] }
+            cvData.projects = [];
+            await sendMarkdown(ctx, `${getReaction()} Let's move to projects.\n\n*Any projects you want to showcase?* (Click SKIP if none)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Projects", callback_data: "proj_skip" }]] }
             });
-            await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
+            await db.updateSession(session.id, 'collecting_projects', 'projects', session.data);
         }
     }
     
     await db.updateSession(session.id, 'collecting_certifications', 'certifications', session.data);
 }
 
-// ============ LANGUAGES COLLECTION ============
-async function handleLanguagesCollection(ctx, client, session, text, callbackData = null) {
-    console.log(`[LANGUAGES] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
-    
+// ============ PROJECTS COLLECTION (UPDATED - Full details) ============
+async function handleProjectsCollection(ctx, client, session, text, callbackData = null) {
     const cvData = ensureCVData(session);
     let step = session.data.collection_step;
-    const languages = cvData.languages;
+    const projects = cvData.projects;
     
-    // Initialize current_lang if not exists
-    if (!session.data.current_lang) {
-        session.data.current_lang = {};
-    }
-    const currentLang = session.data.current_lang;
+    if (!session.data.proj) session.data.proj = {};
+    const currentProj = session.data.proj;
     
-    // ============ STEP 1: LANGUAGE NAME ============
     if (step === 'name') {
-        // Check if user wants to skip
-        if (text === 'Skip' || callbackData === 'lang_skip') {
-            console.log(`[LANGUAGES] User skipped languages, moving to referees`);
-            session.current_section = 'referees';
-            session.data.collection_step = 'name';
-            session.data.cv_data.referees = [];
-            await sendMarkdown(ctx, `Got it! ${getReaction()}\n\nNow let's add professional referees. (Minimum 2 required) 👥\n\n**Referee 1 - Full name?**`);
-            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+        if (callbackData === 'proj_skip') {
+            session.current_section = 'achievements';
+            session.data.collection_step = 'title';
+            cvData.achievements = [];
+            await sendMarkdown(ctx, `${getReaction()} Let's add achievements.\n\n*What are your key achievements?* (Type each, then DONE when finished)`);
+            await db.updateSession(session.id, 'collecting_achievements', 'achievements', session.data);
             return;
         }
-        
-        currentLang.name = text;
-        session.data.current_lang = currentLang;
-        session.data.collection_step = 'proficiency';
-        
-        console.log(`[LANGUAGES] Language name saved: "${text}", moving to proficiency`);
-        
-        await sendMarkdown(ctx, "What's your proficiency level?", {
-            reply_markup: { inline_keyboard: [
-                [{ text: "🔰 Basic", callback_data: "prof_basic" }],
-                [{ text: "📖 Intermediate", callback_data: "prof_intermediate" }],
-                [{ text: "⭐ Fluent", callback_data: "prof_fluent" }]
-            ] }
-        });
-        await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
-        return;
+        currentProj.name = text;
+        session.data.collection_step = 'description';
+        await sendMarkdown(ctx, "📝 **Project description?** (2-3 sentences)\n*Example:* Developed a mobile app that helped 10,000+ users track their fitness goals");
     }
-    
-    // ============ STEP 2: PROFICIENCY LEVEL ============
-    if (step === 'proficiency') {
-        let proficiency = 'Basic';
-        if (callbackData === 'prof_basic') proficiency = 'Basic';
-        else if (callbackData === 'prof_intermediate') proficiency = 'Intermediate';
-        else if (callbackData === 'prof_fluent') proficiency = 'Fluent';
-        else proficiency = text;
-        
-        currentLang.proficiency = proficiency;
-        languages.push({ ...currentLang });
-        session.data.current_lang = null;
+    else if (step === 'description') {
+        currentProj.description = text;
+        session.data.collection_step = 'technologies';
+        await sendMarkdown(ctx, "🔧 **Technologies used?**\n*Example:* React, Node.js, MongoDB, AWS");
+    }
+    else if (step === 'technologies') {
+        currentProj.technologies = text;
+        session.data.collection_step = 'role';
+        await sendMarkdown(ctx, "👤 **Your role?**\n*Example:* Lead Developer, Project Manager, UI/UX Designer");
+    }
+    else if (step === 'role') {
+        currentProj.role = text;
+        session.data.collection_step = 'team_size';
+        await sendMarkdown(ctx, "👥 **Team size?** (if applicable)\n*Example:* 5 members\n\nType 'Skip' to continue.", {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "skip_team_size" }]] }
+        });
+    }
+    else if (step === 'team_size') {
+        if (callbackData !== 'skip_team_size' && text.toLowerCase() !== 'skip') {
+            currentProj.team_size = text;
+        }
+        session.data.collection_step = 'duration';
+        await sendMarkdown(ctx, "📅 **Duration?**\n*Example:* 3 months, Jan 2024 - Mar 2024");
+    }
+    else if (step === 'duration') {
+        currentProj.duration = text;
+        session.data.collection_step = 'link';
+        await sendMarkdown(ctx, "🔗 **Project link?** (GitHub, live demo, or type 'Skip')\n*Example:* https://github.com/username/project");
+    }
+    else if (step === 'link') {
+        if (text.toLowerCase() !== 'skip') currentProj.link = text;
+        session.data.collection_step = 'outcome';
+        await sendMarkdown(ctx, "📊 **Project outcome/impact?**\n*Example:* Increased user engagement by 40%, Won hackathon");
+    }
+    else if (step === 'outcome') {
+        currentProj.outcome = text;
+        projects.push({ ...currentProj });
+        session.data.proj = {};
         session.data.collection_step = 'add_more';
-        
-        console.log(`[LANGUAGES] Language saved: ${currentLang.name} (${proficiency}), total languages: ${languages.length}`);
-        
-        await sendMarkdown(ctx, `${getReaction()} Language saved! Another language?`, {
+        await sendMarkdown(ctx, `${getReaction()} Project saved!\n\nAnother project?`, {
             reply_markup: { inline_keyboard: [
-                [{ text: "✅ Yes", callback_data: "lang_yes" }],
-                [{ text: "❌ No", callback_data: "lang_no" }],
-                [{ text: "⏭️ Skip All", callback_data: "lang_skip" }]
+                [{ text: "✅ Yes", callback_data: "proj_yes" }],
+                [{ text: "❌ No", callback_data: "proj_no" }]
             ] }
         });
-        await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
+    }
+    else if (step === 'add_more') {
+        if (callbackData === 'proj_yes') {
+            session.data.collection_step = 'name';
+            session.data.proj = {};
+            await sendMarkdown(ctx, "Next project name? 📁");
+        } else {
+            session.current_section = 'achievements';
+            session.data.collection_step = 'title';
+            cvData.achievements = [];
+            await sendMarkdown(ctx, `${getReaction()} Let's add achievements.\n\n*What are your key achievements?* (Type each, then DONE when finished)`);
+            await db.updateSession(session.id, 'collecting_achievements', 'achievements', session.data);
+        }
         return;
     }
-    
-    // ============ STEP 3: ADD MORE LANGUAGES ============
-    if (step === 'add_more') {
-        if (callbackData === 'lang_yes') {
-            // Add another language
-            session.data.collection_step = 'name';
-            session.data.current_lang = {};
-            
-            console.log(`[LANGUAGES] Adding another language`);
-            
-            await sendMarkdown(ctx, "What's the next language? 🗣️");
-            await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
-            return;
-        } else {
-            // Move to referees
-            session.current_section = 'referees';
-            session.data.collection_step = 'name';
-            session.data.cv_data.referees = [];
-            
-            console.log(`[LANGUAGES] Languages complete! Moving to referees section`);
-            
-            await sendMarkdown(ctx, `${random(RESPONSES.encouragements.sectionComplete)('Languages')}\n\nNow let's add professional referees. (Minimum 2 required) 👥\n\n**Referee 1 - Full name?**`);
-            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-            return;
-        }
-    }
-    
-    // ============ FALLBACK ============
-    console.log(`[LANGUAGES] UNKNOWN STEP: ${step}, resetting to name`);
-    session.data.collection_step = 'name';
-    await sendMarkdown(ctx, "Let's start over. What language do you speak? 🗣️ (or type 'Skip')");
-    await db.updateSession(session.id, 'collecting_languages', 'languages', session.data);
+    await db.updateSession(session.id, 'collecting_projects', 'projects', session.data);
 }
 
-async function handleRefereesCollection(ctx, client, session, text, callbackData = null) {
-    console.log(`[REFEREES] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
-    
+// ============ ACHIEVEMENTS COLLECTION (UPDATED) ============
+async function handleAchievementsCollection(ctx, client, session, text, callbackData = null) {
     const cvData = ensureCVData(session);
     let step = session.data.collection_step;
-    const referees = cvData.referees;
+    const achievements = cvData.achievements;
     
-    // Initialize current_ref if not exists
-    if (!session.data.current_ref) {
-        session.data.current_ref = {};
-    }
-    const currentRef = session.data.current_ref;
-    const refereeCount = referees.length;
-    const minReferees = 2;
-    
-    // ============ STEP 1: REFEREE NAME ============
-    if (step === 'name') {
-        if (text === 'Skip') {
-            await sendMarkdown(ctx, `⚠️ Need at least ${minReferees} referees! Please provide referee ${refereeCount + 1} - Full name?`);
-            return;
-        }
-        
-        currentRef.name = text;
-        session.data.current_ref = currentRef;
-        session.data.collection_step = 'position';
-        
-        console.log(`[REFEREES] Referee name saved: "${text}", moving to position`);
-        
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Their position?** 📌\n*Example:* Senior Manager, HR Director, Team Lead`);
-        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        return;
-    }
-    
-    // ============ STEP 2: REFEREE POSITION ============
-    if (step === 'position') {
-        currentRef.position = text;
-        session.data.current_ref = currentRef;
-        session.data.collection_step = 'company';
-        
-        console.log(`[REFEREES] Position saved: "${text}", moving to company`);
-        
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Company name?** 🏢\n*Example:* ABC Corporation, UNDP, Google`);
-        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        return;
-    }
-    
-    // ============ STEP 3: REFEREE COMPANY ============
-    if (step === 'company') {
-        currentRef.company = text;
-        session.data.current_ref = currentRef;
-        session.data.collection_step = 'company_location';
-        
-        console.log(`[REFEREES] Company saved: "${text}", moving to company location`);
-        
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Company location?** 📍\n*Example:* Lilongwe, Malawi | Blantyre | Remote\n\nType 'Skip' if not applicable.`);
-        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        return;
-    }
-    
-    // ============ STEP 4: REFEREE COMPANY LOCATION ============
-    if (step === 'company_location') {
-        if (text.toLowerCase() !== 'skip') {
-            currentRef.company_location = text;
-        }
-        session.data.current_ref = currentRef;
-        session.data.collection_step = 'email';
-        
-        console.log(`[REFEREES] Company location saved: "${text}", moving to email`);
-        
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Email address?** 📧\n*Example:* john.doe@example.com\n\nType 'Skip' if not available.`);
-        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        return;
-    }
-    
-    // ============ STEP 5: REFEREE EMAIL ============
-    if (step === 'email') {
-        if (text.toLowerCase() !== 'skip') {
-            currentRef.email = text;
-        }
-        session.data.current_ref = currentRef;
-        session.data.collection_step = 'phone';
-        
-        console.log(`[REFEREES] Email saved: "${text}", moving to phone`);
-        
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Phone number?** 📞\n*Example:* +265 991 234 567\n\nType 'Skip' if not available.`);
-        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        return;
-    }
-    
-    // ============ STEP 6: REFEREE PHONE ============
-    if (step === 'phone') {
-        if (text.toLowerCase() !== 'skip') {
-            currentRef.phone = text;
-        }
-        
-        // Save the complete referee
-        referees.push({ ...currentRef });
-        session.data.current_ref = {};
-        
-        console.log(`[REFEREES] Referee ${refereeCount + 1} saved. Total referees: ${referees.length}`);
-        
-        if (referees.length < minReferees) {
-            // Need more referees
-            session.data.collection_step = 'name';
-            await sendMarkdown(ctx, `✅ Referee ${referees.length} added. Need ${minReferees - referees.length} more.\n\n**Referee ${referees.length + 1} - Full name?**`);
-            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        } else {
-            // We have enough referees, ask if they want more
-            session.data.collection_step = 'add_more';
-            await sendMarkdown(ctx, `✅ ${referees.length} referees added! Another referee?`, {
-                reply_markup: { inline_keyboard: [
-                    [{ text: "✅ Yes, add another", callback_data: "more_ref_yes" }],
-                    [{ text: "❌ No, continue", callback_data: "more_ref_no" }]
-                ] }
+    if (step === 'title') {
+        if (text.toUpperCase() === 'DONE') {
+            if (achievements.length === 0) {
+                await sendMarkdown(ctx, `No achievements added. Click SKIP to continue or type your achievement.`);
+                return;
+            }
+            session.current_section = 'volunteer';
+            session.data.collection_step = 'role';
+            cvData.volunteer = [];
+            await sendMarkdown(ctx, `${getReaction()} ${achievements.length} achievement(s) saved!\n\n*Any volunteer experience?*`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Volunteer", callback_data: "vol_skip" }]] }
             });
-            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+            await db.updateSession(session.id, 'collecting_volunteer', 'volunteer', session.data);
+        } else {
+            if (!session.data.current_achievement) session.data.current_achievement = {};
+            session.data.current_achievement.title = text;
+            session.data.collection_step = 'description';
+            await sendMarkdown(ctx, "📝 **Achievement description?**\n*Example:* Led a team of 5 to deliver project 2 weeks ahead of schedule");
         }
         return;
     }
-    
-    // ============ STEP 7: ADD MORE REFEREES ============
-    if (step === 'add_more') {
-        if (callbackData === 'more_ref_yes') {
-            // Add another referee
-            session.data.collection_step = 'name';
-            session.data.current_ref = {};
-            
-            console.log(`[REFEREES] Adding another referee`);
-            
-            await sendMarkdown(ctx, `**Referee ${referees.length + 1} - Full name?** 👥`);
-            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-            return;
-        } else {
-            // Move to finalize order
-            console.log(`[REFEREES] Referees complete! Moving to finalize order`);
-            await finalizeOrder(ctx, client, session);
-            return;
-        }
+    else if (step === 'description') {
+        session.data.current_achievement.description = text;
+        session.data.collection_step = 'date';
+        await sendMarkdown(ctx, "📅 **Date?** (or type 'Skip')\n*Example:* 2023");
+    }
+    else if (step === 'date') {
+        if (text.toLowerCase() !== 'skip') session.data.current_achievement.date = text;
+        session.data.collection_step = 'issuer';
+        await sendMarkdown(ctx, "🏛️ **Issuer?** (or type 'Skip')\n*Example:* Company Name, Organization");
+    }
+    else if (step === 'issuer') {
+        if (text.toLowerCase() !== 'skip') session.data.current_achievement.issuer = text;
+        achievements.push({ ...session.data.current_achievement });
+        session.data.current_achievement = {};
+        session.data.collection_step = 'title';
+        await sendMarkdown(ctx, `✓ Achievement added! Type another achievement or DONE to finish.`);
     }
     
-    // ============ FALLBACK ============
-    console.log(`[REFEREES] UNKNOWN STEP: ${step}, resetting to name`);
-    session.data.collection_step = 'name';
-    await sendMarkdown(ctx, "Let's start over. Please provide referee 1 - Full name? 👥");
-    await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+    await db.updateSession(session.id, 'collecting_achievements', 'achievements', session.data);
 }
 
-async function handleRefereesCollection(ctx, client, session, text, callbackData = null) {
-    console.log(`[REFEREES] Starting - Step: ${session.data.collection_step}, Text: "${text}", Callback: ${callbackData}`);
-
+// ============ VOLUNTEER COLLECTION (UPDATED) ============
+async function handleVolunteerCollection(ctx, client, session, text, callbackData = null) {
     const cvData = ensureCVData(session);
     let step = session.data.collection_step;
-    const referees = cvData.referees;
-    if (!session.data.current_ref) session.data.current_ref = {};
-    const currentRef = session.data.current_ref;
-    const refereeCount = referees.length;
-    const minReferees = 2;
+    const volunteer = cvData.volunteer;
+    
+    if (!session.data.vol) session.data.vol = {};
+    const currentVol = session.data.vol;
+    
+    if (step === 'role') {
+        if (callbackData === 'vol_skip') {
+            session.current_section = 'leadership';
+            session.data.collection_step = 'role';
+            cvData.leadership = [];
+            await sendMarkdown(ctx, `${getReaction()} Let's add leadership roles.\n\n*Any leadership roles?* (Click SKIP if none)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Leadership", callback_data: "lead_skip" }]] }
+            });
+            await db.updateSession(session.id, 'collecting_leadership', 'leadership', session.data);
+            return;
+        }
+        currentVol.role = text;
+        session.data.collection_step = 'organization';
+        await sendMarkdown(ctx, "🏢 **Organization name?**\n*Example:* Red Cross, Local School");
+    }
+    else if (step === 'organization') {
+        currentVol.organization = text;
+        session.data.collection_step = 'duration';
+        await sendMarkdown(ctx, "📅 **Duration?**\n*Example:* Jan 2022 - Present (2 years)");
+    }
+    else if (step === 'duration') {
+        currentVol.duration = text;
+        volunteer.push({ ...currentVol });
+        session.data.vol = {};
+        session.data.collection_step = 'add_more';
+        await sendMarkdown(ctx, `${getReaction()} Volunteer experience saved!\n\nAnother volunteer role?`, {
+            reply_markup: { inline_keyboard: [
+                [{ text: "✅ Yes", callback_data: "vol_yes" }],
+                [{ text: "❌ No", callback_data: "vol_no" }]
+            ] }
+        });
+    }
+    else if (step === 'add_more') {
+        if (callbackData === 'vol_yes') {
+            session.data.collection_step = 'role';
+            session.data.vol = {};
+            await sendMarkdown(ctx, "Next volunteer role? 🤝");
+        } else {
+            session.current_section = 'leadership';
+            session.data.collection_step = 'role';
+            cvData.leadership = [];
+            await sendMarkdown(ctx, `${getReaction()} Let's add leadership roles.\n\n*Any leadership roles?* (Click SKIP if none)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Leadership", callback_data: "lead_skip" }]] }
+            });
+            await db.updateSession(session.id, 'collecting_leadership', 'leadership', session.data);
+        }
+        return;
+    }
+    await db.updateSession(session.id, 'collecting_volunteer', 'volunteer', session.data);
+}
+
+// ============ LEADERSHIP COLLECTION (UPDATED) ============
+async function handleLeadershipCollection(ctx, client, session, text, callbackData = null) {
+    const cvData = ensureCVData(session);
+    let step = session.data.collection_step;
+    const leadership = cvData.leadership;
+    
+    if (!session.data.lead) session.data.lead = {};
+    const currentLead = session.data.lead;
+    
+    if (step === 'role') {
+        if (callbackData === 'lead_skip') {
+            session.current_section = 'awards';
+            session.data.collection_step = 'name';
+            cvData.awards = [];
+            await sendMarkdown(ctx, `${getReaction()} Let's add awards and recognition.\n\n*Any awards?* (Click SKIP if none)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Awards", callback_data: "award_skip" }]] }
+            });
+            await db.updateSession(session.id, 'collecting_awards', 'awards', session.data);
+            return;
+        }
+        currentLead.role = text;
+        session.data.collection_step = 'organization';
+        await sendMarkdown(ctx, "🏢 **Organization/Team name?**");
+    }
+    else if (step === 'organization') {
+        currentLead.organization = text;
+        session.data.collection_step = 'duration';
+        await sendMarkdown(ctx, "📅 **Duration?**");
+    }
+    else if (step === 'duration') {
+        currentLead.duration = text;
+        session.data.collection_step = 'impact';
+        await sendMarkdown(ctx, "💪 **Key impact/achievement?**\n*Example:* Led team to win national competition");
+    }
+    else if (step === 'impact') {
+        currentLead.impact = text;
+        leadership.push({ ...currentLead });
+        session.data.lead = {};
+        session.data.collection_step = 'add_more';
+        await sendMarkdown(ctx, `${getReaction()} Leadership role saved!\n\nAnother leadership role?`, {
+            reply_markup: { inline_keyboard: [
+                [{ text: "✅ Yes", callback_data: "lead_yes" }],
+                [{ text: "❌ No", callback_data: "lead_no" }]
+            ] }
+        });
+    }
+    else if (step === 'add_more') {
+        if (callbackData === 'lead_yes') {
+            session.data.collection_step = 'role';
+            session.data.lead = {};
+            await sendMarkdown(ctx, "Next leadership role? 👔");
+        } else {
+            session.current_section = 'awards';
+            session.data.collection_step = 'name';
+            cvData.awards = [];
+            await sendMarkdown(ctx, `${getReaction()} Let's add awards and recognition.\n\n*Any awards?* (Click SKIP if none)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Awards", callback_data: "award_skip" }]] }
+            });
+            await db.updateSession(session.id, 'collecting_awards', 'awards', session.data);
+        }
+        return;
+    }
+    await db.updateSession(session.id, 'collecting_leadership', 'leadership', session.data);
+}
+
+// ============ AWARDS COLLECTION (UPDATED) ============
+async function handleAwardsCollection(ctx, client, session, text, callbackData = null) {
+    const cvData = ensureCVData(session);
+    let step = session.data.collection_step;
+    const awards = cvData.awards;
+    
+    if (!session.data.award) session.data.award = {};
+    const currentAward = session.data.award;
     
     if (step === 'name') {
-        if (text === 'Skip') {
-            await sendMarkdown(ctx, `⚠️ Need at least ${minReferees} referees! Please provide a name.`);
-            return;
-        }
-        currentRef.name = text;
-        session.data.collection_step = 'position';
-         console.log(`[REFEREES] Referee name saved: "${text}", moving to position`);
-
-       await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Their position?** 📌\n*Example:* Senior Manager, HR Director, Team Lead`);
-        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        return;
-    }
-    
-    // ============ STEP 2: REFEREE POSITION ============
-    if (step === 'position') {
-        currentRef.position = text;
-        session.data.current_ref = currentRef;
-        session.data.collection_step = 'company';
-        
-        console.log(`[REFEREES] Position saved: "${text}", moving to company`);
-        
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Company name?** 🏢\n*Example:* ABC Corporation, UNDP, Google`);
-        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        return;
-    }
-    
-    // ============ STEP 3: REFEREE COMPANY ============
-    if (step === 'company') {
-        currentRef.company = text;
-        session.data.current_ref = currentRef;
-        session.data.collection_step = 'company_location';
-        
-        console.log(`[REFEREES] Company saved: "${text}", moving to company location`);
-        
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Company location?** 📍\n*Example:* Lilongwe, Malawi | Blantyre | Remote\n\nType 'Skip' if not applicable.`);
-        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        return;
-    }
-    
-    // ============ STEP 4: REFEREE COMPANY LOCATION ============
-    if (step === 'company_location') {
-        if (text.toLowerCase() !== 'skip') {
-            currentRef.company_location = text;
-        }
-        session.data.current_ref = currentRef;
-        session.data.collection_step = 'email';
-        
-        console.log(`[REFEREES] Company location saved: "${text}", moving to email`);
-        
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Email address?** 📧\n*Example:* john.doe@example.com\n\nType 'Skip' if not available.`);
-        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        return;
-    }
-    
-    // ============ STEP 5: REFEREE EMAIL ============
-    if (step === 'email') {
-        if (text.toLowerCase() !== 'skip') {
-            currentRef.email = text;
-        }
-        session.data.current_ref = currentRef;
-        session.data.collection_step = 'phone';
-        
-        console.log(`[REFEREES] Email saved: "${text}", moving to phone`);
-        
-        await sendMarkdown(ctx, `**Referee ${refereeCount + 1} - Phone number?** 📞\n*Example:* +265 991 234 567\n\nType 'Skip' if not available.`);
-        await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        return;
-    }
-    
-    // ============ STEP 6: REFEREE PHONE ============
-    if (step === 'phone') {
-        if (text.toLowerCase() !== 'skip') {
-            currentRef.phone = text;
-        }
-        
-        // Save the complete referee
-        referees.push({ ...currentRef });
-        session.data.current_ref = {};
-        
-        console.log(`[REFEREES] Referee ${refereeCount + 1} saved. Total referees: ${referees.length}`);
-        
-        if (referees.length < minReferees) {
-            // Need more referees
-            session.data.collection_step = 'name';
-            await sendMarkdown(ctx, `✅ Referee ${referees.length} added. Need ${minReferees - referees.length} more.\n\n**Referee ${referees.length + 1} - Full name?**`);
-            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        } else {
-            // We have enough referees, ask if they want more
-            session.data.collection_step = 'add_more';
-            await sendMarkdown(ctx, `✅ ${referees.length} referees added! Another referee?`, {
-                reply_markup: { inline_keyboard: [
-                    [{ text: "✅ Yes, add another", callback_data: "more_ref_yes" }],
-                    [{ text: "❌ No, continue", callback_data: "more_ref_no" }]
-                ] }
+        if (callbackData === 'award_skip') {
+            session.current_section = 'publications';
+            session.data.collection_step = 'title';
+            cvData.publications = [];
+            await sendMarkdown(ctx, `${getReaction()} Let's add publications.\n\n*Any publications?* (Click SKIP if none)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Publications", callback_data: "pub_skip" }]] }
             });
-            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
+            await db.updateSession(session.id, 'collecting_publications', 'publications', session.data);
+            return;
         }
-        return;
+        currentAward.name = text;
+        session.data.collection_step = 'issuer';
+        await sendMarkdown(ctx, "🏛️ **Issuing organization?**");
     }
-    
-    // ============ STEP 7: ADD MORE REFEREES ============
-    if (step === 'add_more') {
-        if (callbackData === 'more_ref_yes') {
-            // Add another referee
+    else if (step === 'issuer') {
+        currentAward.issuer = text;
+        session.data.collection_step = 'date';
+        await sendMarkdown(ctx, "📅 **Year received?**");
+    }
+    else if (step === 'date') {
+        currentAward.date = text;
+        awards.push({ ...currentAward });
+        session.data.award = {};
+        session.data.collection_step = 'add_more';
+        await sendMarkdown(ctx, `${getReaction()} Award saved!\n\nAnother award?`, {
+            reply_markup: { inline_keyboard: [
+                [{ text: "✅ Yes", callback_data: "award_yes" }],
+                [{ text: "❌ No", callback_data: "award_no" }]
+            ] }
+        });
+    }
+    else if (step === 'add_more') {
+        if (callbackData === 'award_yes') {
             session.data.collection_step = 'name';
-            session.data.current_ref = {};
-            
-            console.log(`[REFEREES] Adding another referee`);
-            
-            await sendMarkdown(ctx, `**Referee ${referees.length + 1} - Full name?** 👥`);
-            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-            return;
+            session.data.award = {};
+            await sendMarkdown(ctx, "Next award name? 🏆");
         } else {
-            // Move to finalize order
-            console.log(`[REFEREES] Referees complete! Moving to finalize order`);
-            await finalizeOrder(ctx, client, session);
-            return;
+            session.current_section = 'publications';
+            session.data.collection_step = 'title';
+            cvData.publications = [];
+            await sendMarkdown(ctx, `${getReaction()} Let's add publications.\n\n*Any publications?* (Click SKIP if none)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Publications", callback_data: "pub_skip" }]] }
+            });
+            await db.updateSession(session.id, 'collecting_publications', 'publications', session.data);
         }
-    }
-    
-    // ============ FALLBACK ============
-    console.log(`[REFEREES] UNKNOWN STEP: ${step}, resetting to name`);
-    session.data.collection_step = 'name';
-    await sendMarkdown(ctx, "Let's start over. Please provide referee 1 - Full name? 👥");
-    await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-}
-
-// ============ FINALIZE ORDER ============
-async function finalizeOrder(ctx, client, session) {
-    console.log(`[FINALIZE] Starting order finalization`);
-    
-    try {
-        const cvData = ensureCVData(session);
-        const personal = cvData.personal || {};
-        const name = personal?.full_name || ctx.from.first_name;
-        const orderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-        
-        const category = session.data.category || 'professional';
-        const service = session.data.service || 'new cv';
-        const deliveryOption = session.data.delivery_option || 'standard';
-        const deliveryTime = DELIVERY_TIMES[deliveryOption] || '6 hours';
-        
-        let totalCharge = session.data.total_charge;
-        if (!totalCharge || totalCharge === 'undefined' || totalCharge === 'MK0') {
-            totalCharge = formatPrice(calculateTotal(category, service, deliveryOption));
-        }
-        
-        // Generate FIRST version for admin review (NOT for client)
-        const cvResult = await documentGenerator.generateCV(cvData, null, 'docx');
-        
-        if (!cvResult.success) {
-            throw new Error('CV generation failed');
-        }
-        
-        // Create order
-        await db.createOrder({
-            id: orderId,
-            client_id: client.id,
-            service: service,
-            category: category,
-            delivery_option: deliveryOption,
-            delivery_time: deliveryTime,
-            base_price: getBasePrice(category, service),
-            delivery_fee: DELIVERY_PRICES[deliveryOption] || 0,
-            total_charge: totalCharge,
-            payment_status: 'pending',
-            cv_data: cvData,
-            portfolio_links: JSON.stringify(session.data.portfolio_links || [])
-        });
-        
-        // Save review record
-        await db.saveDocumentReview({
-            order_id: orderId,
-            version: 1,
-            document_path: cvResult.filePath,
-            status: 'pending_admin_review',
-            review_type: 'initial'
-        });
-        
-        session.data.order_id = orderId;
-        session.data.current_version = 1;
-        session.data.review_count = 0;
-        
-        const paymentReference = generatePaymentReference();
-        
-        // Send to client - they don't get document yet, just payment info
-        const clientMessage = `✅ *ORDER CREATED!*
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 ORDER DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Order Number: \`${orderId}\`
-Service: ${service}
-Delivery Time: ⏰ *${deliveryTime}*
-Total Amount: 💰 *${totalCharge}*
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💳 PAYMENT REFERENCE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-\`${paymentReference}\`
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 NEXT STEPS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1️⃣ Send *${totalCharge}* to:
-   📱 Airtel: 0991295401
-   📱 Mpamba: 0886928639
-
-2️⃣ Use reference: \`${paymentReference}\`
-
-3️⃣ After payment, click: [✅ I Have Made Payment]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⏰ DELIVERY TIMING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Your document will be delivered within *${deliveryTime}* AFTER payment confirmation.
-
-*Note:* You will have 2 opportunities to request changes after reviewing your document.
-
-Thank you for choosing EasySuccor! 🙏`;
-
-        await sendMarkdown(ctx, clientMessage, {
-            reply_markup: {
-                inline_keyboard: [[
-                    { text: "✅ I Have Made Payment", callback_data: `confirm_${paymentReference}` }
-                ]]
-            }
-        });
-        
-        // Send to ADMIN for review (FIRST review)
-        const adminMessage = `📄 *NEW DOCUMENT READY FOR REVIEW*
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 ORDER DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Order ID: \`${orderId}\`
-Client: ${client.first_name} ${client.last_name || ''}
-Service: ${service}
-Version: 1/4
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ *ACTION REQUIRED*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Please review the document and:
-1. Make any necessary changes
-2. Upload the reviewed version
-
-After your review, the client will see a non-downloadable version for feedback.`;
-
-        // Send the document to admin
-        await ctx.telegram.sendDocument(process.env.ADMIN_CHAT_ID, { source: cvResult.filePath }, {
-            caption: adminMessage,
-            reply_markup: {
-                inline_keyboard: [[
-                    { text: "✅ Approve & Send to Client", callback_data: `admin_approve_${orderId}` },
-                    { text: "✏️ Upload Reviewed Version", callback_data: `admin_upload_${orderId}` }
-                ]]
-            }
-        });
-        
-        await db.updateSession(session.id, 'awaiting_admin_review', 'review', session.data);
-        
-    } catch (error) {
-        console.error(`[FINALIZE] ERROR:`, error);
-        await sendMarkdown(ctx, `⚠️ Something went wrong. Please try again.`);
-    }
-}
-
-
-// ============ FINALIZE COVER LETTER ============
-async function finalizeCoverLetter(ctx, client, session) {
-    const cvData = ensureCVData(session);
-    const personal = cvData.personal || {};
-    const coverData = session.data.cover_data || {};
-    const vacancyData = session.data.vacancy_data || {};
-    
-    if (session.data.cover_has_vacancy && vacancyData) {
-        if (vacancyData.position && !coverData.position) coverData.position = vacancyData.position;
-        if (vacancyData.company && !coverData.company) coverData.company = vacancyData.company;
-    }
-    
-    const orderId = `CL_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-    const basePrice = 5000;
-    const deliveryOption = session.data.delivery_option || 'standard';
-    const deliveryFee = DELIVERY_PRICES[deliveryOption] || 0;
-    const totalCharge = formatPrice(basePrice + deliveryFee);
-    const deliveryTime = DELIVERY_TIMES[deliveryOption];
-    
-   // Generate cover letter using document generator
-    const coverResult = await documentGenerator.generateCoverLetter(
-        {
-            position: coverData.position || vacancyData.position || 'Not specified',
-            company: coverData.company || vacancyData.company || 'Not specified',
-            experience: coverData.experience_highlight,
-            skills: coverData.skills,
-            achievement: coverData.achievement,
-            motivation: coverData.motivation,
-            availability: coverData.availability
-    }, cvData, personal, false);
-    
-    await db.createOrder({
-        id: orderId, client_id: client.id, service: 'cover letter', category: session.data.category || 'professional',
-        delivery_option: deliveryOption, delivery_time: deliveryTime, base_price: basePrice, delivery_fee: deliveryFee,
-        total_charge: totalCharge, payment_status: 'pending',
-        cv_data: { cover_letter: coverData, vacancy: vacancyData }
-    });
-    
-    const paymentReference = generatePaymentReference();
-    await db.updateOrderPaymentReference(orderId, paymentReference);
-        
-    
-    const finalMessage = `✅ *COVER LETTER ORDER CREATED!* 
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 ORDER DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Order Number: \`${orderId}\`
-Position: ${coverData.position || vacancyData.position || 'Not specified'}
-Company: ${coverData.company || vacancyData.company || 'Not specified'}
-Delivery: ⏰ ${deliveryTime}
-Total: 💰 ${totalCharge}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💳 PAYMENT OPTIONS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-*1️⃣ Mobile Money*
-   📱 Airtel: 0991295401
-   📱 Mpamba: 0886928639
-
-*2️⃣ USSD*
-   📞 Dial *211# (Airtel)
-   📞 Dial *444# (Mpamba)
-
-*3️⃣ Pay Later* - Pay within 7 days
-*4️⃣ Installments* - 2 parts over 7 days
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💳 PAYMENT REFERENCE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-\`${paymentReference}\`
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 NEXT STEPS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1️⃣ Send exactly *${totalCharge}* to any account above
-2️⃣ Use reference: \`${paymentReference}\`
-3️⃣ After payment, type: \`/confirm ${paymentReference}\`
-
-Your cover letter will be delivered within ${deliveryTime} AFTER payment confirmation.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📞 Need help? Contact: +265 991 295 401`;
-
-    await sendMarkdown(ctx, finalMessage);
-    await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
-}
-
-// ============ TESTIMONIAL SYSTEM ============
-let TESTIMONIALS_CACHE = [];
-
-async function loadTestimonialsCache() {
-    const testimonials = await db.getApprovedTestimonials(10);
-    TESTIMONIALS_CACHE = testimonials;
-    console.log(`✅ Loaded ${TESTIMONIALS_CACHE.length} testimonials into cache`);
-}
-
-function getRandomTestimonial() {
-    if (TESTIMONIALS_CACHE.length === 0) return null;
-    const random = TESTIMONIALS_CACHE[Math.floor(Math.random() * TESTIMONIALS_CACHE.length)];
-    return `📢 *What our clients say:*\n\n⭐️⭐️⭐️⭐️⭐️ "${random.text}" - ${random.name}\n\n`;
-}
-
-async function collectFeedback(ctx, client, orderId) {
-    await sendMarkdown(ctx, `📝 *Help Us Improve EasySuccor*
-
-We'd love your honest feedback on your experience:
-
-1. How would you rate your document? (1-5 ⭐)
-2. What did you like most?
-3. What could we improve?
-4. Any suggestions for new features?
-
-Type your feedback below (or type /skip if busy):`);
-    
-    const session = await getOrCreateSession(client.id);
-    session.data.awaiting_feedback = true;
-    session.data.order_id = orderId;
-    await db.updateSession(session.id, 'collecting_feedback', 'feedback', session.data);
-}
-
-async function handleFeedback(ctx, client, session, text) {
-    if (text.toLowerCase() === '/skip') {
-        await sendMarkdown(ctx, `No problem! You can always share feedback later with /feedback.`);
-        await db.updateSession(session.id, 'main_menu', null, session.data);
         return;
     }
-    
-    await db.saveFeedback({
-        client_id: client.id,
-        order_id: session.data.order_id,
-        feedback: text,
-        rating: session.data.rating || null,
-        created_at: new Date().toISOString()
-    });
-    
-    await sendMarkdown(ctx, `✅ *Feedback received!*
-
-We take all feedback seriously and will use this to improve EasySuccor.
-
-Type /start to continue.`);
-    await db.updateSession(session.id, 'main_menu', null, session.data);
+    await db.updateSession(session.id, 'collecting_awards', 'awards', session.data);
 }
-// ============ SMART DRAFT PROCESSOR ============
+
+// ============ PUBLICATIONS COLLECTION (UPDATED) ============
+async function handlePublicationsCollection(ctx, client, session, text, callbackData = null) {
+    const cvData = ensureCVData(session);
+    let step = session.data.collection_step;
+    const publications = cvData.publications;
+    
+    if (!session.data.pub) session.data.pub = {};
+    const currentPub = session.data.pub;
+    
+    if (step === 'title') {
+        if (callbackData === 'pub_skip') {
+            session.current_section = 'conferences';
+            session.data.collection_step = 'name';
+            cvData.conferences = [];
+            await sendMarkdown(ctx, `${getReaction()} Let's add conferences.\n\n*Any conferences attended?* (Click SKIP if none)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Conferences", callback_data: "conf_skip" }]] }
+            });
+            await db.updateSession(session.id, 'collecting_conferences', 'conferences', session.data);
+            return;
+        }
+        currentPub.title = text;
+        session.data.collection_step = 'publisher';
+        await sendMarkdown(ctx, "📰 **Publisher/Journal name?**");
+    }
+    else if (step === 'publisher') {
+        currentPub.publisher = text;
+        session.data.collection_step = 'date';
+        await sendMarkdown(ctx, "📅 **Publication date?**");
+    }
+    else if (step === 'date') {
+        currentPub.date = text;
+        publications.push({ ...currentPub });
+        session.data.pub = {};
+        session.data.collection_step = 'add_more';
+        await sendMarkdown(ctx, `${getReaction()} Publication saved!\n\nAnother publication?`, {
+            reply_markup: { inline_keyboard: [
+                [{ text: "✅ Yes", callback_data: "pub_yes" }],
+                [{ text: "❌ No", callback_data: "pub_no" }]
+            ] }
+        });
+    }
+    else if (step === 'add_more') {
+        if (callbackData === 'pub_yes') {
+            session.data.collection_step = 'title';
+            session.data.pub = {};
+            await sendMarkdown(ctx, "Next publication title? 📖");
+        } else {
+            session.current_section = 'conferences';
+            session.data.collection_step = 'name';
+            cvData.conferences = [];
+            await sendMarkdown(ctx, `${getReaction()} Let's add conferences.\n\n*Any conferences attended?* (Click SKIP if none)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Conferences", callback_data: "conf_skip" }]] }
+            });
+            await db.updateSession(session.id, 'collecting_conferences', 'conferences', session.data);
+        }
+        return;
+    }
+    await db.updateSession(session.id, 'collecting_publications', 'publications', session.data);
+}
+
+// ============ CONFERENCES COLLECTION (UPDATED) ============
+async function handleConferencesCollection(ctx, client, session, text, callbackData = null) {
+    const cvData = ensureCVData(session);
+    let step = session.data.collection_step;
+    const conferences = cvData.conferences;
+    
+    if (!session.data.conf) session.data.conf = {};
+    const currentConf = session.data.conf;
+    
+    if (step === 'name') {
+        if (callbackData === 'conf_skip') {
+            session.current_section = 'interests';
+            session.data.collection_step = 'list';
+            cvData.interests = [];
+            await sendMarkdown(ctx, `${getReaction()} Finally, let's add your interests/hobbies.\n\n*What are your interests?* (comma separated, or click SKIP)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Interests", callback_data: "int_skip" }]] }
+            });
+            await db.updateSession(session.id, 'collecting_interests', 'interests', session.data);
+            return;
+        }
+        currentConf.name = text;
+        session.data.collection_step = 'role';
+        await sendMarkdown(ctx, "🎤 **Your role?**\n*Example:* Speaker, Attendee, Panelist, Organizer");
+    }
+    else if (step === 'role') {
+        currentConf.role = text;
+        session.data.collection_step = 'date';
+        await sendMarkdown(ctx, "📅 **Date?**\n*Example:* June 2024");
+    }
+    else if (step === 'date') {
+        currentConf.date = text;
+        conferences.push({ ...currentConf });
+        session.data.conf = {};
+        session.data.collection_step = 'add_more';
+        await sendMarkdown(ctx, `${getReaction()} Conference saved!\n\nAnother conference?`, {
+            reply_markup: { inline_keyboard: [
+                [{ text: "✅ Yes", callback_data: "conf_yes" }],
+                [{ text: "❌ No", callback_data: "conf_no" }]
+            ] }
+        });
+    }
+    else if (step === 'add_more') {
+        if (callbackData === 'conf_yes') {
+            session.data.collection_step = 'name';
+            session.data.conf = {};
+            await sendMarkdown(ctx, "Next conference name? 🎙️");
+        } else {
+            session.current_section = 'interests';
+            session.data.collection_step = 'list';
+            cvData.interests = [];
+            await sendMarkdown(ctx, `${getReaction()} Finally, let's add your interests/hobbies.\n\n*What are your interests?* (comma separated, or click SKIP)`, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Interests", callback_data: "int_skip" }]] }
+            });
+            await db.updateSession(session.id, 'collecting_interests', 'interests', session.data);
+        }
+        return;
+    }
+    await db.updateSession(session.id, 'collecting_conferences', 'conferences', session.data);
+}
+
+// ============ INTERESTS COLLECTION (UPDATED) ============
+async function handleInterestsCollection(ctx, client, session, text, callbackData = null) {
+    const cvData = ensureCVData(session);
+    
+    if (callbackData === 'int_skip' || text.toLowerCase() === 'skip') {
+        cvData.interests = [];
+    } else {
+        const interests = text.split(',').map(i => i.trim());
+        cvData.interests = interests;
+        await sendMarkdown(ctx, `${getReaction()} ${interests.length} interest(s) saved!`);
+    }
+    
+    // After interests, go to summary
+    await showSummaryAndFinalize(ctx, client, session);
+}
+// ============ SMART DRAFT PROCESSOR (UPDATED - 18+ CATEGORIES) ============
 class SmartDraftProcessor {
     async processDraftUpload(ctx, client, session, fileUrl, fileName) {
+        await sendMarkdown(ctx, `📄 *Processing your document with AI...*\n\nDeepSeek AI is extracting all information from your file. This may take a moment. ⏳`);
+        
         const extractedData = await documentGenerator.extractFullCVDataFromUrl(fileUrl, fileName);
         
         if (!extractedData.success) {
-            await sendMarkdown(ctx, `❌ Could not extract data from your file. Please try again or choose manual entry.`);
+            await sendMarkdown(ctx, `❌ Could not extract data from your file. Please try again with a clearer document or choose manual entry.`);
             return false;
         }
         
         const cvData = extractedData.data;
-        const missingSections = this.identifyMissingSections(cvData);
+        const missingSections = this.identifyAllMissingSections(cvData);
         
         session.data.cv_data = cvData;
         session.data.is_draft_upload = true;
         session.data.missing_sections = missingSections;
         session.data.current_missing_index = 0;
         
+        // Build comprehensive found message with ALL categories
         let foundMessage = `📄 *Draft Processed Successfully!*\n\n`;
-        foundMessage += `✅ *Found:*\n`;
+        foundMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        foundMessage += `✅ *EXTRACTED INFORMATION*\n`;
+        foundMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        
+        // Personal Information
+        foundMessage += `👤 *Personal Information*\n`;
         foundMessage += `• Name: ${cvData.personal?.full_name || 'Not found'}\n`;
         foundMessage += `• Email: ${cvData.personal?.email || 'Not found'}\n`;
         foundMessage += `• Phone: ${cvData.personal?.primary_phone || 'Not found'}\n`;
         foundMessage += `• Location: ${cvData.personal?.location || 'Not found'}\n`;
-        foundMessage += `• Physical Address: ${cvData.personal?.physical_address || 'Not found'}\n`;
-        foundMessage += `• Nationality: ${cvData.personal?.nationality || 'Not found'}\n`;
-        foundMessage += `• Special Documents: ${cvData.personal?.special_documents?.length || 0} document(s)\n`;
-        foundMessage += `• Work Experience: ${cvData.employment?.length || 0} entries\n`;
-        foundMessage += `• Education: ${cvData.education?.length || 0} entries\n`;
-        foundMessage += `• Skills: ${cvData.skills?.length || 0} skills\n`;
+        foundMessage += `• LinkedIn: ${cvData.personal?.linkedin || 'Not found'}\n`;
+        foundMessage += `• GitHub: ${cvData.personal?.github || 'Not found'}\n`;
+        foundMessage += `• Professional Title: ${cvData.personal?.professional_title || 'Not found'}\n\n`;
         
+        // Work Experience
+        foundMessage += `💼 *Work Experience*: ${cvData.employment?.length || 0} position(s)\n`;
+        for (const job of (cvData.employment || []).slice(0, 2)) {
+            foundMessage += `   • ${job.title} at ${job.company} (${job.duration || 'Duration not specified'})\n`;
+        }
+        if ((cvData.employment || []).length > 2) foundMessage += `   • +${cvData.employment.length - 2} more\n`;
+        foundMessage += `\n`;
+        
+        // Education
+        foundMessage += `🎓 *Education*: ${cvData.education?.length || 0} qualification(s)\n`;
+        for (const edu of (cvData.education || []).slice(0, 2)) {
+            foundMessage += `   • ${edu.level} in ${edu.field || 'Field not specified'} from ${edu.institution || 'Institution not specified'}\n`;
+        }
+        foundMessage += `\n`;
+        
+        // Skills (categorized)
+        const skills = cvData.skills || {};
+        const totalSkills = (skills.technical?.length || 0) + (skills.soft?.length || 0) + (skills.tools?.length || 0);
+        foundMessage += `⚡ *Skills*: ${totalSkills} total\n`;
+        if (skills.technical?.length > 0) foundMessage += `   • Technical: ${skills.technical.slice(0, 5).join(', ')}${skills.technical.length > 5 ? '...' : ''}\n`;
+        if (skills.soft?.length > 0) foundMessage += `   • Soft: ${skills.soft.slice(0, 5).join(', ')}${skills.soft.length > 5 ? '...' : ''}\n`;
+        if (skills.tools?.length > 0) foundMessage += `   • Tools: ${skills.tools.slice(0, 5).join(', ')}${skills.tools.length > 5 ? '...' : ''}\n`;
+        foundMessage += `\n`;
+        
+        // Certifications
+        foundMessage += `📜 *Certifications*: ${cvData.certifications?.length || 0}\n`;
+        for (const cert of (cvData.certifications || []).slice(0, 2)) {
+            foundMessage += `   • ${cert.name}${cert.issuer ? ` (${cert.issuer})` : ''}\n`;
+        }
+        foundMessage += `\n`;
+        
+        // Languages
+        foundMessage += `🌍 *Languages*: ${cvData.languages?.length || 0}\n`;
+        for (const lang of (cvData.languages || []).slice(0, 3)) {
+            foundMessage += `   • ${lang.name} (${lang.proficiency || 'Not specified'})\n`;
+        }
+        foundMessage += `\n`;
+        
+        // Projects
+        foundMessage += `📁 *Projects*: ${cvData.projects?.length || 0}\n`;
+        for (const proj of (cvData.projects || []).slice(0, 2)) {
+            foundMessage += `   • ${proj.name}${proj.role ? ` (${proj.role})` : ''}\n`;
+        }
+        foundMessage += `\n`;
+        
+        // Achievements
+        foundMessage += `🏆 *Achievements*: ${cvData.achievements?.length || 0}\n`;
+        foundMessage += `\n`;
+        
+        // Volunteer
+        foundMessage += `🤝 *Volunteer*: ${cvData.volunteer?.length || 0}\n`;
+        foundMessage += `\n`;
+        
+        // Leadership
+        foundMessage += `👔 *Leadership*: ${cvData.leadership?.length || 0}\n`;
+        foundMessage += `\n`;
+        
+        // Awards
+        foundMessage += `🏅 *Awards*: ${cvData.awards?.length || 0}\n`;
+        foundMessage += `\n`;
+        
+        // Publications
+        foundMessage += `📖 *Publications*: ${cvData.publications?.length || 0}\n`;
+        foundMessage += `\n`;
+        
+        // Conferences
+        foundMessage += `🎤 *Conferences*: ${cvData.conferences?.length || 0}\n`;
+        foundMessage += `\n`;
+        
+        // Referees
+        foundMessage += `👥 *Referees*: ${cvData.referees?.length || 0} (need at least 2)\n`;
+        foundMessage += `\n`;
+        
+        // Interests
+        if (cvData.interests?.length > 0) {
+            foundMessage += `💡 *Interests*: ${cvData.interests.slice(0, 5).join(', ')}${cvData.interests.length > 5 ? '...' : ''}\n\n`;
+        }
+        
+        // Missing Sections
         if (missingSections.length > 0) {
-            foundMessage += `\n⚠️ *Missing:* ${missingSections.join(', ')}\n\n`;
-            foundMessage += `Let's fill in the missing information.`;
+            foundMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+            foundMessage += `⚠️ *MISSING INFORMATION*\n`;
+            foundMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+            for (const missing of missingSections) {
+                foundMessage += `• ${missing}\n`;
+            }
+            foundMessage += `\nLet's fill in the missing information.`;
             await sendMarkdown(ctx, foundMessage);
             await this.collectNextMissingSection(ctx, client, session);
         } else {
-            foundMessage += `\n🎉 *Complete!* Your draft has everything needed.\n\n`;
-            foundMessage += `Proceed to payment? Type /pay to continue.`;
-            await sendMarkdown(ctx, foundMessage);
+            foundMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+            foundMessage += `🎉 *COMPLETE!* Your draft has everything needed!\n`;
+            foundMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+            foundMessage += `Proceed to payment? Click below to continue.`;
+            await sendMarkdown(ctx, foundMessage, {
+                reply_markup: { inline_keyboard: [[{ text: "💰 Proceed to Payment", callback_data: "proceed_payment" }]] }
+            });
             session.data.cv_complete = true;
-            await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
         }
         
         return true;
     }
     
-    identifyMissingSections(cvData) {
+    identifyAllMissingSections(cvData) {
         const missing = [];
+        
+        // Personal Information (Required)
         if (!cvData.personal?.full_name) missing.push('Full Name');
         if (!cvData.personal?.email) missing.push('Email');
         if (!cvData.personal?.primary_phone) missing.push('Phone');
         if (!cvData.personal?.location) missing.push('Location');
-        if (!cvData.personal?.physical_address) missing.push('Physical Address');
-        if (!cvData.personal?.nationality) missing.push('Nationality');
-        if (!cvData.professional_summary) missing.push('Professional Summary');
+        
+        // Optional but nice to have (not marked as missing, but we'll track)
+        if (!cvData.personal?.physical_address) missing.push('Physical Address (Optional)');
+        if (!cvData.personal?.nationality) missing.push('Nationality (Optional)');
+        if (!cvData.personal?.linkedin) missing.push('LinkedIn (Optional)');
+        if (!cvData.personal?.github) missing.push('GitHub (Optional)');
+        
+        // Professional Information
         if (!cvData.employment || cvData.employment.length === 0) missing.push('Work Experience');
         if (!cvData.education || cvData.education.length === 0) missing.push('Education');
-        if (!cvData.skills || cvData.skills.length === 0) missing.push('Skills');
-        if (!cvData.referees || cvData.referees.length < 2) missing.push('Referees (need 2)');
+        
+        // Skills
+        const totalSkills = (cvData.skills?.technical?.length || 0) + (cvData.skills?.soft?.length || 0) + (cvData.skills?.tools?.length || 0);
+        if (totalSkills === 0 && (!cvData.skills || cvData.skills.length === 0)) missing.push('Skills');
+        
+        // Optional Sections (not required but we'll ask if missing)
+        if (!cvData.certifications || cvData.certifications.length === 0) missing.push('Certifications (Optional)');
+        if (!cvData.languages || cvData.languages.length === 0) missing.push('Languages (Optional)');
+        if (!cvData.projects || cvData.projects.length === 0) missing.push('Projects (Optional)');
+        if (!cvData.achievements || cvData.achievements.length === 0) missing.push('Achievements (Optional)');
+        if (!cvData.volunteer || cvData.volunteer.length === 0) missing.push('Volunteer Experience (Optional)');
+        if (!cvData.leadership || cvData.leadership.length === 0) missing.push('Leadership Roles (Optional)');
+        if (!cvData.awards || cvData.awards.length === 0) missing.push('Awards (Optional)');
+        if (!cvData.publications || cvData.publications.length === 0) missing.push('Publications (Optional)');
+        if (!cvData.conferences || cvData.conferences.length === 0) missing.push('Conferences (Optional)');
+        
+        // Referees - Minimum 2 required
+        if (!cvData.referees || cvData.referees.length < 2) {
+            const needed = 2 - (cvData.referees?.length || 0);
+            missing.push(`Referees (need ${needed} more, minimum 2 required)`);
+        }
+        
+        // Interests (Optional)
+        if (!cvData.interests || cvData.interests.length === 0) missing.push('Interests (Optional)');
+        
         return missing;
     }
     
@@ -1964,7 +3275,9 @@ class SmartDraftProcessor {
         const index = session.data.current_missing_index || 0;
         
         if (index >= missing.length) {
-            await sendMarkdown(ctx, `✅ *All information collected!*\n\nProceed to payment? Type /pay to continue.`);
+            await sendMarkdown(ctx, `✅ *All information collected!*\n\nProceed to payment? Click below to continue.`, {
+                reply_markup: { inline_keyboard: [[{ text: "💰 Proceed to Payment", callback_data: "proceed_payment" }]] }
+            });
             session.data.cv_complete = true;
             await db.updateSession(session.id, 'awaiting_payment_choice', 'payment', session.data);
             return;
@@ -1974,20 +3287,55 @@ class SmartDraftProcessor {
         session.data.current_section = section;
         
         const prompts = {
+            // Required sections
             'Full Name': "What's your full name? 📛\n*Example:* John Mwale Doe",
             'Email': "What's your email address? 📧\n*Example:* john.doe@example.com",
             'Phone': "What's your phone number? 📞\n*Example:* +265 991 234 567 or 0991234567",
             'Location': "Where are you based? (City, Country) 📍\n*Example:* Lilongwe, Malawi",
-            'Physical Address': "What's your physical address? 🏠\n*Example:* House No. 123, Area 47, P.O BOX 100, Lilongwe\n\nClick the button below to skip.",
-            'Nationality': "What's your nationality? 🌍\n*Example:* Malawian\n\nClick the button below to skip.",
-            'Professional Summary': "Please provide a brief summary about yourself (2-3 sentences) ✍️\n*Example:* Results-oriented Project Manager with 5+ years of experience in...",
+            
+            // Optional sections with clear instructions
+            'Physical Address (Optional)': "🏠 *Physical address?* (Optional)\n*Example:* House No. 123, Area 47, Lilongwe\n\nClick SKIP to continue.",
+            'Nationality (Optional)': "🌍 *Nationality?* (Optional)\n*Example:* Malawian\n\nClick SKIP to continue.",
+            'LinkedIn (Optional)': "🔗 *LinkedIn URL?* (Optional)\n*Example:* https://linkedin.com/in/yourname\n\nClick SKIP to continue.",
+            'GitHub (Optional)': "💻 *GitHub URL?* (Optional)\n*Example:* https://github.com/yourusername\n\nClick SKIP to continue.",
+            
+            // Professional sections
             'Work Experience': "Let's add your work experience. Most recent job title? 💼\n*Example:* Senior Software Engineer",
             'Education': "What's your highest qualification? 🎓\n*Example:* Bachelor of Science in Computer Science",
-            'Skills': "List your key skills (comma separated) ⚡\n*Example:* Project Management, Team Leadership, Risk Assessment",
-            'Referees (need 2)': "Please provide at least 2 professional referees.\n\n*Referee 1 - Full name?* 👥\n*Example:* Dr. Jane Mkandawire"
+            'Skills': "List your key skills (comma separated) ⚡\n*Example:* Project Management, Python, Leadership, Data Analysis",
+            
+            // Optional sections
+            'Certifications (Optional)': "📜 *Any certifications?* (Optional)\n*Example:* Google Project Management Professional\n\nClick SKIP to continue.",
+            'Languages (Optional)': "🌍 *What languages do you speak?* (Optional)\n*Example:* English (Fluent), Chichewa (Native)\n\nClick SKIP to continue.",
+            'Projects (Optional)': "📁 *Any projects you want to showcase?* (Optional)\n*Example:* E-commerce Website, Mobile App Development\n\nClick SKIP to continue.",
+            'Achievements (Optional)': "🏆 *What are your key achievements?* (Optional)\n*Example:* Increased sales by 40%, Won Best Employee Award\n\nClick SKIP to continue.",
+            'Volunteer Experience (Optional)': "🤝 *Any volunteer experience?* (Optional)\n*Example:* Community Tutor, Red Cross Volunteer\n\nClick SKIP to continue.",
+            'Leadership Roles (Optional)': "👔 *Any leadership roles?* (Optional)\n*Example:* Team Lead, Club President\n\nClick SKIP to continue.",
+            'Awards (Optional)': "🏅 *Any awards or recognition?* (Optional)\n*Example:* Employee of the Month, Best Innovation Award\n\nClick SKIP to continue.",
+            'Publications (Optional)': "📖 *Any publications?* (Optional)\n*Example:* Research paper in Journal of Science\n\nClick SKIP to continue.",
+            'Conferences (Optional)': "🎤 *Any conferences attended?* (Optional)\n*Example:* Tech Summit 2024 (Speaker)\n\nClick SKIP to continue.",
+            'Interests (Optional)': "💡 *What are your interests/hobbies?* (Optional)\n*Example:* Reading, Chess, Photography\n\nClick SKIP to continue.",
+            'Referees (need 2 more, minimum 2 required)': "Please provide professional referees (minimum 2 required).\n\n*Referee 1 - Full name?* 👥\n*Example:* Dr. Jane Mkandawire"
         };
         
-        await sendMarkdown(ctx, prompts[section] || `Please provide your ${section.toLowerCase()}:`);
+        // Handle special case for Referees
+        if (section.includes('Referees')) {
+            const needed = section.match(/\d+/);
+            if (needed) {
+                await sendMarkdown(ctx, `👥 *Professional Referees*\n\nPlease provide at least 2 professional referees.\n\n*Referee 1 - Full name?*`);
+            } else {
+                await sendMarkdown(ctx, prompts[section] || `Please provide your ${section.toLowerCase()}:`);
+            }
+        } else if (section.includes('(Optional)')) {
+            // For optional sections, provide skip button
+            const basePrompt = prompts[section] || `Please provide your ${section.replace(' (Optional)', '')}:`;
+            await sendMarkdown(ctx, basePrompt, {
+                reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: `skip_optional_${section.replace(/ /g, '_')}` }]] }
+            });
+        } else {
+            await sendMarkdown(ctx, prompts[section] || `Please provide your ${section.toLowerCase()}:`);
+        }
+        
         await db.updateSession(session.id, 'collecting_missing', 'missing', session.data);
     }
     
@@ -1995,38 +3343,45 @@ class SmartDraftProcessor {
         const section = session.data.current_section;
         const cvData = session.data.cv_data;
         
+        // Handle skip for optional sections
+        if (callbackData && callbackData.startsWith('skip_optional_')) {
+            // Skip this optional section
+            session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+            await this.collectNextMissingSection(ctx, client, session);
+            await db.updateSession(session.id, 'collecting_missing', 'missing', session.data);
+            return;
+        }
+        
         switch(section) {
+            // Required fields
             case 'Full Name':
-                cvData.personal = cvData.personal || {};
                 cvData.personal.full_name = text;
                 break;
             case 'Email':
-                cvData.personal = cvData.personal || {};
                 cvData.personal.email = text;
                 break;
             case 'Phone':
-                cvData.personal = cvData.personal || {};
                 cvData.personal.primary_phone = text;
                 break;
             case 'Location':
-                cvData.personal = cvData.personal || {};
                 cvData.personal.location = text;
                 break;
-            case 'Physical Address':
-                if (text.toLowerCase() !== 'skip') {
-                    cvData.personal = cvData.personal || {};
-                    cvData.personal.physical_address = text;
-                }
+            
+            // Optional fields
+            case 'Physical Address (Optional)':
+                if (text.toLowerCase() !== 'skip') cvData.personal.physical_address = text;
                 break;
-            case 'Nationality':
-                if (text.toLowerCase() !== 'skip') {
-                    cvData.personal = cvData.personal || {};
-                    cvData.personal.nationality = text;
-                }
+            case 'Nationality (Optional)':
+                if (text.toLowerCase() !== 'skip') cvData.personal.nationality = text;
                 break;
-            case 'Professional Summary':
-                cvData.professional_summary = text;
+            case 'LinkedIn (Optional)':
+                if (text.toLowerCase() !== 'skip') cvData.personal.linkedin = text;
                 break;
+            case 'GitHub (Optional)':
+                if (text.toLowerCase() !== 'skip') cvData.personal.github = text;
+                break;
+            
+            // Professional sections
             case 'Work Experience':
                 if (!cvData.employment) cvData.employment = [];
                 if (!session.data.temp_job) session.data.temp_job = {};
@@ -2034,7 +3389,7 @@ class SmartDraftProcessor {
                 if (step === 'title') {
                     session.data.temp_job.title = text;
                     session.data.work_step = 'company';
-                    await sendMarkdown(ctx, "Company name? 🏢\n*Example:* ABC Corporation");
+                    await sendMarkdown(ctx, "Company name? 🏢");
                     return;
                 } else if (step === 'company') {
                     session.data.temp_job.company = text;
@@ -2045,12 +3400,14 @@ class SmartDraftProcessor {
                     session.data.temp_job.duration = text;
                     session.data.work_step = 'responsibilities';
                     session.data.temp_job.responsibilities = [];
-                    await sendMarkdown(ctx, "Key responsibilities? One per line. Type DONE when finished.\n\n*Example:*\n• Led a team of 5 developers\n• Increased efficiency by 30%\n\nType DONE when done.");
+                    await sendMarkdown(ctx, "Responsibilities (one per line, click DONE when finished)", {
+                        reply_markup: { inline_keyboard: [[{ text: "✅ DONE", callback_data: "missing_done" }]] }
+                    });
                     return;
                 } else if (step === 'responsibilities') {
-                    if (text.toUpperCase() !== 'DONE') {
+                    if (callbackData !== 'missing_done' && text.toUpperCase() !== 'DONE') {
                         session.data.temp_job.responsibilities.push(text);
-                        await sendMarkdown(ctx, `✓ Added. Another responsibility? (type DONE when done)`);
+                        await sendMarkdown(ctx, `✓ Added. Another responsibility? (click DONE when finished)`);
                         return;
                     } else {
                         cvData.employment.push(session.data.temp_job);
@@ -2063,6 +3420,7 @@ class SmartDraftProcessor {
                     }
                 }
                 break;
+                
             case 'Education':
                 if (!cvData.education) cvData.education = [];
                 if (!session.data.temp_edu) session.data.temp_edu = {};
@@ -2070,17 +3428,17 @@ class SmartDraftProcessor {
                 if (eduStep === 'level') {
                     session.data.temp_edu.level = text;
                     session.data.edu_step = 'field';
-                    await sendMarkdown(ctx, "Field of study? 📚\n*Example:* Computer Science");
+                    await sendMarkdown(ctx, "Field of study? 📚");
                     return;
                 } else if (eduStep === 'field') {
                     session.data.temp_edu.field = text;
                     session.data.edu_step = 'institution';
-                    await sendMarkdown(ctx, "Institution? 🏛️\n*Example:* University of Malawi");
+                    await sendMarkdown(ctx, "Institution? 🏛️");
                     return;
                 } else if (eduStep === 'institution') {
                     session.data.temp_edu.institution = text;
                     session.data.edu_step = 'year';
-                    await sendMarkdown(ctx, "Year of completion? 📅\n*Example:* 2020");
+                    await sendMarkdown(ctx, "Year of completion? 📅");
                     return;
                 } else if (eduStep === 'year') {
                     session.data.temp_edu.year = text;
@@ -2093,20 +3451,129 @@ class SmartDraftProcessor {
                     return;
                 }
                 break;
+                
             case 'Skills':
-                cvData.skills = text.split(',').map(s => s.trim());
+                const skillsArray = text.split(',').map(s => s.trim());
+                // Categorize skills
+                const categorized = { technical: [], soft: [], tools: [] };
+                const techKeywords = ['python', 'javascript', 'java', 'react', 'node', 'sql', 'aws', 'docker'];
+                const softKeywords = ['leadership', 'communication', 'teamwork', 'problem solving', 'management'];
+                
+                for (const skill of skillsArray) {
+                    const lowerSkill = skill.toLowerCase();
+                    if (techKeywords.some(k => lowerSkill.includes(k))) categorized.technical.push(skill);
+                    else if (softKeywords.some(k => lowerSkill.includes(k))) categorized.soft.push(skill);
+                    else categorized.tools.push(skill);
+                }
+                if (categorized.technical.length === 0 && categorized.tools.length > 0) {
+                    categorized.technical = categorized.tools;
+                    categorized.tools = [];
+                }
+                cvData.skills = categorized;
                 break;
-            case 'Referees (need 2)':
+                
+            // Optional sections with simple input
+            case 'Certifications (Optional)':
+                if (!cvData.certifications) cvData.certifications = [];
+                cvData.certifications.push({ name: text, issuer: 'Not specified', date: new Date().getFullYear().toString() });
+                await sendMarkdown(ctx, `✓ Certification added. Add another? (Type 'Done' to finish, 'Skip' to skip)`, {
+                    reply_markup: { inline_keyboard: [[{ text: "✅ Done", callback_data: "cert_done" }, { text: "⏭️ Skip", callback_data: "cert_skip_section" }]] }
+                });
+                return;
+                
+            case 'Languages (Optional)':
+                if (!cvData.languages) cvData.languages = [];
+                const langParts = text.split('(');
+                const langName = langParts[0].trim();
+                let proficiency = 'Professional';
+                if (langParts[1]) {
+                    proficiency = langParts[1].replace(')', '').trim();
+                }
+                cvData.languages.push({ name: langName, proficiency: proficiency });
+                await sendMarkdown(ctx, `✓ Language added. Add another? (Type 'Done' to finish, 'Skip' to skip)`, {
+                    reply_markup: { inline_keyboard: [[{ text: "✅ Done", callback_data: "lang_done" }, { text: "⏭️ Skip", callback_data: "lang_skip_section" }]] }
+                });
+                return;
+                
+            case 'Projects (Optional)':
+                if (!cvData.projects) cvData.projects = [];
+                cvData.projects.push({ name: text, description: 'Added', technologies: 'Not specified' });
+                await sendMarkdown(ctx, `✓ Project added. Add another? (Type 'Done' to finish, 'Skip' to skip)`, {
+                    reply_markup: { inline_keyboard: [[{ text: "✅ Done", callback_data: "proj_done" }, { text: "⏭️ Skip", callback_data: "proj_skip_section" }]] }
+                });
+                return;
+                
+            case 'Achievements (Optional)':
+                if (!cvData.achievements) cvData.achievements = [];
+                cvData.achievements.push(text);
+                await sendMarkdown(ctx, `✓ Achievement added. Add another? (Type 'Done' to finish, 'Skip' to skip)`, {
+                    reply_markup: { inline_keyboard: [[{ text: "✅ Done", callback_data: "ach_done" }, { text: "⏭️ Skip", callback_data: "ach_skip_section" }]] }
+                });
+                return;
+                
+            case 'Volunteer Experience (Optional)':
+                if (!cvData.volunteer) cvData.volunteer = [];
+                cvData.volunteer.push({ role: text, organization: 'Not specified', duration: 'Not specified' });
+                await sendMarkdown(ctx, `✓ Volunteer experience added. Add another? (Type 'Done' to finish, 'Skip' to skip)`, {
+                    reply_markup: { inline_keyboard: [[{ text: "✅ Done", callback_data: "vol_done" }, { text: "⏭️ Skip", callback_data: "vol_skip_section" }]] }
+                });
+                return;
+                
+            case 'Leadership Roles (Optional)':
+                if (!cvData.leadership) cvData.leadership = [];
+                cvData.leadership.push({ role: text, organization: 'Not specified', duration: 'Not specified' });
+                await sendMarkdown(ctx, `✓ Leadership role added. Add another? (Type 'Done' to finish, 'Skip' to skip)`, {
+                    reply_markup: { inline_keyboard: [[{ text: "✅ Done", callback_data: "lead_done" }, { text: "⏭️ Skip", callback_data: "lead_skip_section" }]] }
+                });
+                return;
+                
+            case 'Awards (Optional)':
+                if (!cvData.awards) cvData.awards = [];
+                cvData.awards.push({ name: text, issuer: 'Not specified', date: 'Not specified' });
+                await sendMarkdown(ctx, `✓ Award added. Add another? (Type 'Done' to finish, 'Skip' to skip)`, {
+                    reply_markup: { inline_keyboard: [[{ text: "✅ Done", callback_data: "award_done" }, { text: "⏭️ Skip", callback_data: "award_skip_section" }]] }
+                });
+                return;
+                
+            case 'Publications (Optional)':
+                if (!cvData.publications) cvData.publications = [];
+                cvData.publications.push({ title: text, publisher: 'Not specified', date: 'Not specified' });
+                await sendMarkdown(ctx, `✓ Publication added. Add another? (Type 'Done' to finish, 'Skip' to skip)`, {
+                    reply_markup: { inline_keyboard: [[{ text: "✅ Done", callback_data: "pub_done" }, { text: "⏭️ Skip", callback_data: "pub_skip_section" }]] }
+                });
+                return;
+                
+            case 'Conferences (Optional)':
+                if (!cvData.conferences) cvData.conferences = [];
+                cvData.conferences.push({ name: text, role: 'Attendee', date: 'Not specified' });
+                await sendMarkdown(ctx, `✓ Conference added. Add another? (Type 'Done' to finish, 'Skip' to skip)`, {
+                    reply_markup: { inline_keyboard: [[{ text: "✅ Done", callback_data: "conf_done" }, { text: "⏭️ Skip", callback_data: "conf_skip_section" }]] }
+                });
+                return;
+                
+            case 'Interests (Optional)':
+                if (text.toLowerCase() !== 'skip') {
+                    const interests = text.split(',').map(i => i.trim());
+                    cvData.interests = interests;
+                }
+                break;
+                
+            case 'Referees (need 2 more, minimum 2 required)':
                 if (!cvData.referees) cvData.referees = [];
                 if (!session.data.temp_ref) session.data.temp_ref = {};
                 const refStep = session.data.ref_step || 'name';
                 if (refStep === 'name') {
                     session.data.temp_ref.name = text;
                     session.data.ref_step = 'position';
-                    await sendMarkdown(ctx, "Their position? 📌\n*Example:* Senior Manager");
+                    await sendMarkdown(ctx, "Their position? 📌\n*Example:* Senior Manager, HR Director");
                     return;
                 } else if (refStep === 'position') {
                     session.data.temp_ref.position = text;
+                    session.data.ref_step = 'company';
+                    await sendMarkdown(ctx, "Company name? 🏢");
+                    return;
+                } else if (refStep === 'company') {
+                    session.data.temp_ref.company = text;
                     session.data.ref_step = 'contact';
                     await sendMarkdown(ctx, "Their contact? (phone or email) 📞\n*Example:* +265 991 234 567 or jane@example.com");
                     return;
@@ -2115,11 +3582,13 @@ class SmartDraftProcessor {
                     cvData.referees.push(session.data.temp_ref);
                     session.data.temp_ref = null;
                     session.data.ref_step = null;
-                    if (cvData.referees.length < 2) {
-                        await sendMarkdown(ctx, `✓ Referee added. Need ${2 - cvData.referees.length} more.\n\nNext referee - Full name? 👥`);
+                    
+                    const needed = 2 - cvData.referees.length;
+                    if (needed > 0) {
+                        await sendMarkdown(ctx, `✓ Referee added. Need ${needed} more.\n\nNext referee - Full name? 👥`);
                         return;
                     } else {
-                        await sendMarkdown(ctx, `✓ ${cvData.referees.length} referees added. Another?`, {
+                        await sendMarkdown(ctx, `✓ ${cvData.referees.length} referees added. Another referee?`, {
                             reply_markup: { inline_keyboard: [[{ text: "✅ Yes", callback_data: "more_ref_yes" }, { text: "❌ No", callback_data: "more_ref_no" }]] }
                         });
                         return;
@@ -2128,6 +3597,7 @@ class SmartDraftProcessor {
                 break;
         }
         
+        // Move to next missing section
         session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
         await this.collectNextMissingSection(ctx, client, session);
         await db.updateSession(session.id, 'collecting_missing', 'missing', session.data);
@@ -2135,35 +3605,410 @@ class SmartDraftProcessor {
 }
 
 const smartDraft = new SmartDraftProcessor();
-// ============ CV VERSIONING SYSTEM ============
+
+// ============ CV VERSIONING SYSTEM (UPDATED - 18+ CATEGORIES) ============
 class CVVersioning {
-    async saveVersion(orderId, cvData, versionNumber, changes) {
-        await db.saveCVVersion(orderId, versionNumber, cvData, changes);
+    
+    // Save a new version with full 18+ category support
+    async saveVersion(orderId, cvData, versionNumber, changes, metadata = {}) {
+        // Ensure cvData has all 18+ categories structure
+        const completeCVData = this.ensureCompleteCVData(cvData);
+        
+        // Add version metadata
+        const versionData = {
+            ...completeCVData,
+            _metadata: {
+                version: versionNumber,
+                created_at: new Date().toISOString(),
+                changes: changes,
+                ...metadata
+            }
+        };
+        
+        await db.saveCVVersion(orderId, versionNumber, versionData, changes);
+        
+        // Log version creation
+        console.log(`📁 Version ${versionNumber} saved for order ${orderId} - Changes: ${changes}`);
+        return true;
     }
+    
+    // Ensure CV data has all 18+ categories
+    ensureCompleteCVData(cvData) {
+        return {
+            // Personal Information (14 fields)
+            personal: {
+                full_name: cvData.personal?.full_name || '',
+                email: cvData.personal?.email || '',
+                primary_phone: cvData.personal?.primary_phone || '',
+                alternative_phone: cvData.personal?.alternative_phone || '',
+                whatsapp_phone: cvData.personal?.whatsapp_phone || '',
+                location: cvData.personal?.location || '',
+                physical_address: cvData.personal?.physical_address || '',
+                nationality: cvData.personal?.nationality || '',
+                linkedin: cvData.personal?.linkedin || '',
+                github: cvData.personal?.github || '',
+                portfolio: cvData.personal?.portfolio || '',
+                professional_title: cvData.personal?.professional_title || '',
+                date_of_birth: cvData.personal?.date_of_birth || '',
+                special_documents: cvData.personal?.special_documents || []
+            },
+            
+            // Professional Summary
+            professional_summary: cvData.professional_summary || '',
+            
+            // Work Experience (with full details)
+            employment: (cvData.employment || []).map(job => ({
+                title: job.title || '',
+                company: job.company || '',
+                location: job.location || '',
+                start_date: job.start_date || '',
+                end_date: job.end_date || '',
+                duration: job.duration || '',
+                responsibilities: job.responsibilities || [],
+                achievements: job.achievements || [],
+                technologies_used: job.technologies_used || [],
+                team_size: job.team_size || null,
+                reporting_to: job.reporting_to || null
+            })),
+            
+            // Education (with full details)
+            education: (cvData.education || []).map(edu => ({
+                level: edu.level || '',
+                field: edu.field || '',
+                institution: edu.institution || '',
+                location: edu.location || '',
+                start_date: edu.start_date || '',
+                graduation_date: edu.graduation_date || '',
+                gpa: edu.gpa || '',
+                achievements: edu.achievements || [],
+                courses: edu.courses || []
+            })),
+            
+            // Skills (categorized)
+            skills: {
+                technical: cvData.skills?.technical || [],
+                soft: cvData.skills?.soft || [],
+                tools: cvData.skills?.tools || [],
+                certifications: cvData.skills?.certifications || []
+            },
+            
+            // Certifications (with full details)
+            certifications: (cvData.certifications || []).map(cert => ({
+                name: cert.name || '',
+                issuer: cert.issuer || '',
+                date: cert.date || '',
+                expiry_date: cert.expiry_date || '',
+                credential_id: cert.credential_id || '',
+                url: cert.url || ''
+            })),
+            
+            // Languages
+            languages: (cvData.languages || []).map(lang => ({
+                name: lang.name || '',
+                proficiency: lang.proficiency || '',
+                certification: lang.certification || ''
+            })),
+            
+            // Projects (with full details)
+            projects: (cvData.projects || []).map(proj => ({
+                name: proj.name || '',
+                description: proj.description || '',
+                technologies: proj.technologies || '',
+                role: proj.role || '',
+                team_size: proj.team_size || '',
+                duration: proj.duration || '',
+                link: proj.link || '',
+                outcome: proj.outcome || ''
+            })),
+            
+            // Achievements
+            achievements: (cvData.achievements || []).map(ach => ({
+                title: typeof ach === 'string' ? ach : ach.title,
+                description: ach.description || '',
+                date: ach.date || '',
+                issuer: ach.issuer || ''
+            })),
+            
+            // Volunteer Experience
+            volunteer: (cvData.volunteer || []).map(vol => ({
+                role: vol.role || '',
+                organization: vol.organization || '',
+                duration: vol.duration || '',
+                responsibilities: vol.responsibilities || []
+            })),
+            
+            // Leadership Roles
+            leadership: (cvData.leadership || []).map(lead => ({
+                role: lead.role || '',
+                organization: lead.organization || '',
+                duration: lead.duration || '',
+                impact: lead.impact || ''
+            })),
+            
+            // Awards
+            awards: (cvData.awards || []).map(award => ({
+                name: award.name || '',
+                issuer: award.issuer || '',
+                date: award.date || '',
+                description: award.description || ''
+            })),
+            
+            // Publications
+            publications: (cvData.publications || []).map(pub => ({
+                title: pub.title || '',
+                publisher: pub.publisher || '',
+                date: pub.date || '',
+                url: pub.url || '',
+                authors: pub.authors || ''
+            })),
+            
+            // Conferences
+            conferences: (cvData.conferences || []).map(conf => ({
+                name: conf.name || '',
+                role: conf.role || '',
+                date: conf.date || '',
+                location: conf.location || ''
+            })),
+            
+            // Referees
+            referees: (cvData.referees || []).map(ref => ({
+                name: ref.name || '',
+                position: ref.position || '',
+                company: ref.company || '',
+                email: ref.email || '',
+                phone: ref.phone || '',
+                relationship: ref.relationship || ''
+            })),
+            
+            // Interests
+            interests: cvData.interests || [],
+            
+            // Social Media
+            social_media: {
+                linkedin: cvData.social_media?.linkedin || '',
+                github: cvData.social_media?.github || '',
+                twitter: cvData.social_media?.twitter || '',
+                facebook: cvData.social_media?.facebook || '',
+                instagram: cvData.social_media?.instagram || '',
+                portfolio: cvData.social_media?.portfolio || ''
+            },
+            
+            // Portfolio Links
+            portfolio: cvData.portfolio || []
+        };
+    }
+    
+    // Get all versions with formatted data
     async getVersions(orderId) {
-        return await db.getCVVersions(orderId);
+        const versions = await db.getCVVersions(orderId);
+        
+        // Format each version with metadata
+        return versions.map(v => ({
+            ...v,
+            version_number: v.version_number,
+            created_at: v.created_at,
+            changes: v.changes,
+            is_current: v.is_current === 1,
+            summary: this.getVersionSummary(v.cv_data)
+        }));
     }
-    async revertToVersion(orderId, versionNumber) {
+    
+    // Get version summary (stats of 18+ categories)
+    getVersionSummary(cvData) {
+        if (!cvData) return null;
+        
+        return {
+            personal_complete: !!(cvData.personal?.full_name && cvData.personal?.email),
+            employment_count: cvData.employment?.length || 0,
+            education_count: cvData.education?.length || 0,
+            skills_count: (cvData.skills?.technical?.length || 0) + 
+                         (cvData.skills?.soft?.length || 0) + 
+                         (cvData.skills?.tools?.length || 0),
+            certifications_count: cvData.certifications?.length || 0,
+            languages_count: cvData.languages?.length || 0,
+            projects_count: cvData.projects?.length || 0,
+            achievements_count: cvData.achievements?.length || 0,
+            volunteer_count: cvData.volunteer?.length || 0,
+            leadership_count: cvData.leadership?.length || 0,
+            awards_count: cvData.awards?.length || 0,
+            publications_count: cvData.publications?.length || 0,
+            conferences_count: cvData.conferences?.length || 0,
+            referees_count: cvData.referees?.length || 0,
+            interests_count: cvData.interests?.length || 0
+        };
+    }
+    
+    // Get single version by number
+    async getVersion(orderId, versionNumber) {
         const version = await db.getCVVersion(orderId, versionNumber);
         if (version) {
-            await db.updateOrderCVData(orderId, version.cv_data);
-            return version.cv_data;
+            version.cv_data = this.ensureCompleteCVData(version.cv_data);
+        }
+        return version;
+    }
+    
+    // Revert to a specific version
+    async revertToVersion(orderId, versionNumber) {
+        const version = await this.getVersion(orderId, versionNumber);
+        if (version && version.cv_data) {
+            const completeData = this.ensureCompleteCVData(version.cv_data);
+            await db.updateOrderCVData(orderId, completeData);
+            
+            // Save as new version
+            const nextVersion = versionNumber + 1;
+            await this.saveVersion(orderId, completeData, nextVersion, `Reverted to version ${versionNumber}`);
+            
+            return completeData;
         }
         return null;
     }
-    formatVersionHistory(versions) {
-        if (!versions || versions.length === 0) return "No version history available.";
-        let message = "📁 *YOUR CV HISTORY*\n\n";
-        for (const v of versions) {
-            const currentMarker = v.is_current ? " (Current)" : "";
-            message += `v${v.version_number}${currentMarker} - ${new Date(v.created_at).toLocaleDateString()} - ${v.changes || 'Update'}\n`;
+    
+    // Compare two versions and show differences
+    async compareVersions(orderId, version1, version2) {
+        const v1 = await this.getVersion(orderId, version1);
+        const v2 = await this.getVersion(orderId, version2);
+        
+        if (!v1 || !v2) return null;
+        
+        const differences = [];
+        
+        // Compare employment
+        if (v1.cv_data.employment?.length !== v2.cv_data.employment?.length) {
+            differences.push(`Employment entries: ${v1.cv_data.employment?.length} → ${v2.cv_data.employment?.length}`);
         }
-        message += `\nWould you like to revert to a previous version? Type /revert VERSION_NUMBER`;
+        
+        // Compare skills
+        const v1Skills = (v1.cv_data.skills?.technical?.length || 0) + (v1.cv_data.skills?.soft?.length || 0);
+        const v2Skills = (v2.cv_data.skills?.technical?.length || 0) + (v2.cv_data.skills?.soft?.length || 0);
+        if (v1Skills !== v2Skills) {
+            differences.push(`Skills count: ${v1Skills} → ${v2Skills}`);
+        }
+        
+        // Compare projects
+        if (v1.cv_data.projects?.length !== v2.cv_data.projects?.length) {
+            differences.push(`Projects: ${v1.cv_data.projects?.length} → ${v2.cv_data.projects?.length}`);
+        }
+        
+        return differences;
+    }
+    
+    // Format version history with rich display
+    formatVersionHistory(versions, currentVersion = null) {
+        if (!versions || versions.length === 0) {
+            return "📭 *No version history available.*\n\nYour CV versions will appear here as you make updates.";
+        }
+        
+        let message = "📁 *YOUR CV VERSION HISTORY*\n\n";
+        message += "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+        
+        for (const v of versions) {
+            const currentMarker = v.is_current ? " ✅ CURRENT" : "";
+            const date = new Date(v.created_at).toLocaleDateString();
+            const time = new Date(v.created_at).toLocaleTimeString();
+            
+            message += `🔹 *Version ${v.version_number}*${currentMarker}\n`;
+            message += `   📅 ${date} at ${time}\n`;
+            message += `   📝 ${v.changes || 'Update'}\n`;
+            
+            // Show summary stats
+            const summary = this.getVersionSummary(v.cv_data);
+            if (summary) {
+                message += `   📊 ${summary.employment_count} jobs · ${summary.education_count} edu · ${summary.skills_count} skills\n`;
+            }
+            message += `\n`;
+        }
+        
+        message += "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+        message += `💡 *Commands:*\n`;
+        message += `• /version DETAILS - View full version details\n`;
+        message += `• /compare V1 V2 - Compare two versions\n`;
+        message += `• /revert VERSION_NUMBER - Restore a previous version\n`;
+        
+        return message;
+    }
+    
+    // Format single version details
+    formatVersionDetails(version) {
+        if (!version) return "❌ Version not found.";
+        
+        const cv = version.cv_data;
+        const summary = this.getVersionSummary(cv);
+        
+        let message = `📄 *VERSION ${version.version_number} DETAILS*\n\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `📅 Created: ${new Date(version.created_at).toLocaleString()}\n`;
+        message += `📝 Changes: ${version.changes || 'Initial version'}\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        
+        // Personal Info
+        const personal = cv.personal || {};
+        message += `👤 *Personal Information*\n`;
+        message += `• Name: ${personal.full_name || 'Not set'}\n`;
+        message += `• Email: ${personal.email || 'Not set'}\n`;
+        message += `• Phone: ${personal.primary_phone || 'Not set'}\n`;
+        message += `• Location: ${personal.location || 'Not set'}\n`;
+        if (personal.linkedin) message += `• LinkedIn: ${personal.linkedin}\n`;
+        if (personal.github) message += `• GitHub: ${personal.github}\n`;
+        message += `\n`;
+        
+        // Professional Summary
+        if (cv.professional_summary) {
+            message += `📝 *Professional Summary*\n${cv.professional_summary}\n\n`;
+        }
+        
+        // Work Experience
+        message += `💼 *Work Experience* (${summary.employment_count})\n`;
+        for (const job of (cv.employment || []).slice(0, 3)) {
+            message += `• ${job.title} at ${job.company}\n`;
+            if (job.duration) message += `  📅 ${job.duration}\n`;
+            if (job.achievements?.length) {
+                message += `  ✓ ${job.achievements[0].substring(0, 60)}${job.achievements[0].length > 60 ? '...' : ''}\n`;
+            }
+        }
+        if (summary.employment_count > 3) message += `  + ${summary.employment_count - 3} more\n`;
+        message += `\n`;
+        
+        // Education
+        message += `🎓 *Education* (${summary.education_count})\n`;
+        for (const edu of (cv.education || []).slice(0, 2)) {
+            message += `• ${edu.level} in ${edu.field}\n`;
+            if (edu.institution) message += `  🏛️ ${edu.institution}\n`;
+        }
+        message += `\n`;
+        
+        // Skills
+        message += `⚡ *Skills* (${summary.skills_count})\n`;
+        if (cv.skills?.technical?.length) {
+            message += `• Technical: ${cv.skills.technical.slice(0, 8).join(', ')}${cv.skills.technical.length > 8 ? '...' : ''}\n`;
+        }
+        if (cv.skills?.soft?.length) {
+            message += `• Soft: ${cv.skills.soft.slice(0, 5).join(', ')}${cv.skills.soft.length > 5 ? '...' : ''}\n`;
+        }
+        message += `\n`;
+        
+        // Other sections summary
+        const otherSections = [];
+        if (summary.certifications_count) otherSections.push(`📜 ${summary.certifications_count} certifications`);
+        if (summary.languages_count) otherSections.push(`🌍 ${summary.languages_count} languages`);
+        if (summary.projects_count) otherSections.push(`📁 ${summary.projects_count} projects`);
+        if (summary.achievements_count) otherSections.push(`🏆 ${summary.achievements_count} achievements`);
+        if (summary.volunteer_count) otherSections.push(`🤝 ${summary.volunteer_count} volunteer`);
+        if (summary.leadership_count) otherSections.push(`👔 ${summary.leadership_count} leadership`);
+        if (summary.referees_count) otherSections.push(`👥 ${summary.referees_count} referees`);
+        
+        if (otherSections.length > 0) {
+            message += `📊 *Additional Sections*\n`;
+            message += `• ${otherSections.join(' · ')}\n\n`;
+        }
+        
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `To restore this version, type: /revert ${version.version_number}`;
+        
         return message;
     }
 }
-
 const cvVersioning = new CVVersioning();
+
 // ============ HANDLE BUILD METHOD ============
 async function handleBuildMethod(ctx, client, session, data) {
     if (data === 'build_draft') {
@@ -2172,50 +4017,319 @@ async function handleBuildMethod(ctx, client, session, data) {
 
 Send me your existing CV or cover letter (PDF, DOCX, or image).
 
-I'll extract all the information and only ask for what's missing!
+✨ *What I'll extract using AI:*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Personal Information (name, email, phone, location, LinkedIn, GitHub)
+💼 Work Experience (titles, companies, dates, responsibilities, achievements)
+🎓 Education (degrees, fields, institutions, graduation years)
+⚡ Skills (technical, soft, tools - automatically categorized)
+📜 Certifications (names, issuers, dates)
+🌍 Languages (names, proficiency levels)
+📁 Projects (names, descriptions, technologies, roles)
+🏆 Achievements
+🤝 Volunteer Experience
+👔 Leadership Roles
+🏅 Awards
+📖 Publications
+🎤 Conferences
+👥 Referees
+💡 Interests
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 *Supported formats:* PDF, DOCX, JPG, PNG
 
-Type /skip to continue with manual entry.`);
+I'll extract everything and only ask for what's missing!
+
+Click below for manual entry if you prefer.`, {
+            reply_markup: { inline_keyboard: [
+                [{ text: "📎 Upload Draft", callback_data: "upload_draft_confirm" }],
+                [{ text: "✍️ Enter Manually", callback_data: "build_manual" }]
+            ] }
+        });
         session.data.awaiting_draft_upload = true;
         await db.updateSession(session.id, 'awaiting_draft_upload', 'draft', session.data);
+        
     } else if (data === 'build_manual') {
         session.data.build_method = 'manual';
         const basePrice = getBasePrice(session.data.category, session.data.service);
         session.data.base_price = basePrice;
-        await sendMarkdown(ctx, `Base price: ${formatPrice(basePrice)}\n\nDelivery speed?`, {
+        
+        // Show what the user will need to provide
+        await sendMarkdown(ctx, `✍️ *Manual Entry Selected*
+
+Base price: ${formatPrice(basePrice)}
+
+*What you'll provide:*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1️⃣ Personal Information (name, contact, location)
+2️⃣ Work Experience (jobs, responsibilities, achievements)
+3️⃣ Education (qualifications, institutions)
+4️⃣ Skills (technical, soft, tools)
+5️⃣ Certifications (optional)
+6️⃣ Languages (optional)
+7️⃣ Projects (optional)
+8️⃣ Achievements (optional)
+9️⃣ Referees (minimum 2)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*Select delivery speed:*`, {
             reply_markup: { inline_keyboard: [
-                [{ text: "🚚 Standard (6h)", callback_data: "delivery_standard" }],
-                [{ text: "⚡ Express (2h) +3k", callback_data: "delivery_express" }],
-                [{ text: "🏃 Rush (1h) +5k", callback_data: "delivery_rush" }]
+                [{ text: "🚚 Standard (6 hours)", callback_data: "delivery_standard" }],
+                [{ text: "⚡ Express (2 hours) +MK3,000", callback_data: "delivery_express" }],
+                [{ text: "🏃 Rush (1 hour) +MK5,000", callback_data: "delivery_rush" }]
             ] }
         });
         await db.updateSession(session.id, 'selecting_delivery', null, session.data);
     }
 }
 
-// ============ DELIVERY SELECTION ============
+// ============ DELIVERY SELECTION (UPDATED) ============
 async function handleDeliverySelection(ctx, client, session, data) {
-    const delivery = { delivery_standard: 'standard', delivery_express: 'express', delivery_rush: 'rush' }[data];
+    const delivery = { 
+        delivery_standard: 'standard', 
+        delivery_express: 'express', 
+        delivery_rush: 'rush' 
+    }[data];
+    
     session.data.delivery_option = delivery;
     session.data.delivery_time = DELIVERY_TIMES[delivery];
     const totalAmount = calculateTotal(session.data.category, session.data.service, delivery);
     session.data.total_charge = formatPrice(totalAmount);
     
+    // Show delivery confirmation
+    await sendMarkdown(ctx, `✅ *Delivery Selected: ${DELIVERY_TIMES[delivery]}*
+
+💰 Total Amount: *${session.data.total_charge}*
+   (Base: ${formatPrice(getBasePrice(session.data.category, session.data.service))} + Delivery: ${DELIVERY_PRICES[delivery] > 0 ? `+MK${DELIVERY_PRICES[delivery]}` : 'Free'})
+
+Now, let's collect your information to create your professional document.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 *What's Next*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+I'll guide you through collecting:
+• Personal Information
+• Work Experience
+• Education
+• Skills
+• And more...
+
+Let's begin! 🚀`);
+    
     if (session.data.build_method === 'manual') {
         await portfolioCollector.askForPortfolio(ctx);
         await db.updateSession(session.id, 'collecting_portfolio', 'portfolio', session.data);
+        
     } else if (session.data.build_method === 'draft_completed') {
         if (session.data.cv_data && Object.keys(session.data.cv_data).length > 0) {
-            await smartDraft.collectNextMissingSection(ctx, client, session);
+            // Check if we have extracted data from draft
+            const cvData = session.data.cv_data;
+            const hasExtractedData = cvData.personal?.full_name || 
+                                     cvData.employment?.length || 
+                                     cvData.education?.length;
+            
+            if (hasExtractedData) {
+                await sendMarkdown(ctx, `📄 *Draft data loaded!*
+
+I've already extracted information from your draft. Let me check what's missing and we'll fill in the gaps.`);
+                await smartDraft.collectNextMissingSection(ctx, client, session);
+            } else {
+                await portfolioCollector.askForPortfolio(ctx);
+                await db.updateSession(session.id, 'collecting_portfolio', 'portfolio', session.data);
+            }
         } else {
             await portfolioCollector.askForPortfolio(ctx);
             await db.updateSession(session.id, 'collecting_portfolio', 'portfolio', session.data);
         }
+        
     } else {
         await portfolioCollector.askForPortfolio(ctx);
         await db.updateSession(session.id, 'collecting_portfolio', 'portfolio', session.data);
     }
+}
+
+// ============ UPLOAD DRAFT CONFIRMATION ============
+async function handleUploadDraftConfirm(ctx, client, session) {
+    await sendMarkdown(ctx, `📎 *Ready to Upload*
+
+Please send me your CV or cover letter file.
+
+*Supported formats:*
+📄 PDF, DOCX, DOC, TXT
+🖼️ JPG, PNG, GIF, BMP, WEBP
+
+*Maximum file size:* 20MB
+
+*What happens next:*
+1️⃣ I'll send your file to DeepSeek AI for extraction
+2️⃣ All 18+ categories will be analyzed
+3️⃣ You'll see a summary of what was found
+4️⃣ I'll ask for any missing information
+
+Send your file now... 📎`);
+    
+    session.data.awaiting_draft_upload = true;
+    await db.updateSession(session.id, 'awaiting_draft_upload', 'draft', session.data);
+}
+
+// ============ PORTFOLIO COLLECTOR (UPDATED) ============
+class PortfolioCollector {
+    async askForPortfolio(ctx) {
+        await sendMarkdown(ctx, `📎 *Portfolio & Social Media (Optional)*
+
+Would you like to include links to your work and professional profiles?
+
+*What you can add:*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔗 LinkedIn profile
+💻 GitHub repositories
+🐦 Twitter/X profile
+📘 Facebook profile
+📷 Instagram (professional)
+🎨 Behance/Dribbble (creatives)
+🌐 Personal website/portfolio
+📁 Case studies or project links
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*Why this matters:* Employers love seeing real work examples and professional presence!
+
+*How to get your links:*
+• LinkedIn: Click your profile → Copy URL
+• GitHub: Your profile URL (github.com/username)
+• Twitter: twitter.com/username
+
+Type your links (one per line) or click SKIP.
+
+*Examples:* 
+https://linkedin.com/in/username
+https://github.com/username
+https://yourportfolio.com
+
+👇 Click below to skip this section:`, {
+            reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip Portfolio", callback_data: "portfolio_skip" }]] }
+        });
+    }
+    
+    parsePortfolioLinks(text) {
+        if (!text || text.toLowerCase() === 'skip') return [];
+        const links = [];
+        const lines = text.split('\n');
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed && (trimmed.startsWith('http://') || trimmed.startsWith('https://'))) {
+                links.push(trimmed);
+            }
+        }
+        return links;
+    }
+    
+    categorizeSocialLinks(links) {
+        const social = {
+            linkedin: null,
+            github: null,
+            twitter: null,
+            facebook: null,
+            instagram: null,
+            portfolio: null,
+            other: []
+        };
+        
+        for (const link of links) {
+            if (link.includes('linkedin.com')) social.linkedin = link;
+            else if (link.includes('github.com')) social.github = link;
+            else if (link.includes('twitter.com') || link.includes('x.com')) social.twitter = link;
+            else if (link.includes('facebook.com')) social.facebook = link;
+            else if (link.includes('instagram.com')) social.instagram = link;
+            else if (link.includes('behance.net') || link.includes('dribbble.com') || link.includes('medium.com')) social.portfolio = link;
+            else social.other.push(link);
+        }
+        
+        return social;
+    }
+    
+    async processPortfolioLinks(ctx, session, text) {
+        let portfolioLinks = [];
+        let socialMedia = { linkedin: null, github: null, twitter: null, facebook: null, instagram: null, portfolio: null };
+        
+        if (text !== 'skip' && text?.toLowerCase() !== 'skip') {
+            const lines = text.split('\n');
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed && (trimmed.startsWith('http://') || trimmed.startsWith('https://'))) {
+                    portfolioLinks.push(trimmed);
+                    
+                    // Categorize social links
+                    if (trimmed.includes('linkedin.com')) socialMedia.linkedin = trimmed;
+                    else if (trimmed.includes('github.com')) socialMedia.github = trimmed;
+                    else if (trimmed.includes('twitter.com') || trimmed.includes('x.com')) socialMedia.twitter = trimmed;
+                    else if (trimmed.includes('facebook.com')) socialMedia.facebook = trimmed;
+                    else if (trimmed.includes('instagram.com')) socialMedia.instagram = trimmed;
+                    else if (trimmed.includes('behance.net') || trimmed.includes('dribbble.com') || trimmed.includes('medium.com')) socialMedia.portfolio = trimmed;
+                }
+            }
+        }
+        
+        session.data.portfolio_links = portfolioLinks;
+        
+        // Store categorized social media in cv_data
+        const cvData = ensureCVData(session);
+        cvData.social_media = socialMedia;
+        cvData.portfolio = portfolioLinks;
+        
+        return { portfolioLinks, socialMedia };
+    }
+}
+
+async function handlePortfolioCollection(ctx, client, session, text) {
+    try {
+        const { portfolioLinks, socialMedia } = await portfolioCollector.parsePortfolioLinks(ctx, session, text);
+        
+        let responseMessage = `${getReaction()} `;
+        if (portfolioLinks.length > 0) {
+            responseMessage += `${portfolioLinks.length} link(s) saved!\n\n`;
+            if (socialMedia.linkedin) responseMessage += `🔗 LinkedIn: ${socialMedia.linkedin}\n`;
+            if (socialMedia.github) responseMessage += `💻 GitHub: ${socialMedia.github}\n`;
+            if (socialMedia.portfolio) responseMessage += `🌐 Portfolio: ${socialMedia.portfolio}\n`;
+            responseMessage += `\n`;
+        } else {
+            responseMessage += `No portfolio added.\n\n`;
+        }
+        
+        responseMessage += `Now let's build your CV! \n\n${getQuestion('name')}`;
+        
+        await sendMarkdown(ctx, responseMessage);
+        await startDataCollection(ctx, client, session);
+        
+    } catch (error) {
+        console.error('Portfolio error:', error);
+        session.data.portfolio_links = [];
+        await sendMarkdown(ctx, `Let's continue with your details.\n\n${getQuestion('name')}`);
+        await startDataCollection(ctx, client, session);
+    }
+}
+
+async function startDataCollection(ctx, client, session) {
+    const cvData = ensureCVData(session);
+    if (!session.data.portfolio_links || !Array.isArray(session.data.portfolio_links)) session.data.portfolio_links = [];
+    cvData.portfolio = session.data.portfolio_links;
+    
+    // Initialize all 18+ category arrays
+    if (!cvData.projects) cvData.projects = [];
+    if (!cvData.achievements) cvData.achievements = [];
+    if (!cvData.volunteer) cvData.volunteer = [];
+    if (!cvData.leadership) cvData.leadership = [];
+    if (!cvData.awards) cvData.awards = [];
+    if (!cvData.publications) cvData.publications = [];
+    if (!cvData.conferences) cvData.conferences = [];
+    if (!cvData.interests) cvData.interests = [];
+    if (!cvData.social_media) cvData.social_media = {};
+    
+    session.current_section = 'personal';
+    session.data.collection_step = 'name';
+    session.data.special_docs_list = [];
+    
+    await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
 }
 
 // ============ MAIN MENU HANDLER ============
@@ -2233,13 +4347,13 @@ async function handleMainMenu(ctx, client, session, text) {
         if (text === '📎 Upload Draft') {
             if (!session.data.category) {
                 await sendMarkdown(ctx, `Please select your category first:`, {
-                    reply_markup: { inline_keyboard: [
-                        [{ text: "🎓 Student", callback_data: "cat_student" }],
-                        [{ text: "📜 Recent Graduate", callback_data: "cat_recent" }],
-                        [{ text: "💼 Professional", callback_data: "cat_professional" }],
-                        [{ text: "🌱 Non-Working", callback_data: "cat_nonworking" }],
-                        [{ text: "🔄 Returning Client", callback_data: "cat_returning" }]
-                    ] }
+                     reply_markup: { inline_keyboard: [
+                    [{ text: "🎓 Student - Still studying", callback_data: "cat_student" }],
+                    [{ text: "📜 Recent Graduate < a year", callback_data: "cat_recent" }],
+                    [{ text: "💼 Professional - currently working", callback_data: "cat_professional" }],
+                    [{ text: "🌱 Non-Working - Career break", callback_data: "cat_nonworking" }],
+                    [{ text: "🔄 Returning Client - Used us before", callback_data: "cat_returning" }]
+                ] }
                 });
                 return;
             }
@@ -2288,14 +4402,31 @@ WhatsApp: +265 881 193 707`);
     }
 }
 
-// ============ HANDLE VACANCY TEXT ============
+// ============ HANDLE VACANCY TEXT (UPDATED) ============
 async function handleVacancyText(ctx, client, session, text) {
     ensureCoverLetterData(session);
     try {
         const vacancyData = aiAnalyzer.extractVacancyDetails(text);
         session.data.vacancy_data = vacancyData;
         session.data.awaiting_vacancy = false;
-        await sendMarkdown(ctx, `Found: ${vacancyData.position} at ${vacancyData.company}\n\nPosition applying for? (or 'SAME')`);
+        
+        // Show extracted vacancy details
+        let extractedMessage = `📊 *Vacancy Details Extracted*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 *Position:* ${vacancyData.position || 'Not detected'}
+🏢 *Company:* ${vacancyData.company || 'Not detected'}
+📍 *Location:* ${vacancyData.location || 'Not detected'}
+⏰ *Deadline:* ${vacancyData.deadline || 'Not specified'}
+📋 *Job Type:* ${vacancyData.job_type || 'Not specified'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+*Requirements:*
+${(vacancyData.requirements || []).slice(0, 3).map(r => `• ${r}`).join('\n') || '• Not specified'}
+
+*Position applying for?* (or type 'SAME')`;
+
+        await sendMarkdown(ctx, extractedMessage);
         await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
     } catch (error) {
         console.error('Vacancy extraction error:', error);
@@ -2305,9 +4436,9 @@ async function handleVacancyText(ctx, client, session, text) {
     }
 }
 
-// ============ PROCESS VACANCY FILE ============
+// ============ PROCESS VACANCY FILE (UPDATED) ============
 async function processVacancyFile(ctx, client, session, fileUrl, fileName) {
-    await sendMarkdown(ctx, `📄 Processing your vacancy details...`);
+    await sendMarkdown(ctx, `📄 Processing your vacancy details with AI...`);
     
     const vacancyData = await aiAnalyzer.extractVacancyFromFile(fileUrl, fileName);
     session.data.vacancy_data = vacancyData;
@@ -2316,14 +4447,27 @@ async function processVacancyFile(ctx, client, session, fileUrl, fileName) {
     let message = `📊 *Vacancy Details Extracted*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 Position: ${vacancyData.position}
-🏢 Company: ${vacancyData.company}
-📍 Location: ${vacancyData.location}
-⏰ Deadline: ${vacancyData.deadline}
+📌 *Position:* ${vacancyData.position || 'Not detected'}
+🏢 *Company:* ${vacancyData.company || 'Not detected'}
+📍 *Location:* ${vacancyData.location || 'Not detected'}
+⏰ *Deadline:* ${vacancyData.deadline || 'Not specified'}
+💰 *Salary:* ${vacancyData.salary || 'Not specified'}
+📋 *Job Type:* ${vacancyData.job_type || 'Not specified'}
+🎓 *Experience Required:* ${vacancyData.experience_required || 'Not specified'}
+🎓 *Education Required:* ${vacancyData.education_required || 'Not specified'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 *Key Requirements:*
-${vacancyData.requirements.slice(0, 5).map(r => `• ${r}`).join('\n')}
+${(vacancyData.requirements || []).slice(0, 5).map(r => `• ${r}`).join('\n') || '• No specific requirements listed'}
+
+*Responsibilities:*
+${(vacancyData.responsibilities || []).slice(0, 3).map(r => `• ${r}`).join('\n') || '• No specific responsibilities listed'}
+
+*Benefits:*
+${(vacancyData.benefits || []).slice(0, 3).map(b => `• ${b}`).join('\n') || '• Not specified'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+*Contact:* ${vacancyData.contact_email || vacancyData.contact_phone || 'Not specified'}
 
 Do you want to add any additional information?`;
 
@@ -2338,16 +4482,38 @@ Do you want to add any additional information?`;
     await db.updateSession(session.id, 'cover_review_vacancy', 'cover', session.data);
 }
 
-// ============ HANDLE COVER CONTINUE ============
+// ============ HANDLE COVER CONTINUE (UPDATED) ============
 async function handleCoverContinue(ctx, client, session, data) {
     if (data === 'cover_add_info') {
         await askCoverLetterQuestions(ctx, client, session);
     } else {
-        await finalizeCoverLetter(ctx, client, session);
+        // Show summary before finalizing
+        const coverData = session.data.cover_data || {};
+        const vacancyData = session.data.vacancy_data || {};
+        
+        const summary = `📝 *Cover Letter Summary*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 *Your Details*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Position: ${coverData.position || vacancyData.position || 'Not specified'}
+Company: ${coverData.company || vacancyData.company || 'Not specified'}
+Experience: ${coverData.experience_highlight || 'Provided'}
+Skills: ${(coverData.skills || []).join(', ') || 'Provided'}
+Achievement: ${coverData.achievement || 'Provided'}
+Motivation: ${coverData.motivation || 'Provided'}
+Availability: ${coverData.availability || 'Not specified'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Type *CONFIRM* to proceed or *EDIT* to make changes.`;
+
+        await sendMarkdown(ctx, summary);
+        session.data.awaiting_cover_confirmation = true;
+        await db.updateSession(session.id, 'awaiting_cover_confirmation', 'cover', session.data);
     }
 }
 
-// ============ INTELLIGENT UPDATE HANDLERS ============
+// ============ INTELLIGENT UPDATE HANDLERS (UPDATED) ============
 async function handleIntelligentUpdate(ctx, client, session) {
     const orders = await db.getClientOrders(client.id);
     const latestCV = orders.find(o => o.service === 'new cv' || o.service === 'editable cv');
@@ -2364,11 +4530,31 @@ async function handleIntelligentUpdate(ctx, client, session) {
 
 I see you have an existing CV. Tell me what changes you want in plain English.
 
+*What you can update:*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Personal Information (name, email, phone, location)
+💼 Work Experience (add/remove jobs, update responsibilities)
+🎓 Education (add/remove degrees, update dates)
+⚡ Skills (add/remove skills)
+📜 Certifications
+🌍 Languages
+📁 Projects
+🏆 Achievements
+🤝 Volunteer Experience
+👔 Leadership Roles
+🏅 Awards
+📖 Publications
+🎤 Conferences
+👥 Referees
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 *Examples:*
 • "Add 5 years of experience as Project Manager at ABC Corp"
 • "Remove my high school education"
 • "Update my phone number to 0999123456"
 • "Add a certification in Digital Marketing"
+• "Add a project: E-commerce Website using React"
+• "Add volunteer experience: Community Tutor at Local School"
 • "I'm applying for a Senior Developer role at Tech Company"
 
 You can also upload vacancy details, and I'll tailor your CV accordingly.
@@ -2391,7 +4577,7 @@ async function handleUpdateRequest(ctx, client, session, text, fileUrl = null, f
                 if (extractedVacancy && extractedVacancy.has_vacancy) {
                     vacancyData = extractedVacancy;
                     userRequest = `Update my CV for ${vacancyData.position} at ${vacancyData.company}`;
-                    await sendMarkdown(ctx, `📊 *Vacancy Detected:*\n• Position: ${vacancyData.position}\n• Company: ${vacancyData.company}\nCompany: ${vacancyData.company}\n• Requirements: ${vacancyData.requirements.slice(0, 3).join(', ')}
+                    await sendMarkdown(ctx, `📊 *Vacancy Detected:*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📌 Position: ${vacancyData.position}\n🏢 Company: ${vacancyData.company}\n📋 Requirements: ${(vacancyData.requirements || []).slice(0, 3).join(', ')}
 
 I'll tailor your CV for this role.`);
                 }
@@ -2407,9 +4593,13 @@ I'll tailor your CV for this role.`);
 • "Add 3 years as Marketing Manager at XYZ Ltd"
 • "Remove my diploma in Business"
 • "Update my email to new@email.com"
-• "Add a section for Volunteer Experience"
+• "Add a project: Mobile App Development"
+• "Add a certification: AWS Certified Developer"
+• "Add volunteer: Red Cross Volunteer"
 
- type /cancel to go back.`);
+Click Cancel to go back.`, {
+                reply_markup: { inline_keyboard: [[{ text: "❌ Cancel", callback_data: "cancel_update" }]] }
+            });
             return;
         }
         
@@ -2440,15 +4630,18 @@ async function handleApproveUpdate(ctx, client, session) {
     const updatedCV = session.data.proposed_cv;
     const orderId = `UPD_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     
+    // Ensure the updated CV has all 18+ categories structure
+    const completeCV = cvVersioning.ensureCompleteCVData(updatedCV);
+    
     await db.createOrder({
         id: orderId, client_id: client.id, service: 'cv update', category: session.data.category || 'professional',
         delivery_option: 'standard', delivery_time: '6 hours',
         base_price: getBasePrice('professional', 'cv update'), delivery_fee: 0,
         total_charge: formatPrice(getBasePrice('professional', 'cv update')),
-        payment_status: 'pending', cv_data: updatedCV
+        payment_status: 'pending', cv_data: completeCV
     });
     
-    await cvVersioning.saveVersion(orderId, updatedCV, 2, 'Intelligent update');
+    await cvVersioning.saveVersion(orderId, completeCV, 2, 'Intelligent update');
     
     await sendMarkdown(ctx, `✅ *Update Applied Successfully!*
 
@@ -2457,7 +4650,9 @@ Your CV has been updated as requested.
 Order: \`${orderId}\`
 Total: ${formatPrice(getBasePrice('professional', 'cv update'))}
 
-Type /pay to complete payment and receive your updated CV.`);
+Click below to complete payment and receive your updated CV.`, {
+        reply_markup: { inline_keyboard: [[{ text: "💰 Pay Now", callback_data: "proceed_payment" }]] }
+    });
     
     session.data.awaiting_update_request = false;
     session.data.pending_update = false;
@@ -2472,30 +4667,164 @@ async function handleUpdateCollection(ctx, client, session, text) {
     await handleUpdateRequest(ctx, client, session, text);
 }
 
-// ============ SHOW CLIENT PORTAL ============
+// ============ SHOW CLIENT PORTAL (UPDATED) ============
 async function showClientPortal(ctx, client) {
     const orders = await db.getClientOrders(client.id);
-    let message = `🏠 *YOUR PORTAL*\n\n👤 ${client.first_name}\n📞 ${client.phone || 'Not set'}\n📧 ${client.email || 'Not set'}\n📍 ${client.location || 'Not set'}\n🌍 ${client.nationality || 'Not set'}\n📦 Orders: ${client.total_orders || 0}\n\n📄 *Documents:*\n`;
+    const cvOrders = orders.filter(o => o.service === 'new cv' || o.service === 'editable cv');
+    const coverOrders = orders.filter(o => o.service === 'cover letter' || o.service === 'editable cover letter');
+    const updateOrders = orders.filter(o => o.service === 'cv update');
     
-    if (orders.length > 0) {
-        message += orders.slice(0, 5).map(o => `• ${o.service} - ${new Date(o.created_at).toLocaleDateString()}`).join('\n');
-    } else {
-        message += `No documents yet.`;
+    // Get latest CV version info
+    let latestCVInfo = '';
+    if (cvOrders.length > 0) {
+        const latestCV = cvOrders[0];
+        const versions = await db.getCVVersions(latestCV.id);
+        latestCVInfo = `\n📄 *Latest CV:* v${latestCV.version || 1} - ${new Date(latestCV.created_at).toLocaleDateString()}`;
     }
     
-    message += `\n\n/start - New order\n/mydocs - All documents\n/referral - Share & earn`;
+    let message = `🏠 *YOUR PORTAL*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 *ACCOUNT INFORMATION*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Name: ${client.first_name} ${client.last_name || ''}
+• Phone: ${client.phone || '❌ Not set'}
+• Email: ${client.email || '❌ Not set'}
+• Location: ${client.location || '❌ Not set'}
+• Nationality: ${client.nationality || '❌ Not set'}
+• Member since: ${new Date(client.created_at).toLocaleDateString()}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 *YOUR STATISTICS*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Total Orders: ${orders.length}
+• CVs: ${cvOrders.length}
+• Cover Letters: ${coverOrders.length}
+• Updates: ${updateOrders.length}
+• Completed: ${orders.filter(o => o.payment_status === 'completed').length}
+${latestCVInfo}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 *RECENT DOCUMENTS*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+    if (orders.length > 0) {
+        message += orders.slice(0, 5).map(o => `\n📌 *${o.service}* - ${o.status}
+   📅 ${new Date(o.created_at).toLocaleDateString()}
+   💰 ${o.total_charge}`).join('');
+    } else {
+        message += `\nNo documents yet. Start your first order with /start`;
+    }
+    
+    message += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚙️ *QUICK ACTIONS*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• /mydocs - View all documents
+• /versions - View CV version history
+• /referral - Share & earn
+• /feedback - Rate your experience
+• /support - Contact support
+
+Need help? Type /help anytime.`;
+
     await sendMarkdown(ctx, message);
 }
 
-// ============ BOT COMMANDS ============
+// ============ BOT COMMANDS (UPDATED) ============
+
+// ============ START COMMAND ============
 bot.command('start', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const session = await getOrCreateSession(client.id);
-    await handleGreeting(ctx, client, session);
+    await startDirect(ctx, client, session);  // NO WELCOME MESSAGE
 });
-// Admin command to view all orders
+
+// ============ HEALTH CHECK COMMAND (DeepSeek API status) ============
+bot.command('health', async (ctx) => {
+    // Admin only
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await ctx.reply("⛔ Unauthorized.");
+    }
+    
+    const healthStatus = {
+        bot: 'online',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        database: 'checking',
+        deepseek: 'checking'
+    };
+    
+    // Check Database
+    try {
+        const dbCheck = await db.getClient(ctx.from.id);
+        healthStatus.database = dbCheck ? 'connected' : 'connected';
+    } catch (error) {
+        healthStatus.database = `error: ${error.message}`;
+    }
+    
+    // Check DeepSeek API
+    try {
+        const { OpenAI } = require('openai');
+        const deepseek = new OpenAI({
+            apiKey: process.env.DEEPSEEK_API_KEY,
+            baseURL: 'https://api.deepseek.com/v1'
+        });
+        const testResponse = await deepseek.chat.completions.create({
+            model: 'deepseek-chat',
+            messages: [{ role: 'user', content: 'Say "API is working!"' }],
+            max_tokens: 10
+        });
+        healthStatus.deepseek = 'working';
+        healthStatus.deepseek_response = testResponse.choices[0].message.content;
+    } catch (error) {
+        healthStatus.deepseek = `error: ${error.message}`;
+    }
+    
+    const message = `🩺 *HEALTH CHECK REPORT*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🤖 *Bot Status:* ${healthStatus.bot}
+🕐 *Uptime:* ${Math.floor(healthStatus.uptime / 60)} minutes
+📅 *Timestamp:* ${healthStatus.timestamp}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🗄️ *Database:* ${healthStatus.database}
+🧠 *DeepSeek API:* ${healthStatus.deepseek}
+${healthStatus.deepseek_response ? `📝 *Test:* ${healthStatus.deepseek_response}` : ''}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ All systems operational.`;
+
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+});
+
+// ============ SERVE INDEX.HTML (Landing Page) ============
+// This is already handled by express.static('public')
+// But add a command to get the URL
+bot.command('website', async (ctx) => {
+    const webhookUrl = process.env.WEBHOOK_URL || 'https://easysuccor-bot.onrender.com';
+    await sendMarkdown(ctx, `🌐 *EasySuccor Landing Page*
+
+Visit our professional landing page:
+${webhookUrl}
+
+*What you'll find there:*
+• Service descriptions and pricing
+• Sample CV templates
+• Client testimonials
+• FAQ section
+• Easy access to our Telegram bot
+
+Share this link with anyone who needs a professional CV!`);
+});
+
+// ============ ADMIN COMMANDS (UPDATED) ============
+
+// Admin command to view all orders with 18+ categories stats
 bot.command('admin_orders', async (ctx) => {
-    // Only allow your admin chat ID
     if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
         return await ctx.reply("⛔ Unauthorized. Admin access only.");
     }
@@ -2508,17 +4837,27 @@ bot.command('admin_orders', async (ctx) => {
     
     let message = "📋 *ALL ORDERS*\n\n";
     for (const order of orders.slice(0, 20)) {
+        const cvData = order.cv_data || {};
+        const stats = {
+            jobs: cvData.employment?.length || 0,
+            edu: cvData.education?.length || 0,
+            skills: (cvData.skills?.technical?.length || 0) + (cvData.skills?.soft?.length || 0) + (cvData.skills?.tools?.length || 0),
+            certs: cvData.certifications?.length || 0,
+            projects: cvData.projects?.length || 0
+        };
+        
         message += `🔹 *${order.id}*\n`;
         message += `   Service: ${order.service}\n`;
         message += `   Status: ${order.status}\n`;
         message += `   Payment: ${order.payment_status}\n`;
         message += `   Total: ${order.total_charge}\n`;
-        message += `   Date: ${new Date(order.created_at).toLocaleDateString()}\n\n`;
+        message += `   Date: ${new Date(order.created_at).toLocaleDateString()}\n`;
+        message += `   📊 ${stats.jobs} jobs · ${stats.edu} edu · ${stats.skills} skills · ${stats.certs} certs\n\n`;
     }
     await ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
-// Admin command to view a specific order's CV data
+// Admin command to view full CV data with 18+ categories
 bot.command('admin_view', async (ctx) => {
     if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
         return await ctx.reply("⛔ Unauthorized.");
@@ -2535,34 +4874,108 @@ bot.command('admin_view', async (ctx) => {
         return await ctx.reply(`❌ Order ${orderId} not found.`);
     }
     
-    const cvData = order.cv_data;
-    const personal = cvData?.personal || {};
+    const cvData = order.cv_data || {};
+    const personal = cvData.personal || {};
     
-    let message = `📄 *CV DATA FOR ORDER ${orderId}*\n\n`;
-    message += `👤 *Personal Info*\n`;
+    let message = `📄 *FULL CV DATA FOR ORDER ${orderId}*\n\n`;
+    
+    // Personal Information
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `👤 *PERSONAL INFORMATION*\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
     message += `• Name: ${personal.full_name || 'N/A'}\n`;
     message += `• Email: ${personal.email || 'N/A'}\n`;
     message += `• Phone: ${personal.primary_phone || 'N/A'}\n`;
     message += `• Location: ${personal.location || 'N/A'}\n`;
-    message += `• Nationality: ${personal.nationality || 'N/A'}\n`;
-    message += `• Address: ${personal.physical_address || 'N/A'}\n\n`;
+    message += `• LinkedIn: ${personal.linkedin || 'N/A'}\n`;
+    message += `• GitHub: ${personal.github || 'N/A'}\n`;
+    message += `• Professional Title: ${personal.professional_title || 'N/A'}\n\n`;
     
-    message += `💼 *Work Experience*\n`;
-    for (const job of (cvData?.employment || [])) {
-        message += `• ${job.title} at ${job.company} (${job.duration})\n`;
-        if (job.responsibilities?.length) {
-            message += `  → ${job.responsibilities.slice(0, 2).join(', ')}...\n`;
+    // Work Experience
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `💼 *WORK EXPERIENCE* (${cvData.employment?.length || 0})\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    for (const job of (cvData.employment || [])) {
+        message += `• ${job.title} at ${job.company}\n`;
+        message += `  📅 ${job.duration || 'Duration not specified'}\n`;
+        if (job.achievements?.length) {
+            message += `  🏆 ${job.achievements[0].substring(0, 60)}${job.achievements[0].length > 60 ? '...' : ''}\n`;
         }
     }
-    message += `\n🎓 *Education*\n`;
-    for (const edu of (cvData?.education || [])) {
-        message += `• ${edu.level} in ${edu.field} from ${edu.institution} (${edu.year})\n`;
+    message += `\n`;
+    
+    // Education
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `🎓 *EDUCATION* (${cvData.education?.length || 0})\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    for (const edu of (cvData.education || [])) {
+        message += `• ${edu.level} in ${edu.field}\n`;
+        message += `  🏛️ ${edu.institution}\n`;
+        message += `  📅 ${edu.graduation_date || edu.year || 'Year not specified'}\n`;
     }
+    message += `\n`;
+    
+    // Skills
+    const skills = cvData.skills || {};
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `⚡ *SKILLS*\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    if (skills.technical?.length) message += `• Technical: ${skills.technical.join(', ')}\n`;
+    if (skills.soft?.length) message += `• Soft: ${skills.soft.join(', ')}\n`;
+    if (skills.tools?.length) message += `• Tools: ${skills.tools.join(', ')}\n`;
+    message += `\n`;
+    
+    // Certifications
+    if (cvData.certifications?.length) {
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `📜 *CERTIFICATIONS* (${cvData.certifications.length})\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        for (const cert of cvData.certifications) {
+            message += `• ${cert.name}${cert.issuer ? ` (${cert.issuer})` : ''}\n`;
+        }
+        message += `\n`;
+    }
+    
+    // Languages
+    if (cvData.languages?.length) {
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `🌍 *LANGUAGES* (${cvData.languages.length})\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        for (const lang of cvData.languages) {
+            message += `• ${lang.name} (${lang.proficiency || 'Not specified'})\n`;
+        }
+        message += `\n`;
+    }
+    
+    // Projects
+    if (cvData.projects?.length) {
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `📁 *PROJECTS* (${cvData.projects.length})\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        for (const proj of cvData.projects.slice(0, 5)) {
+            message += `• ${proj.name}${proj.role ? ` (${proj.role})` : ''}\n`;
+        }
+        message += `\n`;
+    }
+    
+    // Referees
+    if (cvData.referees?.length) {
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `👥 *REFEREES* (${cvData.referees.length})\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        for (const ref of cvData.referees) {
+            message += `• ${ref.name} - ${ref.position || 'Position not specified'} at ${ref.company || 'Company not specified'}\n`;
+        }
+        message += `\n`;
+    }
+    
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `💾 *Raw JSON available in database*`;
     
     await ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
-// Admin command to list all clients
+// Admin command to list all clients with stats
 bot.command('admin_clients', async (ctx) => {
     if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
         return await ctx.reply("⛔ Unauthorized.");
@@ -2576,101 +4989,177 @@ bot.command('admin_clients', async (ctx) => {
     
     let message = "👥 *ALL CLIENTS*\n\n";
     for (const client of clients.slice(0, 20)) {
+        const orders = await db.getClientOrders(client.id);
+        const completed = orders.filter(o => o.payment_status === 'completed').length;
+        const totalSpent = orders.reduce((sum, o) => sum + (parseInt(o.total_charge?.replace('MK', '').replace(',', '') || 0), 0));
+        
         message += `🔹 ID: ${client.id} - ${client.first_name} ${client.last_name || ''}\n`;
         message += `   📞 ${client.phone || 'No phone'} | 📧 ${client.email || 'No email'}\n`;
-        message += `   📦 Orders: ${client.total_orders || 0}\n\n`;
+        message += `   📦 Orders: ${orders.length} (${completed} completed)\n`;
+        message += `   💰 Spent: MK${totalSpent.toLocaleString()}\n`;
+        message += `   📅 Joined: ${new Date(client.created_at).toLocaleDateString()}\n\n`;
     }
     await ctx.reply(message, { parse_mode: 'Markdown' });
-});
-// Admin command to enable test mode
-bot.command('testmode', async (ctx) => {
-    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
-        return await ctx.reply("⛔ Unauthorized.");
-    }
-    
-    const session = await getOrCreateSession(client.id);
-    session.data.test_mode = true;
-    await db.updateSession(session.id, session.stage, session.current_section, session.data);
-    
-    await ctx.reply(`🧪 *Test Mode ENABLED*\n\nYour next order will skip payment and deliver the CV immediately.\n\nType /testmode_off to disable.`);
 });
 
-bot.command('testmode_off', async (ctx) => {
+// Admin command to delete a client
+bot.command('admin_delete_client', async (ctx) => {
     if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
         return await ctx.reply("⛔ Unauthorized.");
     }
     
-    const session = await getOrCreateSession(client.id);
-    session.data.test_mode = false;
-    await db.updateSession(session.id, session.stage, session.current_section, session.data);
+    const args = ctx.message.text.split(' ');
+    if (args.length < 2) {
+        return await ctx.reply("Usage: /admin_delete_client CLIENT_ID\n\nGet client IDs from /admin_clients");
+    }
     
-    await ctx.reply(`✅ Test Mode DISABLED. Back to normal payment flow.`);
+    const clientId = parseInt(args[1]);
+    const client = await db.getClientById(clientId);
+    
+    if (!client) {
+        return await ctx.reply(`❌ Client ${clientId} not found.`);
+    }
+    
+    await db.deleteClientData(clientId);
+    await ctx.reply(`✅ Client ${client.first_name} ${client.last_name || ''} (ID: ${clientId}) deleted successfully.`);
 });
-bot.command('admin_stats', async (ctx) => {
+
+// Admin command to clear all data (emergency only)
+bot.command('admin_clear_all', async (ctx) => {
     if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
         return await ctx.reply("⛔ Unauthorized.");
     }
     
-    const orders = await db.getAllOrders();
-    const clients = await db.getAllClients();
-    const pendingOrders = orders.filter(o => o.payment_status === 'pending');
-    const completedOrders = orders.filter(o => o.payment_status === 'completed');
-    
-    const totalRevenue = completedOrders.reduce((sum, o) => {
-        const amount = parseInt(o.total_charge?.replace('MK', '').replace(',', '') || 0);
-        return sum + amount;
-    }, 0);
-    
-    const message = `📊 *ADMIN STATS*\n\n` +
-        `👥 Total Clients: ${clients.length}\n` +
-        `📦 Total Orders: ${orders.length}\n` +
-        `⏳ Pending: ${pendingOrders.length}\n` +
-        `✅ Completed: ${completedOrders.length}\n` +
-        `💰 Total Revenue: MK${totalRevenue.toLocaleString()}\n\n` +
-        `Commands:\n` +
-        `/admin_orders - List all orders\n` +
-        `/admin_view ORDER_ID - View CV data\n` +
-        `/admin_clients - List all clients\n` +
-        `/testmode - Enable test mode (skip payment)`;
-    
-    await ctx.reply(message, { parse_mode: 'Markdown' });
+    await ctx.reply(`⚠️ *DANGER: This will delete ALL data!*\n\nType /confirm_clear_all to confirm. This action cannot be undone.`);
 });
-bot.command('admin_export', async (ctx) => {
-    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) return;
+
+bot.command('confirm_clear_all', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await ctx.reply("⛔ Unauthorized.");
+    }
     
-    const orders = await db.getAllOrders();
-    const clients = await db.getAllClients();
-    
-    const exportData = {
-        exported_at: new Date().toISOString(),
-        total_clients: clients.length,
-        total_orders: orders.length,
-        clients: clients,
-        orders: orders.map(o => ({
-            id: o.id,
-            service: o.service,
-            status: o.status,
-            payment_status: o.payment_status,
-            total_charge: o.total_charge,
-            created_at: o.created_at,
-            cv_data: o.cv_data
-        }))
-    };
-    
-    const fs = require('fs');
-    const filePath = '/tmp/export.json';
-    fs.writeFileSync(filePath, JSON.stringify(exportData, null, 2));
-    await ctx.replyWithDocument({ source: filePath }, { caption: '📊 Database Export' });
-    fs.unlinkSync(filePath);
+    await db.clearAllData();
+    await ctx.reply(`✅ ALL DATA CLEARED successfully.`);
 });
+
+// Admin command to update prices
+bot.command('admin_price', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await ctx.reply("⛔ Unauthorized.");
+    }
+    
+    const args = ctx.message.text.split(' ');
+    if (args.length < 4) {
+        return await ctx.reply("Usage: /admin_price CATEGORY SERVICE PRICE\n\nCategories: student, recent, professional, nonworking, returning\nServices: cv, editable_cv, editable_cover, update, cover\n\nExample: /admin_price student cv 7000");
+    }
+    
+    const category = args[1];
+    const service = args[2];
+    const price = parseInt(args[3]);
+    
+    if (PRICE_CONFIG[category] && PRICE_CONFIG[category][service] !== undefined) {
+        PRICE_CONFIG[category][service] = price;
+        fs.writeFileSync('./price_config.json', JSON.stringify(PRICE_CONFIG, null, 2));
+        await ctx.reply(`✅ Price updated: ${category}.${service} = MK${price.toLocaleString()}`);
+    } else {
+        await ctx.reply(`❌ Invalid category or service. Use /admin_price for help.`);
+    }
+});
+
+// Admin command to get DeepSeek API status
+bot.command('admin_deepseek', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await ctx.reply("⛔ Unauthorized.");
+    }
+    
+    await ctx.reply(`🔍 *Checking DeepSeek API Status...*`);
+    
+    try {
+        const { OpenAI } = require('openai');
+        const deepseek = new OpenAI({
+            apiKey: process.env.DEEPSEEK_API_KEY,
+            baseURL: 'https://api.deepseek.com/v1'
+        });
+        
+        const startTime = Date.now();
+        const response = await deepseek.chat.completions.create({
+            model: 'deepseek-chat',
+            messages: [{ role: 'user', content: 'Say "API OK"' }],
+            max_tokens: 10
+        });
+        const responseTime = Date.now() - startTime;
+        
+        await ctx.reply(`✅ *DeepSeek API is WORKING*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 *Status:* Online
+⏱️ *Response Time:* ${responseTime}ms
+📝 *Test Response:* ${response.choices[0].message.content}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DeepSeek AI is ready to process CV extractions!`);
+        
+    } catch (error) {
+        await ctx.reply(`❌ *DeepSeek API ERROR*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 *Status:* Offline
+❌ *Error:* ${error.message}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Please check your DEEPSEEK_API_KEY environment variable.`);
+    }
+});
+
+// ============ USER COMMANDS (UPDATED) ============
 
 bot.command('portal', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const orders = await db.getClientOrders(client.id);
-    let message = `🏠 *YOUR PORTAL*\n\n👤 ${client.first_name}\n📞 ${client.phone || 'Not set'}\n📧 ${client.email || 'Not set'}\n📦 Orders: ${client.total_orders || 0}\n\n📄 *Documents:*\n`;
-    if (orders.length > 0) message += orders.slice(0, 5).map(o => `• ${o.service} - ${new Date(o.created_at).toLocaleDateString()}`).join('\n');
-    else message += `No documents yet.`;
-    message += `\n\n/start - New order\n/mydocs - All documents\n/referral - Share & earn`;
+    const cvOrders = orders.filter(o => o.service === 'new cv' || o.service === 'editable cv');
+    const coverOrders = orders.filter(o => o.service === 'cover letter' || o.service === 'editable cover letter');
+    
+    let message = `🏠 *YOUR PORTAL*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 *PROFILE*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Name: ${client.first_name} ${client.last_name || ''}
+• Phone: ${client.phone || '❌ Not set'}
+• Email: ${client.email || '❌ Not set'}
+• Location: ${client.location || '❌ Not set'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 *STATISTICS*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Total Orders: ${orders.length}
+• CVs: ${cvOrders.length}
+• Cover Letters: ${coverOrders.length}
+• Completed: ${orders.filter(o => o.payment_status === 'completed').length}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 *RECENT DOCUMENTS*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+    if (orders.length > 0) {
+        message += orders.slice(0, 5).map(o => `\n• ${o.service} - ${o.status}\n  📅 ${new Date(o.created_at).toLocaleDateString()}\n  💰 ${o.total_charge}`).join('');
+    } else {
+        message += `\nNo documents yet. Start with /start`;
+    }
+    
+    message += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚙️ *QUICK ACTIONS*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• /mydocs - View all documents
+• /versions - View CV history
+• /referral - Share & earn
+• /feedback - Rate your experience
+
+Need help? Type /help`;
+
     await sendMarkdown(ctx, message);
 });
 
@@ -2678,14 +5167,112 @@ bot.command('mydocs', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const orders = await db.getClientOrders(client.id);
     let msg = "📄 *YOUR DOCUMENTS*\n\n";
-    orders.forEach(o => { msg += `📌 ${o.service} - ${o.status}\n   Order: ${o.id}\n   Date: ${new Date(o.created_at).toLocaleDateString()}\n\n`; });
-    await sendMarkdown(ctx, msg || "No documents yet.");
+    if (orders.length === 0) {
+        msg += "No documents yet. Type /start to create one!";
+    } else {
+        orders.forEach(o => {
+            msg += `📌 *${o.service}* - ${o.status}\n`;
+            msg += `   🆔 Order: \`${o.id}\`\n`;
+            msg += `   📅 Date: ${new Date(o.created_at).toLocaleDateString()}\n`;
+            msg += `   💰 Amount: ${o.total_charge}\n\n`;
+        });
+    }
+    await sendMarkdown(ctx, msg);
+});
+
+bot.command('versions', async (ctx) => {
+    const client = await getOrCreateClient(ctx);
+    const orders = await db.getClientOrders(client.id);
+    const cvOrders = orders.filter(o => o.service === 'new cv' || o.service === 'editable cv');
+    
+    if (cvOrders.length === 0) {
+        await sendMarkdown(ctx, `📭 No CV versions found. Create your first CV with /start`);
+        return;
+    }
+    
+    let msg = "📁 *YOUR CV VERSIONS*\n\n";
+    for (const order of cvOrders) {
+        const versions = await db.getCVVersions(order.id);
+        const versionCount = versions.length || 1;
+        msg += `📌 *${order.service}* - ${order.status}\n`;
+        msg += `   🆔 Order: \`${order.id}\`\n`;
+        msg += `   🔄 Versions: ${versionCount}\n`;
+        msg += `   📅 Created: ${new Date(order.created_at).toLocaleDateString()}\n\n`;
+    }
+    msg += `To view a specific version, type: /view_version ORDER_ID`;
+    await sendMarkdown(ctx, msg);
+});
+
+bot.command('view_version', async (ctx) => {
+    const args = ctx.message.text.split(' ');
+    if (args.length < 2) {
+        await sendMarkdown(ctx, `Usage: /view_version ORDER_ID\n\nExample: /view_version ORD_1234567890`);
+        return;
+    }
+    
+    const orderId = args[1];
+    const order = await db.getOrder(orderId);
+    
+    if (!order) {
+        await sendMarkdown(ctx, `❌ Order not found.`);
+        return;
+    }
+    
+    const cvData = order.cv_data || {};
+    const personal = cvData.personal || {};
+    
+    let message = `📄 *CV DATA FOR ORDER ${orderId}*\n\n`;
+    message += `👤 *Personal:* ${personal.full_name || 'N/A'} | ${personal.email || 'N/A'}\n`;
+    message += `📍 *Location:* ${personal.location || 'N/A'}\n`;
+    message += `💼 *Experience:* ${cvData.employment?.length || 0} job(s)\n`;
+    message += `🎓 *Education:* ${cvData.education?.length || 0} qualification(s)\n`;
+    message += `⚡ *Skills:* ${(cvData.skills?.technical?.length || 0) + (cvData.skills?.soft?.length || 0) + (cvData.skills?.tools?.length || 0)} skill(s)\n`;
+    message += `📜 *Certifications:* ${cvData.certifications?.length || 0}\n`;
+    message += `🌍 *Languages:* ${cvData.languages?.length || 0}\n`;
+    message += `📁 *Projects:* ${cvData.projects?.length || 0}\n`;
+    message += `👥 *Referees:* ${cvData.referees?.length || 0}\n\n`;
+    message += `💾 *Full data available in your portal.`;
+    
+    await sendMarkdown(ctx, message);
 });
 
 bot.command('referral', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const refInfo = await db.getReferralInfo(client.id);
-    await sendMarkdown(ctx, `🎁 *REFERRAL PROGRAM*\n\nYour code: \`${refInfo.referral_code}\`\n\nShare: https://t.me/${ctx.botInfo.username}?start=ref_${refInfo.referral_code}\n\nReferrals: ${refInfo.total_referrals}\nPending reward: MK${refInfo.pending_reward}\n\nFriend gets 10% off, you get MK2,000 credit!`);
+    const shareLink = `https://t.me/${ctx.botInfo.username}?start=ref_${refInfo.referral_code}`;
+    
+    await sendMarkdown(ctx, `🎁 *REFERRAL PROGRAM*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 *YOUR REFERRAL LINK*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+\`${shareLink}\`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 *YOUR STATISTICS*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Total referrals: ${refInfo.total_referrals}
+• Completed: ${refInfo.completed_referrals}
+• Pending reward: MK${refInfo.pending_reward.toLocaleString()}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 *HOW IT WORKS*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Share your unique link with friends
+2️⃣ Friend gets 10% off their first order
+3️⃣ You earn MK2,000 credit when they complete an order
+4️⃣ Use your credit on your next order!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📤 *SHARE NOW*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Tap and hold the link above to copy, then share on WhatsApp, Telegram, or Facebook!
+
+Every referral brings you closer to a free CV! 🎉`);
 });
 
 bot.command('pay', async (ctx) => {
@@ -2697,15 +5284,13 @@ bot.command('pay', async (ctx) => {
         return;
     }
     
-    // Generate fresh payment reference
     const paymentReference = generatePaymentReference();
     const totalCharge = session.data.total_charge;
     
-    // Store reference in session
     session.data.payment_reference = paymentReference;
     await db.updateSession(session.id, session.stage, session.current_section, session.data);
     
-    const paymentMessage = `💳 *Complete Your Payment*
+    const paymentMessage = `💳 *COMPLETE YOUR PAYMENT*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 ORDER SUMMARY
@@ -2723,14 +5308,17 @@ Reference: \`${paymentReference}\`
    📱 Airtel: 0991295401
    📱 Mpamba: 0886928639
 
-*2️⃣ USSD*
+*2️⃣ Bank Account*
+   🏦 MO626: 1005653618
+
+*3️⃣ USSD*
    📞 Dial *211# (Airtel)
    📞 Dial *444# (Mpamba)
 
-*3️⃣ Pay Later*
+*4️⃣ Pay Later*
    ⏳ Pay within 7 days
 
-*4️⃣ Installments*
+*5️⃣ Installments*
    📅 2 parts over 7 days
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2739,11 +5327,17 @@ Reference: \`${paymentReference}\`
 
 1️⃣ Send exactly *${totalCharge}* to any account above
 2️⃣ Use reference: \`${paymentReference}\`
-3️⃣ After payment, type: \`/confirm ${paymentReference}\`
+3️⃣ After payment, click the button below:
 
 Need help? Contact +265 991 295 401`;
 
-    await sendMarkdown(ctx, paymentMessage);
+    await sendMarkdown(ctx, paymentMessage, {
+        reply_markup: {
+            inline_keyboard: [[
+                { text: "✅ I Have Made Payment", callback_data: `confirm_${paymentReference}` }
+            ]]
+        }
+    });
 });
 
 bot.command('cancel', async (ctx) => {
@@ -2785,11 +5379,11 @@ bot.command('resume', async (ctx) => {
             if (step === 'name') resumeMessage += getQuestion('name');
             else if (step === 'email') resumeMessage += getQuestion('email');
             else if (step === 'phone') resumeMessage += getQuestion('phone');
-            else if (step === 'alt_phone') resumeMessage += "Alternative phone? (or 'Skip') 📞";
-            else if (step === 'whatsapp') resumeMessage += "WhatsApp for delivery? (or 'Same') 📱";
+            else if (step === 'alt_phone') resumeMessage += "Alternative phone? (or click 'Skip') 📞";
+            else if (step === 'whatsapp') resumeMessage += "WhatsApp for delivery? (or click 'Same') 📱";
             else if (step === 'location') resumeMessage += getQuestion('location');
-            else if (step === 'physical_address') resumeMessage += "Physical address? 🏠 (or 'Skip')";
-            else if (step === 'nationality') resumeMessage += "Nationality? 🌍 (or 'Skip')";
+            else if (step === 'physical_address') resumeMessage += "Physical address? 🏠 (or click 'Skip')";
+            else if (step === 'nationality') resumeMessage += "Nationality? 🌍 (or click 'Skip')";
             else resumeMessage += getQuestion('name');
         } else if (pausedSession.stage === 'collecting_education') {
             const step = pausedSession.data.collection_step;
@@ -2803,7 +5397,7 @@ bot.command('resume', async (ctx) => {
             if (step === 'title') resumeMessage += getQuestion('jobTitle');
             else if (step === 'company') resumeMessage += "Company name? 🏢";
             else if (step === 'duration') resumeMessage += "Duration? 📅";
-            else if (step === 'responsibilities') resumeMessage += "Key responsibilities? (type DONE when finished)";
+            else if (step === 'responsibilities') resumeMessage += "Key responsibilities? (click DONE when finished)";
             else resumeMessage += getQuestion('jobTitle');
         } else if (pausedSession.stage === 'collecting_skills') {
             resumeMessage += getQuestion('skills');
@@ -2830,140 +5424,9 @@ bot.command('confirm', async (ctx) => {
         return;
     }
     const reference = args[1];
-    
-    const client = await getOrCreateClient(ctx);
-    const orders = await db.getClientOrders(client.id);
-    const lastOrder = orders[orders.length - 1];
-    const deliveryTime = lastOrder?.delivery_time || '6 hours';
-    
-    // Client message
-    await sendMarkdown(ctx, `✅ *Payment received!* Reference: ${reference}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 *What happens next?*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-• Our team has been notified of your payment
-• Your document will be delivered within *${deliveryTime}*
-• You'll receive it directly in this chat
-
-Thank you for your trust in EasySuccor! 🙏`);
-    
-    // Prepare admin message (will be sent as both email and Telegram)
-    const adminMessage = `🚨 PAYMENT CONFIRMATION RECEIVED
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 ORDER DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Reference: ${reference}
-Order ID: ${lastOrder ? lastOrder.id : 'N/A'}
-Client: ${client.first_name} ${client.last_name || ''}
-Telegram ID: ${client.telegram_id}
-Username: @${ctx.from.username || 'N/A'}
-Phone: ${client.phone || 'Not provided'}
-Email: ${client.email || 'Not provided'}
-Delivery Time: ${deliveryTime}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💳 ACTION REQUIRED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-To verify this payment and release the document:
-
-/verify ${reference}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📅 Received: ${new Date().toLocaleString()}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-EasySuccor Bot - Professional CV Service`;
-    
-    // Send alert (EMAIL FIRST + Telegram backup)
-    await notificationService.alertAdmin(`💰 Payment Confirmation: ${reference}`, adminMessage, bot);
-    
-    // Also send Telegram message with button (in addition to email)
-    const telegramMessage = `🚨 *PAYMENT CONFIRMATION RECEIVED*
-
-Reference: \`${reference}\`
-Client: ${client.first_name}
-Order: ${lastOrder ? lastOrder.id : 'N/A'}
-
-Click to verify: /verify ${reference}`;
-    
-    await ctx.telegram.sendMessage(process.env.ADMIN_CHAT_ID, telegramMessage, {
-        parse_mode: 'Markdown',
-        reply_markup: {
-            inline_keyboard: [[
-                { text: "✅ Verify Payment", callback_data: `verify_${reference}` }
-            ]]
-        }
-    });
+    await handlePaymentConfirmation(ctx, reference);
 });
 
-// Original /verify command (kept for backward compatibility, but button is preferred)
-bot.command('verify', async (ctx) => {
-    // Admin only
-    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
-        return await sendMarkdown(ctx, "⛔ Unauthorized. Admin access only.");
-    }
-    
-    const args = ctx.message.text.split(' ');
-    if (args.length < 2) {
-        return await sendMarkdown(ctx, "Usage: /verify REFERENCE_OR_ORDER_ID");
-    }
-    const ref = args[1];
-    
-    // Find order
-    let order = null;
-    const allOrders = await db.getAllOrders();
-    for (const o of allOrders) {
-        if (o.id === ref || o.payment_method === ref) {
-            order = o;
-            break;
-        }
-    }
-    
-    if (!order) {
-        return await sendMarkdown(ctx, `❌ No order found for reference/ID: ${ref}`);
-    }
-    
-    const client = await db.getClientById(order.client_id);
-    if (!client) {
-        return await sendMarkdown(ctx, `❌ Client not found for order: ${order.id}`);
-    }
-    
-    if (order.payment_status === 'completed') {
-        return await sendMarkdown(ctx, `⚠️ Payment for order ${order.id} was already verified.`);
-    }
-    
-    await db.updateOrderStatus(order.id, 'paid');
-    await db.updateOrderPaymentStatus(order.id, 'completed');
-    
-    await sendMarkdown(ctx, `✅ Payment verified for ${ref}. Processing document...`);
-    
-    try {
-        const cvResult = await documentGenerator.generateCV(order.cv_data, null, 'docx');
-        if (cvResult.success && fs.existsSync(cvResult.filePath) && client.telegram_id) {
-            await ctx.telegram.sendDocument(client.telegram_id, { source: cvResult.filePath }, {
-                caption: `📄 *Your document is ready!*
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Order ID: \`${order.id}\`
-Service: ${order.service}
-Delivery Time: ${order.delivery_time}
-
-Thank you for choosing EasySuccor! 🎉`
-            });
-            await sendMarkdown(ctx, `✅ Document sent to client (${client.first_name}).`);
-        } else {
-            await sendMarkdown(ctx, `❌ Document generation failed.`);
-        }
-    } catch (error) {
-        console.error('CV generation error:', error);
-        await sendMarkdown(ctx, `❌ Error generating CV: ${error.message}`);
-    }
-});
 bot.command('test_email', async (ctx) => {
     if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
         return await ctx.reply("Unauthorized");
@@ -3011,613 +5474,236 @@ bot.command('reset', async (ctx) => {
 });
 
 bot.help(async (ctx) => {
-    await sendMarkdown(ctx, `🆘 *Help*
+    await sendMarkdown(ctx, `🆘 *HELP CENTER*
 
-/start - Begin
-/resume - Continue paused
-/pause - Save progress
-/pay - Make payment
-/portal - Dashboard
-/mydocs - Documents
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 *COMMANDS*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/start - Begin or restart
+/resume - Continue paused session
+/pause - Save progress and pause
+/pay - Make a payment
+/confirm REF - Confirm payment
+/portal - Your dashboard
+/mydocs - Your documents
+/versions - View CV versions
 /referral - Share & earn
 /feedback - Share your experience
 /testimonials - See success stories
 /reset - Reset current session
-
-Contact: +265 991 295 401`);
-});
-// ============ FILE UPLOAD HANDLERS ============
-bot.on('document', async (ctx) => {
-    try {
-        const client = await getOrCreateClient(ctx);
-        const session = await getOrCreateSession(client.id);
-        const document = ctx.message.document;
-        const fileName = document.file_name;
-        
-        if (session.stage === 'awaiting_vacancy_upload') {
-            const fileInfo = await ctx.telegram.getFile(document.file_id);
-            const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
-            await processVacancyFile(ctx, client, session, fileUrl, fileName);
-        } 
-        else if (session.stage === 'awaiting_draft_upload' || session.data.awaiting_draft_upload) {
-            await sendMarkdown(ctx, `📄 Processing your draft...`);
-            const fileInfo = await ctx.telegram.getFile(document.file_id);
-            const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
-            const success = await smartDraft.processDraftUpload(ctx, client, session, fileUrl, fileName);
-            if (success) {
-                session.data.awaiting_draft_upload = false;
-                session.data.build_method = 'draft_completed';
-                const basePrice = getBasePrice(session.data.category, session.data.service);
-                session.data.base_price = basePrice;
-                await sendMarkdown(ctx, `✅ Draft processed! Base price: ${formatPrice(basePrice)}\n\nDelivery speed?`, {
-                    reply_markup: { inline_keyboard: [
-                        [{ text: "🚚 Standard (6h)", callback_data: "delivery_standard" }],
-                        [{ text: "⚡ Express (2h) +3k", callback_data: "delivery_express" }],
-                        [{ text: "🏃 Rush (1h) +5k", callback_data: "delivery_rush" }]
-                    ] }
-                });
-                await db.updateSession(session.id, 'selecting_delivery', null, session.data);
-            }
-        }
-        else if (session.stage === 'awaiting_update_request') {
-            const fileInfo = await ctx.telegram.getFile(document.file_id);
-            const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
-            await handleUpdateRequest(ctx, client, session, null, fileUrl, 'document');
-        }
-        // In bot.on('document'), add:
-else if (session.stage === 'awaiting_admin_upload') {
-    const fileInfo = await ctx.telegram.getFile(document.file_id);
-    const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
-    const filePath = path.join(__dirname, 'uploads', `reviewed_${session.data.order_id}.docx`);
-    
-    // Download file
-    const response = await axios({ url: fileUrl, responseType: 'stream' });
-    const writer = fs.createWriteStream(filePath);
-    response.data.pipe(writer);
-    
-    await new Promise((resolve, reject) => {
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-    });
-    
-    // Save review record
-    await db.saveDocumentReview({
-        order_id: session.data.order_id,
-        version: session.data.current_version + 1,
-        document_path: filePath,
-        status: 'admin_reviewed_uploaded',
-        review_type: 'admin_revised'
-    });
-    
-    // Update session
-    session.data.current_version++;
-    session.data.awaiting_admin_upload = false;
-    await db.updateSession(session.id, 'ready_for_client', 'review', session.data);
-    
-    // Send to client for review
-    const order = await db.getOrder(session.data.order_id);
-    const client = await db.getClientById(order.client_id);
-    const reviewCount = session.data.review_count || 0;
-    const remainingReviews = 2 - reviewCount;
-    
-    await ctx.telegram.sendDocument(client.telegram_id, { source: filePath }, {
-        caption: `📄 *Revised Document Ready for Review*
+/help - Show this help
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 REVIEW INSTRUCTIONS
+📞 *CONTACT*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Please review this revised version.
+Phone: +265 991 295 401
+WhatsApp: +265 881 193 707
+Email: ${process.env.EMAIL_USER}
 
-*Remaining change requests: ${remainingReviews}*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌐 *WEBSITE*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-To request changes:
-• Type your feedback
-• Send a captioned screenshot
-• Send a voice note
+${process.env.WEBHOOK_URL || 'https://easysuccor-bot.onrender.com'}
 
-Type *APPROVE* if you're satisfied.
-
-After approval, you will receive the final downloadable version.`
-    });
-    
-    await ctx.reply(`✅ Reviewed document sent to client for final review.`);
-}
-        else {
-            await sendMarkdown(ctx, `📎 Upload your existing CV or cover letter - I'll extract everything!`);
-            session.data.awaiting_draft_upload = true;
-            await db.updateSession(session.id, 'awaiting_draft_upload', 'draft', session.data);
-        }
-    } catch (error) {
-        console.error('Document handler error:', error);
-        await sendMarkdown(ctx, `⚠️ Something went wrong. Please try again.`);
-    }
+We're here to help! 💙`);
 });
 
-bot.on('photo', async (ctx) => {
-    const client = await getOrCreateClient(ctx);
-    const session = await getOrCreateSession(client.id);
-    const photo = ctx.message.photo[ctx.message.photo.length - 1];
-    
-    if (session.stage === 'awaiting_vacancy_upload') {
-        const fileInfo = await ctx.telegram.getFile(photo.file_id);
-        const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
-        await processVacancyFile(ctx, client, session, fileUrl, 'vacancy_image.jpg');
-    } 
-    else if (session.stage === 'awaiting_draft_upload' || session.data.awaiting_draft_upload) {
-        await sendMarkdown(ctx, `📸 Processing your image...`);
-        const fileInfo = await ctx.telegram.getFile(photo.file_id);
-        const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
-        const success = await smartDraft.processDraftUpload(ctx, client, session, fileUrl, 'image.jpg');
-        if (success) {
-            session.data.awaiting_draft_upload = false;
-            session.data.build_method = 'draft_completed';
-            const basePrice = getBasePrice(session.data.category, session.data.service);
-            session.data.base_price = basePrice;
-            await sendMarkdown(ctx, `✅ Draft processed! Base price: ${formatPrice(basePrice)}\n\nDelivery speed?`, {
-                reply_markup: { inline_keyboard: [
-                    [{ text: "🚚 Standard (6h)", callback_data: "delivery_standard" }],
-                    [{ text: "⚡ Express (2h) +3k", callback_data: "delivery_express" }],
-                    [{ text: "🏃 Rush (1h) +5k", callback_data: "delivery_rush" }]
-                ] }
-            });
-            await db.updateSession(session.id, 'selecting_delivery', null, session.data);
-        }
-    }
-    else if (session.stage === 'awaiting_update_request') {
-        const fileInfo = await ctx.telegram.getFile(photo.file_id);
-        const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileInfo.file_path}`;
-        await handleUpdateRequest(ctx, client, session, null, fileUrl, 'photo');
-    }
-    else {
-        await sendMarkdown(ctx, `📎 Upload an image of your CV/cover letter - I'll extract everything!`);
-        session.data.awaiting_draft_upload = true;
-        await db.updateSession(session.id, 'awaiting_draft_upload', 'draft', session.data);
-    }
-});
-
-// ============ TEXT MESSAGE HANDLER ============
-bot.on('text', async (ctx) => {
-    const text = ctx.message.text;
-    const client = await getOrCreateClient(ctx);
-    const session = await getOrCreateSession(client.id);
-    
-    try {
-        if (text === '/start') {
-            await handleGreeting(ctx, client, session);
-        }
-        else if (['📄 New CV', '📝 Editable CV', '💌 Cover Letter', '📎 Editable Cover Letter', '✏️ Update CV', '📎 Upload Draft', 'ℹ️ About', '📞 Contact', '🏠 Portal'].includes(text)) {
-            if (session.stage !== 'main_menu' && session.stage !== 'selecting_category' && session.stage !== 'selecting_service' && session.stage !== 'greeting') {
-                await sendMarkdown(ctx, `⚠️ You're in the middle of creating a document!\n\nType /pause to save progress, or /reset to start over.`);
-                return;
-            }
-            await handleMainMenu(ctx, client, session, text);
-        }
-        else if (session.stage === 'main_menu') {
-            await handleMainMenu(ctx, client, session, text);
-        }
-        else if (session.stage === 'collecting_portfolio') {
-            await handlePortfolioCollection(ctx, client, session, text);
-        }
-        else if (session.stage === 'collecting_personal') {
-            await handlePersonalCollection(ctx, client, session, text);
-        }
-        else if (session.stage === 'collecting_summary') {
-            await handleSummaryCollection(ctx, client, session, text);
-        }
-        else if (session.stage === 'collecting_education') {
-            await handleEducationCollection(ctx, client, session, text);
-        }
-        else if (session.stage === 'collecting_employment') {
-            await handleEmploymentCollection(ctx, client, session, text);
-        }
-        else if (session.stage === 'collecting_skills') {
-            await handleSkillsCollection(ctx, client, session, text);
-        }
-        else if (session.stage === 'collecting_certifications') {
-            await handleCertificationsCollection(ctx, client, session, text);
-        }
-        else if (session.stage === 'collecting_languages') {
-            await handleLanguagesCollection(ctx, client, session, text);
-        }
-        else if (session.stage === 'collecting_referees') {
-            await handleRefereesCollection(ctx, client, session, text);
-        }
-        else if (session.stage === 'collecting_update') {
-            await handleUpdateCollection(ctx, client, session, text);
-        }
-        else if (session.stage === 'collecting_missing') {
-            await smartDraft.handleMissingCollection(ctx, client, session, text);
-        }
-        else if (session.stage === 'collecting_feedback') {
-            await handleFeedback(ctx, client, session, text);
-        }
-        else if (session.stage === 'awaiting_vacancy_upload') {
-            await handleVacancyText(ctx, client, session, text);
-        }
-        else if (session.stage === 'awaiting_update_request') {
-            await handleUpdateRequest(ctx, client, session, text);
-        }
-        else if (session.stage === 'cover_collecting_position') {
-            await handleCoverPosition(ctx, client, session, text);
-        }
-        else if (session.stage === 'cover_collecting_company') {
-            await handleCoverCompany(ctx, client, session, text);
-        }
-        else if (session.stage === 'cover_collecting_experience') {
-            await handleCoverExperience(ctx, client, session, text);
-        }
-        else if (session.stage === 'cover_collecting_skills') {
-            await handleCoverSkills(ctx, client, session, text);
-        }
-        else if (session.stage === 'cover_collecting_achievement') {
-            await handleCoverAchievement(ctx, client, session, text);
-        }
-        else if (session.stage === 'cover_collecting_why') {
-            await handleCoverWhy(ctx, client, session, text);
-        }
-        else if (session.stage === 'cover_collecting_availability') {
-            await handleCoverAvailability(ctx, client, session, text);
-        }
-        else if (session.stage === 'awaiting_payment_choice') {
-            if (['1', '2', '3', '4'].includes(text)) {
-                await sendMarkdown(ctx, `Thank you! Our team will process your request shortly.`);
-            } else if (text.toLowerCase() === 'pay later') {
-                session.data.payment_status = 'pending';
-                await db.updateSession(session.id, 'payment_completed', 'payment', session.data);
-                await sendMarkdown(ctx, `⏳ Pay later selected. Let's build your CV! ${getReaction()}`);
-                await startDataCollection(ctx, client, session);
-            } else { 
-                await sendMarkdown(ctx, `Please select 1, 2, 3, or 4.`);
-            }
-        }
-        // In bot.on('text'), add final approval
-else if (text.toUpperCase() === 'APPROVE') {
-    const order = await db.getOrder(session.data.order_id);
-    const reviewCount = session.data.review_count || 0;
-    
-    // Determine format based on service (editable = DOCX, otherwise PDF)
-    const format = order.service === 'editable cv' ? 'docx' : 'pdf';
-    const cvResult = await documentGenerator.generateCV(order.cv_data, null, format);
-    
-    if (cvResult.success) {
-        const caption = `🎉 *FINAL DOCUMENT READY!*
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 ORDER COMPLETE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Order ID: \`${order.id}\`
-Service: ${order.service}
-Format: ${format.toUpperCase()}
-
-Thank you for choosing EasySuccor!
-
-*Note:* You have used ${reviewCount} of 2 change requests.
-
-Need help? Contact: +265 991 295 401`;
-        
-        await ctx.replyWithDocument({ source: cvResult.filePath }, { caption: caption });
-        
-        // Update order status
-       async function someFunction() {
-    await db.updateOrderStatus(orderId, 'delivered');
-}
-        await db.saveDocumentReview({
-            order_id: session.data.order_id,
-            version: session.data.current_version + 1,
-            document_path: cvResult.filePath,
-            status: 'final_delivered',
-            review_type: 'final'
-        });
-        
-        await db.updateSession(session.id, 'main_menu', null, session.data);
-    } else {
-        await sendMarkdown(ctx, `❌ Failed to generate final document. Please contact support.`);
-    }
-}
-// In bot.on('text'), add client feedback handling
-else if (session.stage === 'awaiting_client_feedback') {
-    const feedback = text;
-    const order = await db.getOrder(session.data.order_id);
-    const reviewCount = session.data.review_count || 0;
-    
-    if (reviewCount >= 2) {
-        await sendMarkdown(ctx, `⚠️ *You have used all 2 change requests.*
-
-The document will now be finalized. Type *APPROVE* to receive your final document.`);
-        return;
-    }
-    
-    // Save feedback
-    await db.saveDocumentReview({
-        order_id: session.data.order_id,
-        version: session.data.current_version,
-        feedback: feedback,
-        status: 'client_feedback_received',
-        review_type: 'client_feedback'
-    });
-    
-    session.data.review_count = reviewCount + 1;
-    session.data.pending_feedback = feedback;
-    
-    // Notify admin
-    await ctx.telegram.sendMessage(process.env.ADMIN_CHAT_ID, `📝 *Client Feedback Received*
-
-Order: ${session.data.order_id}
-Review: ${session.data.review_count}/2
-
-Feedback:
-${feedback}
-
-Please make the requested changes and upload the revised document.`);
-    
-    await sendMarkdown(ctx, `✅ *Feedback received!*
-
-Our team will make the requested changes and send you a revised version within 24 hours.
-
-Remaining change requests: ${2 - (reviewCount + 1)}`);
-    
-    await db.updateSession(session.id, 'awaiting_admin_revision', 'review', session.data);
-}
-        else {
-            await sendMarkdown(ctx, random(RESPONSES.help));
-        }
-    } catch (error) {
-        console.error('Text handler error:', error);
-        await sendMarkdown(ctx, `⚠️ Something went wrong. Please try again or type /start to restart.`);
-    }
-});
-
-// ============ CALLBACK QUERY HANDLER ============
-bot.on('callback_query', async (ctx) => {
-    await ctx.answerCbQuery();
-    const data = ctx.callbackQuery.data;
-    const client = await getOrCreateClient(ctx);
-    const session = await getOrCreateSession(client.id);
-    
-    if (data.startsWith('cat_')) {
-        await handleCategorySelection(ctx, client, session, data);
-    }
-    else if (data === 'portfolio_skip') {
-        await handlePortfolioCollection(ctx, client, session, 'skip');
-    }
-    else if (data === 'skip_physical_address') {
-        await handlePersonalCollection(ctx, client, session, 'skip');
-    }
-    else if (data === 'skip_nationality') {
-        await handlePersonalCollection(ctx, client, session, 'skip');
-    }
-    else if (data.startsWith('service_')) {
-        await handleServiceSelection(ctx, client, session, data);
-    }
-    else if (data === 'build_draft' || data === 'build_manual') {
-        await handleBuildMethod(ctx, client, session, data);
-    }
-    else if (data.startsWith('delivery_')) {
-        await handleDeliverySelection(ctx, client, session, data);
-    }
-    else if (data === 'approve_update') {
-        await handleApproveUpdate(ctx, client, session);
-    }
-    else if (data === 'modify_update') {
-        await sendMarkdown(ctx, `✏️ Tell me what changes you want to make.`);
-        session.data.awaiting_update_request = true;
-        await db.updateSession(session.id, 'awaiting_update_request', 'update', session.data);
-    }
-    else if (data === 'cover_has_vacancy' || data === 'cover_no_vacancy') {
-        await handleCoverVacancyChoice(ctx, client, session, data);
-    }
-    else if (data === 'cover_add_info' || data === 'cover_continue') {
-        await handleCoverContinue(ctx, client, session, data);
-    }
-    else if (data === 'cancel_update') {
-        session.data.awaiting_update_request = false;
-        session.data.pending_update = false;
-        await sendMarkdown(ctx, `❌ Update cancelled. Type /start to return to main menu.`);
-        await db.updateSession(session.id, 'main_menu', null, session.data);
-    }
-    else if (data === 'edu_yes' || data === 'edu_no') {
-        await handleEducationCollection(ctx, client, session, '', data);
-    }
-    else if (data === 'emp_yes' || data === 'emp_no') {
-        await handleEmploymentCollection(ctx, client, session, '', data);
-    }
-    else if (data === 'cert_yes' || data === 'cert_no' || data === 'cert_skip') { 
-        if (data === 'cert_skip') await handleCertificationsCollection(ctx, client, session, 'Skip', data);
-        else await handleCertificationsCollection(ctx, client, session, '', data);
-    }
-    else if (data === 'lang_yes' || data === 'lang_no' || data === 'lang_skip') { 
-        if (data === 'lang_skip') await handleLanguagesCollection(ctx, client, session, 'Skip', data);
-        else await handleLanguagesCollection(ctx, client, session, '', data);
-    }
-    else if (data === 'more_ref_yes' || data === 'more_ref_no') {
-        if (data === 'more_ref_yes') {
-            session.data.collection_step = 'name';
-            session.data.current_ref = {};
-            await sendMarkdown(ctx, `Next referee - Full name? 👥`);
-            await db.updateSession(session.id, 'collecting_referees', 'referees', session.data);
-        } else {
-            await finalizeOrder(ctx, client, session);
-        }
-    }
-    else if (data === 'more_work_yes' || data === 'more_work_no') {
-        if (data === 'more_work_yes') {
-            session.data.collection_step = 'title';
-            session.data.current_job = {};
-            await sendMarkdown(ctx, "Next job title? 💼");
-            await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
-        } else {
-            session.current_section = 'skills';
-            session.data.collection_step = 'skills';
-            await sendMarkdown(ctx, `${getEncouragement('sectionComplete', 'Employment')}\n\n${getQuestion('skills')}`);
-            await db.updateSession(session.id, 'collecting_skills', 'skills', session.data);
-        }
-    }
-    else if (data === 'more_edu_yes' || data === 'more_edu_no') {
-        if (data === 'more_edu_yes') {
-            session.data.collection_step = 'level';
-            session.data.current_edu = {};
-            await sendMarkdown(ctx, "Next qualification? 🎓");
-            await db.updateSession(session.id, 'collecting_education', 'education', session.data);
-        } else {
-            session.current_section = 'employment';
-            session.data.collection_step = 'title';
-            session.data.current_job = {};
-            session.data.cv_data.employment = [];
-            await sendMarkdown(ctx, `${getEncouragement('sectionComplete', 'Education')}\n\n${getQuestion('jobTitle')}`);
-            await db.updateSession(session.id, 'collecting_employment', 'employment', session.data);
-        }
-    }
-    else if (data.startsWith('prof_')) {
-        await handleLanguagesCollection(ctx, client, session, '', data);
-    }
-    // Admin approves and sends non-downloadable version to client
-else if (data.startsWith('admin_approve_')) {
-    const orderId = data.replace('admin_approve_', '');
-    
-    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
-        await ctx.answerCbQuery('⛔ Admin only');
-        return;
-    }
-    
-    await ctx.answerCbQuery('✅ Processing...');
-    
-    const order = await db.getOrder(orderId);
-    const client = await db.getClientById(order.client_id);
-    const reviews = await db.getDocumentReviews(orderId);
-    const currentVersion = reviews.length;
-    
-    // Generate NON-DOWNLOADABLE version for client review
-    // (Send as photo/screenshot or with view-only permissions)
-    const cvResult = await documentGenerator.generateCV(order.cv_data, null, 'docx');
-    
-    if (cvResult.success && client.telegram_id) {
-        // Send as view-only (Telegram doesn't have true view-only, but we can send as photo)
-        // Or send with caption indicating it's for review only
-        await ctx.telegram.sendDocument(client.telegram_id, { source: cvResult.filePath }, {
-            caption: `📄 *Document Ready for Your Review*
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 REVIEW INSTRUCTIONS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Please review this document carefully.
-
-*You have 2 opportunities to request changes.*
-
-To request changes:
-1. Type your feedback clearly
-2. Or send a captioned screenshot
-3. Or send a voice note (will be transcribed)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⏰ *Review Period: 48 hours*
-
-After you submit feedback, we will make the changes and send a revised version.
-
-Type *APPROVE* if no changes are needed.`
-        });
-        
-        await db.saveDocumentReview({
-            order_id: orderId,
-            version: currentVersion + 1,
-            document_path: cvResult.filePath,
-            status: 'sent_to_client_review',
-            review_type: 'client_review'
-        });
-        
-        await ctx.editMessageText(ctx.callbackQuery.message.text + '\n\n✅ Document sent to client for review.', { parse_mode: 'Markdown' });
-    }
-}
-
-// Admin uploads reviewed version
-else if (data.startsWith('admin_upload_')) {
-    const orderId = data.replace('admin_upload_', '');
-    
-    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
-        await ctx.answerCbQuery('⛔ Admin only');
-        return;
-    }
-    
-    await ctx.answerCbQuery('📤 Please upload the reviewed document');
-    
-    // Store in session that we're expecting a file
-    const session = await getOrCreateSessionByOrderId(orderId);
-    session.data.awaiting_admin_upload = true;
-    session.data.order_id = orderId;
-    await db.updateSession(session.id, 'awaiting_admin_upload', 'review', session.data);
-    
-    await ctx.reply(`📤 Please upload the reviewed Word document for order ${orderId}.`);
-}
-    else {
-        console.log(`Unhandled callback: ${data}`);
-        await sendMarkdown(ctx, `⚠️ Something went wrong. Type /start to restart.`);
-    }
-});
-
-// ============ START BOT ============
+// ============ START BOT (UPDATED) ============
 async function startBot() {
-    await db.initDatabase();
-    await loadTestimonialsCache();
+    console.log('🚀 Starting EasySuccor Bot...');
     
+    // ============ INITIALIZE DATABASE ============
+    try {
+        await db.initDatabase();
+        console.log('✅ Database initialized successfully');
+    } catch (dbError) {
+        console.error('❌ Database initialization failed:', dbError.message);
+        process.exit(1);
+    }
+    
+    // ============ LOAD TESTIMONIALS CACHE ============
+    try {
+        await loadTestimonialsCache();
+        console.log('✅ Testimonials cache loaded');
+    } catch (testError) {
+        console.log('⚠️ Could not load testimonials:', testError.message);
+    }
+    
+    // ============ VERIFY DEEPSEEK API CONNECTION ============
+    console.log('🔍 Verifying DeepSeek API connection...');
+    try {
+        const { OpenAI } = require('openai');
+        const deepseek = new OpenAI({
+            apiKey: process.env.DEEPSEEK_API_KEY,
+            baseURL: 'https://api.deepseek.com/v1'
+        });
+        const testResponse = await deepseek.chat.completions.create({
+            model: 'deepseek-chat',
+            messages: [{ role: 'user', content: 'Say "API OK"' }],
+            max_tokens: 10
+        });
+        console.log('✅ DeepSeek API connected:', testResponse.choices[0].message.content);
+    } catch (deepseekError) {
+        console.error('❌ DeepSeek API connection failed:', deepseekError.message);
+        console.log('⚠️ Bot will run but CV extraction will use fallback mode');
+    }
+    
+    // ============ SET BOT COMMANDS (UPDATED) ============
     try {
         await bot.telegram.setMyCommands([
-            { command: 'start', description: 'Start the bot' },
-            { command: 'resume', description: 'Resume paused session' },
-            { command: 'pause', description: 'Save progress and pause' },
-            { command: 'pay', description: 'Make a payment' },
-            { command: 'portal', description: 'Your dashboard' },
-            { command: 'mydocs', description: 'Your documents' },
-            { command: 'referral', description: 'Share & earn' },
-            { command: 'feedback', description: 'Share your experience' },
-            { command: 'testimonials', description: 'See success stories' },
-            { command: 'reset', description: 'Reset current session' },
-            { command: 'help', description: 'Get help' }
+            // User commands
+            { command: 'start', description: '🚀 Start the bot' },
+            { command: 'resume', description: '▶️ Resume paused session' },
+            { command: 'pause', description: '⏸️ Save progress and pause' },
+            { command: 'pay', description: '💰 Make a payment' },
+            { command: 'portal', description: '🏠 Your dashboard' },
+            { command: 'mydocs', description: '📄 Your documents' },
+            { command: 'versions', description: '📁 View CV versions' },
+            { command: 'referral', description: '🎁 Share & earn' },
+            { command: 'feedback', description: '📝 Share your experience' },
+            { command: 'testimonials', description: '⭐ See success stories' },
+            { command: 'website', description: '🌐 Visit our website' },
+            { command: 'reset', description: '🔄 Reset current session' },
+            { command: 'help', description: '🆘 Get help' },
+            
+            // Admin commands (only visible to admin)
+            { command: 'admin_stats', description: '📊 View statistics' },
+            { command: 'admin_orders', description: '📋 View all orders' },
+            { command: 'admin_clients', description: '👥 View all clients' },
+            { command: 'admin_deepseek', description: '🧠 Check DeepSeek API' },
+            { command: 'health', description: '🩺 System health check' }
         ]);
-        console.log('✅ Bot commands set');
+        console.log('✅ Bot commands registered');
     } catch (cmdError) {
         console.log('⚠️ Could not set commands:', cmdError.message);
     }
     
+    // ============ SETUP WEBHOOK ============
     const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://easysuccor-bot.onrender.com';
     const webhookPath = '/webhook';
     const fullWebhookUrl = `${WEBHOOK_URL}${webhookPath}`;
     
+    // Get current webhook info
+    try {
+        const webhookInfo = await bot.telegram.getWebhookInfo();
+        console.log(`📡 Current webhook: ${webhookInfo.url || 'Not set'}`);
+    } catch (webhookInfoError) {
+        console.log('⚠️ Could not get webhook info:', webhookInfoError.message);
+    }
+    
+    // Delete existing webhook
     try {
         await bot.telegram.deleteWebhook();
-        await bot.telegram.setWebhook(fullWebhookUrl);
+        console.log('✅ Existing webhook deleted');
+    } catch (deleteError) {
+        console.log('⚠️ Could not delete webhook:', deleteError.message);
+    }
+    
+    // Set new webhook
+    try {
+        await bot.telegram.setWebhook(fullWebhookUrl, {
+            allowed_updates: ['message', 'callback_query', 'inline_query']
+        });
         console.log(`✅ Webhook set to ${fullWebhookUrl}`);
     } catch (webhookError) {
         console.error('❌ Failed to set webhook:', webhookError.message);
+        console.log('⚠️ Bot will use polling mode as fallback');
     }
     
-    // Setup webhook endpoint
+    // ============ SETUP EXPRESS WEBHOOK ENDPOINT ============
     app.post(webhookPath, (req, res) => {
-        bot.handleUpdate(req.body, res);
+        try {
+            bot.handleUpdate(req.body, res);
+        } catch (handleError) {
+            console.error('Webhook handle error:', handleError.message);
+            res.status(500).send('Error processing update');
+        }
     });
     
-    // IMPORTANT: Start the Express server to keep the process alive
+    // ============ START EXPRESS SERVER ============
     const PORT = process.env.PORT || 10000;
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`✅ Express server running on port ${PORT}`);
+        console.log(`❤️ Health check: http://localhost:${PORT}/health`);
+        console.log(`🌐 Landing page: http://localhost:${PORT}`);
+        console.log(`📊 Admin page: http://localhost:${PORT}/admin.html`);
     });
     
-    console.log('========================================');
-    console.log('  🤖 EasySuccor Bot Running on Render');
-    console.log('  ✅ Human-like dynamic responses');
-    console.log('  ✅ Clickable skip buttons everywhere');
-    console.log('  ✅ Smart Draft Upload');
-    console.log('  ✅ Intelligent CV Update');
-    console.log('  ✅ Webhook mode (production)');
-    console.log('========================================');
+    // ============ PRINT BOT STATUS ============
+    console.log('');
+    console.log('╔════════════════════════════════════════════════════════════════╗');
+    console.log('║                    🤖 EASYSUCCOR BOT RUNNING                    ║');
+    console.log('╠════════════════════════════════════════════════════════════════╣');
+    console.log('║  ✅ NO welcome message - Direct to category selection          ║');
+    console.log('║  ✅ AI generates professional summary (DeepSeek)               ║');
+    console.log('║  ✅ Clickable buttons for all user choices                     ║');
+    console.log('║  ✅ MO626 payment method added                                 ║');
+    console.log('║  ✅ Health check endpoint: /health                             ║');
+    console.log('║  ✅ Landing page: / (index.html)                               ║');
+    console.log('║  ✅ Admin panel: /admin.html                                   ║');
+    console.log('║  ✅ 18+ CV categories fully supported                          ║');
+    console.log('║  ✅ Admin full control (delete, clear, price update)           ║');
+    console.log('║  ✅ Email notifications (priority) + Telegram backup           ║');
+    console.log('║  ✅ Installment plans & Pay Later options                      ║');
+    console.log('║  ✅ Referral program & Testimonials                            ║');
+    console.log('║  ✅ CV Versioning & Intelligent Update                         ║');
+    console.log('╠════════════════════════════════════════════════════════════════╣');
+    console.log(`║  🕐 Started at: ${new Date().toLocaleString()}                    ║`);
+    console.log(`║  🌐 Webhook URL: ${WEBHOOK_URL}                                  ║`);
+    console.log('╚════════════════════════════════════════════════════════════════╝');
+    console.log('');
     
-    // Keep the process alive
-    process.on('SIGINT', () => {
-        console.log('Shutting down...');
+    // ============ TEST WEBHOOK (Optional) ============
+    if (process.env.NODE_ENV === 'production') {
+        setTimeout(async () => {
+            try {
+                const webhookInfo = await bot.telegram.getWebhookInfo();
+                if (webhookInfo.url === fullWebhookUrl) {
+                    console.log('✅ Webhook verified and working');
+                } else {
+                    console.log(`⚠️ Webhook mismatch: Expected ${fullWebhookUrl}, got ${webhookInfo.url}`);
+                }
+            } catch (verifyError) {
+                console.log('⚠️ Could not verify webhook:', verifyError.message);
+            }
+        }, 3000);
+    }
+    
+    // ============ HANDLE PROCESS EXIT ============
+    process.on('SIGINT', async () => {
+        console.log('\n🛑 Shutting down gracefully...');
+        try {
+            await bot.telegram.deleteWebhook();
+            console.log('✅ Webhook deleted');
+        } catch (e) {
+            console.log('⚠️ Could not delete webhook');
+        }
+        console.log('👋 Goodbye!');
         process.exit(0);
+    });
+    
+    process.on('SIGTERM', async () => {
+        console.log('\n🛑 Received SIGTERM, shutting down...');
+        try {
+            await bot.telegram.deleteWebhook();
+            console.log('✅ Webhook deleted');
+        } catch (e) {}
+        process.exit(0);
+    });
+    
+    // ============ UNHANDLED ERROR HANDLERS ============
+    process.on('uncaughtException', (error) => {
+        console.error('❌ Uncaught Exception:', error);
+        // Don't exit, let the bot try to recover
+    });
+    
+    process.on('unhandledRejection', (reason, promise) => {
+        console.error('❌ Unhandled Rejection:', reason);
     });
 }
 
-// Start the bot
+// ============ START THE BOT ============
 startBot().catch(console.error);

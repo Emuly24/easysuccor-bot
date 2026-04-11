@@ -4,7 +4,6 @@
     "buildCommand": "npm install"
   },
   "deploy": {
-    "startCommand": "node bot.js",
-    "healthcheckPath": "/health"
+    "startCommand": "node bot.js"
   }
 }

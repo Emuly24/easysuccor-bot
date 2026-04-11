@@ -65,13 +65,6 @@ app.get('/health', (req, res) => {
     });
 });
 
-// ============ START EXPRESS SERVER ============
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Express server running on 0.0.0.0:${PORT}`);
-    console.log(`📍 Health check: http://0.0.0.0:${PORT}/health`);
-    console.log(`🌐 Landing page: http://0.0.0.0:${PORT}/`);
-});
-
 // ============ ADMIN AUTHENTICATION ============
 const adminAuth = (req, res, next) => {
     const apiKey = req.headers['x-admin-key'] || req.query.key;
@@ -5490,15 +5483,7 @@ async function startBot() {
         }
     });
     
-    // ============ START EXPRESS SERVER ============
-    const PORT = process.env.PORT || 10000;
-    app.listen(PORT, '0.0.0.0', () => {
-        console.log(`✅ Express server running on port ${PORT}`);
-        console.log(`❤️ Health check: http://localhost:${PORT}/health`);
-        console.log(`🌐 Landing page: http://localhost:${PORT}`);
-        console.log(`📊 Admin page: http://localhost:${PORT}/admin.html`);
-    });
-    
+
     // ============ PRINT BOT STATUS ============
     console.log('');
     console.log('╔════════════════════════════════════════════════════════════════╗');

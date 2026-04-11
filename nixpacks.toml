@@ -1,14 +1,8 @@
 [phases.setup]
-nixPkgs = [
-  "nodejs",
-  "poppler_utils",
-  "imagemagick",
-  "tesseract",
-  "ghostscript"
-]
+nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = [
-  "npm install",
-  "mkdir -p data uploads exports logs temp sessions"
-]
+cmds = ["npm install"]
+
+[start]
+cmd = "node bot.js"

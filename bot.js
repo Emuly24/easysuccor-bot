@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const axios = require('axios');
-const express = require('express');
+const express = require('express');  // ← ONLY ONCE!
 const multer = require('multer');
 const db = require('./database');
 const payment = require('./payment');
@@ -22,8 +22,9 @@ const intelligentUpdate = require('./intelligent-update');
 
 dotenv.config();
 
-// ============ EXPRESS SERVER FOR ADMIN UPLOADS (UPDATED) ============
+// ============ EXPRESS SERVER SETUP ============
 const app = express();
+const PORT = process.env.PORT || 3000;
 const upload = multer({ dest: 'uploads/admin/' });
 
 app.use(express.json());
@@ -39,16 +40,36 @@ app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
+// ============ API STATUS ROUTE ============
+app.get('/api/status', (req, res) => {
+    res.json({ 
+        status: 'EasySuccor Bot is running!', 
+        timestamp: new Date().toISOString() 
+    });
+});
+
 // ============ HEALTH CHECK ENDPOINT FOR RAILWAY ============
 app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'alive', 
+    const dbType = process.env.DATABASE_URL ? 
+        (process.env.DATABASE_URL.startsWith('postgres') ? 'postgresql' : 'sqlite') : 
+        'sqlite';
+    
+    res.status(200).json({ 
+        status: 'healthy',  // Railway expects 'healthy'
         timestamp: new Date().toISOString(), 
         uptime: process.uptime(),
-        version: '2.0.0',
+        version: '5.0.0',
+        bot: 'EasySuccor Bot',
         deepseek_configured: !!process.env.DEEPSEEK_API_KEY,
-        database: dbType === 'postgres' ? 'postgresql' : 'sqlite'
+        database: dbType
     });
+});
+
+// ============ START EXPRESS SERVER ============
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Express server running on 0.0.0.0:${PORT}`);
+    console.log(`📍 Health check: http://0.0.0.0:${PORT}/health`);
+    console.log(`🌐 Landing page: http://0.0.0.0:${PORT}/`);
 });
 
 // ============ ADMIN AUTHENTICATION ============
@@ -1312,19 +1333,24 @@ app.get('/api/deepseek-status', async (req, res) => {
     }
 });
 
-console.log(`📤 Admin upload endpoints available`);
-console.log(`🔑 Admin API Key required in header: x-admin-key`);
-console.log(`❤️ Health check: GET /health`);
-console.log(`🌐 Landing page: GET /`);
-console.log(`📊 Admin panel: GET /admin`);
+// ============ START EXPRESS SERVER (ONLY ONCE!) ============
 
-// Health check
-const HEALTH_PORT = process.env.PORT || 3000;
-const PORT = process.env.PORT || 10000;
-console.log(`📤 Admin upload endpoints: POST /admin/upload-cv, POST /admin/upload-batch`);
-console.log(`🔑 Admin API Key required in header: x-admin-key`);
-
-
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`✅ EasySuccor Express Server Started`);
+    console.log(`${'='.repeat(60)}`);
+    console.log(`🌐 Landing page:    http://0.0.0.0:${PORT}/`);
+    console.log(`🔐 Admin panel:     http://0.0.0.0:${PORT}/admin`);
+    console.log(`❤️  Health check:    http://0.0.0.0:${PORT}/health`);
+    console.log(`🤖 DeepSeek status: http://0.0.0.0:${PORT}/api/deepseek-status`);
+    console.log(`${'='.repeat(60)}`);
+    console.log(`📤 Admin upload endpoints:`);
+    console.log(`   POST /admin/upload-cv`);
+    console.log(`   POST /admin/upload-batch`);
+    console.log(`   POST /admin/upload-cover`);
+    console.log(`🔑 Admin API Key required in header: x-admin-key`);
+    console.log(`${'='.repeat(60)}\n`);
+});
 // ============ TELEGRAM BOT ============
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
@@ -5656,13 +5682,7 @@ async function startBot() {
     console.log('╚════════════════════════════════════════════════════════════════╝');
     console.log('');
     
-    // ============ TEST WEBHOOK (Optional) ============
-if (process.env.NODE_ENV === 'production') {
-    const express = require('express');
-    const healthApp = express();
-    const PORT = process.env.PORT || 3000;
-}
-    // ============ HANDLE PROCESS EXIT ============
+// ============ HANDLE PROCESS EXIT ============
     process.on('SIGINT', async () => {
         console.log('\n🛑 Shutting down gracefully...');
         try {

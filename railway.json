@@ -4,8 +4,8 @@
     "builder": "NIXPACKS",
     "buildCommand": "npm install"
   },
-  "deploy": {
-    "startCommand": "node bot.js",
-    "healthcheckPath": "/health"
-  }
+  
+    "deploy": {
+        "startCommand": "node health.js & node bot.js"
+    }
 }

@@ -51,6 +51,10 @@ app.get('/health', (req, res) => {
     });
 });
 
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
 // ============ ADMIN AUTHENTICATION ============
 const adminAuth = (req, res, next) => {
     const apiKey = req.headers['x-admin-key'] || req.query.key;
@@ -5657,21 +5661,31 @@ async function startBot() {
     console.log('');
     
     // ============ TEST WEBHOOK (Optional) ============
-    if (process.env.NODE_ENV === 'production') {
-        setTimeout(async () => {
-            try {
-                const webhookInfo = await bot.telegram.getWebhookInfo();
-                if (webhookInfo.url === fullWebhookUrl) {
-                    console.log('✅ Webhook verified and working');
-                } else {
-                    console.log(`⚠️ Webhook mismatch: Expected ${fullWebhookUrl}, got ${webhookInfo.url}`);
-                }
-            } catch (verifyError) {
-                console.log('⚠️ Could not verify webhook:', verifyError.message);
-            }
-        }, 3000);
-    }
+if (process.env.NODE_ENV === 'production') {
+    const express = require('express');
+    const healthApp = express();
+    const PORT = process.env.PORT || 3000;
     
+    // Health check endpoint
+    healthApp.get('/health', (req, res) => {
+        res.status(200).json({
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            bot: 'EasySuccor Bot',
+            version: '5.0.0'
+        });
+    });
+    
+    // Root endpoint
+    healthApp.get('/', (req, res) => {
+        res.redirect('https://t.me/EasySuccor_bot');
+    });
+    
+    healthApp.listen(PORT, () => {
+        console.log(`✅ Health check server running on port ${PORT}`);
+    });
+}
     // ============ HANDLE PROCESS EXIT ============
     process.on('SIGINT', async () => {
         console.log('\n🛑 Shutting down gracefully...');

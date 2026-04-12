@@ -10,7 +10,7 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            }
+        }
       
         html, body {
             margin: 0;
@@ -21,16 +21,16 @@
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background-image: url('/images/easysuccor-bg.jpg');
-            background-size: cover;         
-            background-position: center;   
-            background-attachment: fixed;    
-            background-repeat: no-repeat;    
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
             min-height: 100vh;
             margin: 0;
             padding: 0;
-            
             overflow-x: hidden;
         }
+        
         body::before {
             content: '';
             position: fixed;
@@ -38,38 +38,38 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.3);  /* Adjust opacity: 0.1 to 0.5 */
+            background: rgba(0, 0, 0, 0.25);
             pointer-events: none;
             z-index: 0;
         }
-        .container {
-            position: relative;
-            z-index: 1;
-        }
-                :root {
-            --primary: #1a56db;
-            --primary-dark: #1e40af;
-            --secondary: #0e9f6e;
-            --accent: #3f83f8;
-            --gray-light: #f3f4f6;
-            --gray: #6b7280;
-            --dark: #1f2937;
+        
+        :root {
+            --primary: #8A4FFF;
+            --primary-dark: #7B4BFF;
+            --secondary: #00C4CC;
+            --accent: #9C7BFF;
+            --gray-light: rgba(255, 255, 255, 0.15);
+            --gray: rgba(255, 255, 255, 0.85);
+            --dark: #ffffff;
         }
 
         .container {
+            position: relative;
+            z-index: 1;
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
         }
 
-        /* Header */
         .header {
             text-align: center;
             padding: 40px 20px;
-            background: white;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
             border-radius: 24px;
             margin-bottom: 30px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .logo-placeholder {
@@ -87,28 +87,93 @@
             object-fit: contain;
         }
 
-        /* Optional: Add hover effect */
         .logo-image:hover {
             opacity: 0.9;
             transition: opacity 0.3s ease;
         }
+        
         .logo-text {
             font-size: 32px;
             font-weight: 700;
-            color: var(--dark);
         }
 
-        .logo-text span {
-            color: var(--primary);
+        .logo-easy {
+            color: #8A4FFF;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .logo-succor {
+            color: #00C4CC;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .tagline {
-            color: var(--gray);
+            color: #4a4a5e;
             font-size: 16px;
             margin-top: 8px;
         }
 
-        /* Trust Badges */
+        /* Admin Quick Links */
+        .admin-quick-links {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .admin-link {
+            display: inline-block;
+            background: linear-gradient(135deg, #8A4FFF, #7B4BFF);
+            color: white !important;
+            padding: 10px 24px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            box-shadow: 0 4px 12px rgba(138, 79, 255, 0.3);
+            transition: all 0.3s;
+        }
+
+        .admin-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(138, 79, 255, 0.4);
+        }
+
+        .admin-logout {
+            background: transparent;
+            border: 1px solid #e74c3c;
+            color: #e74c3c;
+            padding: 10px 24px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .admin-logout:hover {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .admin-login-btn {
+            background: transparent;
+            border: 1px solid #8A4FFF;
+            color: #8A4FFF;
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .admin-login-btn:hover {
+            background: #8A4FFF;
+            color: white;
+        }
+
         .trust-badges {
             display: flex;
             justify-content: center;
@@ -118,39 +183,41 @@
         }
 
         .badge {
-            background: white;
-            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(8px);
+            padding: 10px 20px;
             border-radius: 30px;
-            color: var(--dark);
-            font-size: 12px;
-            font-weight: 500;
+            color: #1f2937;
+            font-size: 13px;
+            font-weight: 600;
             display: flex;
             align-items: center;
             gap: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255, 255, 255, 0.4);
         }
 
-        /* Message Box */
         .message-box {
-            background: white;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
             border-radius: 24px;
             padding: 40px 30px;
             margin: 30px 0;
             text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-            border: 1px solid #e5e7eb;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .dynamic-message {
             font-size: 24px;
             font-weight: 700;
-            color: var(--dark);
+            color: #1f2937;
             margin-bottom: 15px;
         }
 
         .dynamic-submessage {
             font-size: 16px;
-            color: var(--gray);
+            color: #4a4a6e;
             line-height: 1.6;
         }
 
@@ -165,39 +232,39 @@
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: #ddd;
+            background: rgba(255,255,255,0.5);
             cursor: pointer;
             transition: all 0.3s;
         }
 
         .indicator.active {
-            background: var(--primary);
+            background: #8A4FFF;
             width: 24px;
             border-radius: 4px;
         }
 
-        /* Section Cards */
         .section-card {
-            background: white;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
             border-radius: 24px;
             padding: 40px;
             margin: 30px 0;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .section-title {
             font-size: 28px;
             font-weight: 700;
             text-align: center;
-            color: var(--dark);
+            color: #1f2937;
             margin-bottom: 30px;
         }
 
         .section-title span {
-            color: var(--primary);
+            color: #8A4FFF;
         }
 
-        /* Services Grid */
         .services-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -207,14 +274,19 @@
         .service-card {
             text-align: center;
             padding: 25px;
-            background: var(--gray-light);
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(5px);
             border-radius: 20px;
             transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         .service-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            box-shadow: 0 12px 25px rgba(138, 79, 255, 0.2);
+            border-color: #8A4FFF;
+            background: rgba(255, 255, 255, 0.95);
         }
 
         .service-icon {
@@ -225,22 +297,21 @@
         .service-title {
             font-size: 18px;
             font-weight: 700;
-            color: var(--dark);
+            color: #1f2937;
             margin-bottom: 10px;
         }
 
         .service-price {
-            color: var(--primary);
-            font-weight: 600;
+            color: #8A4FFF;
+            font-weight: 700;
             margin-bottom: 5px;
         }
 
         .service-note {
             font-size: 12px;
-            color: var(--gray);
+            color: #5a5a6e;
         }
 
-        /* Steps Grid */
         .steps-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -250,20 +321,25 @@
         .step-card {
             text-align: center;
             padding: 25px 15px;
-            background: var(--gray-light);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(5px);
             border-radius: 20px;
             transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         .step-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            box-shadow: 0 12px 25px rgba(0, 196, 204, 0.2);
+            border-color: #00C4CC;
+            background: rgba(255, 255, 255, 0.95);
         }
 
         .step-number {
             width: 50px;
             height: 50px;
-            background: var(--primary);
+            background: linear-gradient(135deg, #8A4FFF, #7B4BFF);
             color: white;
             font-size: 24px;
             font-weight: bold;
@@ -272,22 +348,22 @@
             align-items: center;
             justify-content: center;
             margin: 0 auto 15px;
+            box-shadow: 0 4px 12px rgba(138, 79, 255, 0.3);
         }
 
         .step-title {
             font-size: 18px;
             font-weight: 700;
-            color: var(--dark);
+            color: #1f2937;
             margin-bottom: 10px;
         }
 
         .step-desc {
             font-size: 14px;
-            color: var(--gray);
+            color: #5a5a6e;
             line-height: 1.5;
         }
 
-        /* Pricing Grid */
         .pricing-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -297,30 +373,31 @@
         .pricing-card {
             text-align: center;
             padding: 25px;
-            background: var(--gray-light);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(5px);
             border-radius: 20px;
-            border: 1px solid #e5e7eb;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         .pricing-card h3 {
-            color: var(--dark);
+            color: #1f2937;
             margin-bottom: 15px;
         }
 
         .pricing-card .price {
             font-size: 18px;
             font-weight: 700;
-            color: var(--primary);
+            color: #8A4FFF;
             margin: 8px 0;
         }
 
         .pricing-card .price small {
             font-size: 12px;
             font-weight: normal;
-            color: var(--gray);
+            color: #5a5a6e;
         }
 
-        /* Delivery Options */
         .delivery-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -331,22 +408,24 @@
         .delivery-card {
             text-align: center;
             padding: 20px;
-            background: var(--gray-light);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(5px);
             border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         .delivery-card .time {
             font-size: 24px;
             font-weight: 700;
-            color: var(--primary);
+            color: #8A4FFF;
         }
 
         .delivery-card .price {
-            color: var(--secondary);
-            font-weight: 600;
+            color: #00C4CC;
+            font-weight: 700;
         }
 
-        /* Payment Methods */
         .payment-methods {
             display: flex;
             justify-content: center;
@@ -357,25 +436,40 @@
 
         .payment-method {
             text-align: center;
-            padding: 15px 25px;
-            background: var(--gray-light);
+            padding: 18px 30px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(5px);
             border-radius: 16px;
-            min-width: 150px;
+            min-width: 180px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         .payment-method .method-name {
             font-weight: 700;
-            color: var(--dark);
+            color: #1f2937;
             margin-bottom: 5px;
+            font-size: 16px;
         }
 
         .payment-method .method-detail {
-            font-size: 14px;
-            color: var(--primary);
-            font-weight: 600;
+            font-size: 15px;
+            color: #8A4FFF;
+            font-weight: 700;
         }
 
-        /* Satisfied Clients Grid */
+        .clickable-phone {
+            color: #8A4FFF;
+            text-decoration: none;
+            font-weight: 700;
+            transition: color 0.3s;
+        }
+
+        .clickable-phone:hover {
+            color: #00C4CC;
+            text-decoration: underline;
+        }
+
         .clients-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -383,36 +477,39 @@
         }
 
         .client-card {
-            background: var(--gray-light);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(5px);
             border-radius: 20px;
             padding: 20px;
             transition: all 0.3s ease;
-            border: 1px solid #e5e7eb;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         .client-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            background: white;
+            box-shadow: 0 12px 25px rgba(138, 79, 255, 0.2);
+            border-color: #8A4FFF;
+            background: rgba(255, 255, 255, 0.95);
         }
 
         .client-name {
             font-size: 18px;
             font-weight: 700;
-            color: var(--dark);
+            color: #1f2937;
             margin-bottom: 5px;
         }
 
         .client-title {
             font-size: 14px;
-            color: var(--primary);
+            color: #8A4FFF;
             font-weight: 600;
             margin-bottom: 10px;
         }
 
         .client-detail {
             font-size: 13px;
-            color: var(--gray);
+            color: #5a5a6e;
             margin-bottom: 8px;
             display: flex;
             align-items: center;
@@ -421,7 +518,7 @@
 
         .client-detail span:first-child {
             font-weight: 600;
-            color: var(--dark);
+            color: #1f2937;
             min-width: 60px;
         }
 
@@ -433,15 +530,15 @@
         }
 
         .skill-tag {
-            background: white;
-            padding: 4px 10px;
+            background: rgba(138, 79, 255, 0.15);
+            padding: 5px 12px;
             border-radius: 20px;
             font-size: 11px;
-            color: var(--primary);
-            border: 1px solid #e5e7eb;
+            color: #8A4FFF;
+            border: 1px solid rgba(138, 79, 255, 0.3);
+            font-weight: 500;
         }
 
-        /* Review Process Steps */
         .review-steps {
             display: flex;
             justify-content: space-between;
@@ -454,15 +551,17 @@
             flex: 1;
             text-align: center;
             padding: 20px;
-            background: var(--gray-light);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(5px);
             border-radius: 16px;
             min-width: 150px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
         }
 
         .review-step .step-num {
             width: 40px;
             height: 40px;
-            background: var(--primary);
+            background: linear-gradient(135deg, #00C4CC, #0099AA);
             color: white;
             border-radius: 50%;
             display: flex;
@@ -472,49 +571,83 @@
             font-weight: bold;
         }
 
-        /* FAQ Accordion */
+        .error-report-banner {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            padding: 25px;
+            border-radius: 20px;
+            margin: 30px 0;
+        }
+
+        .error-report-banner h3 {
+            color: #8A4FFF;
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
+
+        .error-report-banner code {
+            background: rgba(138, 79, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            color: #8A4FFF;
+        }
+
+        .error-step {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid rgba(138, 79, 255, 0.3);
+        }
+
         .faq-item {
-            border-bottom: 1px solid #e5e7eb;
-            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(138, 79, 255, 0.2);
+            margin-bottom: 10px;
         }
 
         .faq-question {
-            padding: 15px;
-            font-weight: 600;
+            padding: 18px 15px;
+            font-weight: 700;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            color: var(--dark);
-        }
-
-        .faq-question:hover {
-            background: var(--gray-light);
+            color: #1f2937;
+            transition: all 0.3s ease;
             border-radius: 12px;
         }
 
-        .faq-answer {
-            padding: 0 15px 15px 15px;
-            display: none;
-            color: var(--gray);
-            line-height: 1.6;
+        .faq-question:hover {
+            background: rgba(138, 79, 255, 0.1);
         }
 
-        .faq-answer.show {
-            display: block;
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease-out, padding 0.3s ease;
+            padding: 0 15px;
+            color: #4a4a6e;
+            line-height: 1.7;
+        }
+
+        .faq-item.open .faq-answer {
+            max-height: 500px;
+            padding: 0 15px 20px 15px;
         }
 
         .faq-icon {
-            font-size: 20px;
-            transition: transform 0.3s;
-            color: var(--primary);
+            font-size: 18px;
+            transition: transform 0.3s ease;
+            color: #8A4FFF;
         }
 
         .faq-item.open .faq-icon {
             transform: rotate(180deg);
         }
 
-        /* Features Grid */
         .features-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -524,24 +657,25 @@
 
         .feature {
             text-align: center;
-            padding: 15px;
-            background: white;
+            padding: 18px;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(5px);
             border-radius: 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border: 1px solid rgba(255, 255, 255, 0.4);
         }
 
         .feature-icon {
-            font-size: 32px;
+            font-size: 36px;
             margin-bottom: 10px;
         }
 
         .feature-text {
             font-size: 14px;
-            font-weight: 500;
-            color: var(--dark);
+            font-weight: 600;
+            color: #1f2937;
         }
 
-        /* CTA Button */
         .cta-section {
             text-align: center;
             margin: 30px 0;
@@ -552,36 +686,43 @@
             align-items: center;
             justify-content: center;
             gap: 12px;
-            background: var(--primary);
+            background: linear-gradient(135deg, #8A4FFF, #7B4BFF);
             color: white;
             font-size: 20px;
-            font-weight: 600;
-            padding: 18px 40px;
+            font-weight: 700;
+            padding: 20px 45px;
             border-radius: 60px;
             text-decoration: none;
             transition: all 0.3s ease;
-            box-shadow: 0 10px 25px rgba(26,86,219,0.3);
+            box-shadow: 0 10px 30px rgba(138, 79, 255, 0.4);
+            border: 1px solid rgba(255,255,255,0.2);
         }
 
         .telegram-btn:hover {
-            background: var(--primary-dark);
-            transform: scale(1.02);
+            background: linear-gradient(135deg, #7B4BFF, #6A3AEE);
+            transform: scale(1.03);
+            box-shadow: 0 15px 40px rgba(138, 79, 255, 0.5);
         }
 
         .email-option {
             margin-top: 20px;
-            color: var(--gray);
-            font-size: 14px;
+            color: white;
+            font-size: 15px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
 
         .email-link {
-            color: var(--primary);
+            color: white;
             text-decoration: underline;
             cursor: pointer;
-            font-weight: 600;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.4);
         }
 
-        /* Modal */
+        .email-link:hover {
+            color: #00C4CC;
+        }
+
         .modal {
             display: none;
             position: fixed;
@@ -593,6 +734,7 @@
             z-index: 1000;
             justify-content: center;
             align-items: center;
+            backdrop-filter: blur(4px);
         }
 
         .modal-content {
@@ -603,26 +745,33 @@
             width: 90%;
             text-align: center;
             position: relative;
+            border: 2px solid rgba(138, 79, 255, 0.3);
         }
 
         .modal-content input {
             width: 100%;
             padding: 14px;
             margin: 15px 0;
-            border: 1px solid #ddd;
+            border: 2px solid rgba(138, 79, 255, 0.2);
             border-radius: 12px;
             font-size: 16px;
         }
 
+        .modal-content input:focus {
+            outline: none;
+            border-color: #8A4FFF;
+        }
+
         .modal-content button {
-            background: var(--primary);
+            background: linear-gradient(135deg, #8A4FFF, #7B4BFF);
             color: white;
             border: none;
-            padding: 12px 24px;
+            padding: 14px 28px;
             border-radius: 30px;
             font-size: 16px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
+            box-shadow: 0 4px 12px rgba(138, 79, 255, 0.3);
         }
 
         .close-modal {
@@ -631,23 +780,46 @@
             right: 20px;
             font-size: 24px;
             cursor: pointer;
-            color: #999;
+            color: #8A4FFF;
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(138, 79, 255, 0.1);
         }
 
-        /* Footer */
+        .close-modal:hover {
+            background: #8A4FFF;
+            color: white;
+        }
+
         .footer {
             text-align: center;
             padding: 30px;
-            color: var(--gray);
-            font-size: 12px;
-            border-top: 1px solid #e5e7eb;
+            color: white;
+            font-size: 13px;
+            border-top: 1px solid rgba(255,255,255,0.2);
             margin-top: 30px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .footer a {
+            color: white;
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        .footer a:hover {
+            color: #00C4CC;
+            text-decoration: underline;
         }
 
         @media (max-width: 768px) {
             .dynamic-message { font-size: 18px; }
             .steps-grid { grid-template-columns: 1fr; }
-            .telegram-btn { font-size: 16px; padding: 14px 30px; }
+            .telegram-btn { font-size: 16px; padding: 16px 30px; }
             .section-card { padding: 25px; }
             .logo-text { font-size: 24px; }
             .review-steps { flex-direction: column; }
@@ -656,6 +828,138 @@
             .pricing-grid { grid-template-columns: 1fr; }
             .payment-methods { flex-direction: column; align-items: center; }
         }
+        /* Industry-specific client card colors */
+.client-card.agriculture {
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.12), rgba(139, 195, 74, 0.08));
+    border-left: 4px solid #4CAF50;
+}
+
+.client-card.engineering {
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.12), rgba(100, 181, 246, 0.08));
+    border-left: 4px solid #2196F3;
+}
+
+.client-card.healthcare {
+    background: linear-gradient(135deg, rgba(233, 30, 99, 0.12), rgba(240, 98, 146, 0.08));
+    border-left: 4px solid #E91E63;
+}
+
+.client-card.carpentry {
+    background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 183, 77, 0.08));
+    border-left: 4px solid #FF9800;
+}
+
+.client-card.technology {
+    background: linear-gradient(135deg, rgba(156, 39, 176, 0.12), rgba(206, 147, 216, 0.08));
+    border-left: 4px solid #9C27B0;
+}
+
+.client-card.education {
+    background: linear-gradient(135deg, rgba(255, 87, 34, 0.12), rgba(255, 138, 101, 0.08));
+    border-left: 4px solid #FF5722;
+}
+
+.client-card.hospitality {
+    background: linear-gradient(135deg, rgba(0, 188, 212, 0.12), rgba(77, 208, 225, 0.08));
+    border-left: 4px solid #00BCD4;
+}
+
+.client-card.logistics {
+    background: linear-gradient(135deg, rgba(121, 85, 72, 0.12), rgba(161, 136, 127, 0.08));
+    border-left: 4px solid #795548;
+}
+
+.client-card.food-science {
+    background: linear-gradient(135deg, rgba(255, 64, 129, 0.12), rgba(255, 128, 171, 0.08));
+    border-left: 4px solid #FF4081;
+}
+
+.client-card.welding {
+    background: linear-gradient(135deg, rgba(96, 125, 139, 0.12), rgba(120, 144, 156, 0.08));
+    border-left: 4px solid #607D8B;
+}
+
+.client-card.sales {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.12), rgba(255, 213, 79, 0.08));
+    border-left: 4px solid #FFC107;
+}
+
+/* Satisfaction Animation */
+@keyframes satisfiedPulse {
+    0% { box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    50% { box-shadow: 0 8px 25px rgba(138, 79, 255, 0.3), 0 0 0 2px rgba(138, 79, 255, 0.1); }
+    100% { box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+}
+
+@keyframes satisfiedGlow {
+    0% { border-color: rgba(138, 79, 255, 0.2); }
+    50% { border-color: #8A4FFF; }
+    100% { border-color: rgba(138, 79, 255, 0.2); }
+}
+
+@keyframes floatSatisfaction {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+    100% { transform: translateY(0); }
+}
+
+@keyframes starTwinkle {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.2); }
+}
+
+@keyframes satisfactionSlide {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.client-card {
+    animation: satisfiedPulse 4s ease-in-out infinite;
+    transition: all 0.3s ease;
+}
+
+.client-card:hover {
+    animation: none;
+    transform: translateY(-5px);
+    box-shadow: 0 12px 25px rgba(138, 79, 255, 0.2);
+}
+
+.client-card .client-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.satisfaction-stars {
+    display: inline-flex;
+    gap: 2px;
+    margin-left: 8px;
+}
+
+.satisfaction-star {
+    color: #FFD700;
+    font-size: 12px;
+    animation: starTwinkle 2s ease-in-out infinite;
+}
+
+.satisfaction-star:nth-child(2) { animation-delay: 0.3s; }
+.satisfaction-star:nth-child(3) { animation-delay: 0.6s; }
+.satisfaction-star:nth-child(4) { animation-delay: 0.9s; }
+.satisfaction-star:nth-child(5) { animation-delay: 1.2s; }
+
+.satisfaction-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #FFD700, #FFA000);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-left: 8px;
+    animation: satisfactionSlide 3s ease infinite;
+    background-size: 200% 200%;
+}
     </style>
 </head>
 <body>
@@ -663,21 +967,34 @@
 <div class="container">
     <!-- Header -->
     <div class="header">
-       <div class="logo-placeholder">
+        <div class="logo-placeholder">
             <img src="/images/easysuccor-logo.png" alt="EasySuccor" style="height: 60px; width: auto;">
-            </div>
-            <div class="logo-text">Easy<span>Succor</span></div>
+        </div>
+        <div class="logo-text">
+            <span class="logo-easy">Easy</span><span class="logo-succor">Succor</span>
         </div>
         <div class="tagline">Professional CV & Cover Letter Services — Get Noticed, Get Hired</div>
+        
+        <!-- Admin Quick Links (Hidden by default) -->
+        <div id="adminQuickLinks" class="admin-quick-links" style="display: none;">
+            <a href="/admin" class="admin-link">🔐 Admin Portal</a>
+            <a href="/dashboard" class="admin-link">📊 Executive Dashboard</a>
+            <button onclick="logoutAdmin()" class="admin-logout">🚪 Logout</button>
+        </div>
+        
+        <!-- Admin Login Button (Visible when not logged in) -->
+        <div id="adminLoginBtn" style="display: none; margin-top: 15px;">
+            <button onclick="showAdminLogin()" class="admin-login-btn">🔐 Admin Access</button>
+        </div>
     </div>
 
     <!-- Trust Badges -->
     <div class="trust-badges">
-        <div class="badge">🔒 Secure & Confidential</div>
+        <div class="badge">🙏 Honored to Serve You</div>
         <div class="badge">💳 Airtel Money | Mpamba | MO626</div>
-        <div class="badge">🔄 2 Free Revisions</div>
+        <div class="badge">✨ Excellence in Every Detail</div>
         <div class="badge">⚡ Express Delivery Available</div>
-        <div class="badge">📧 Email Notifications</div>
+        <div class="badge">🤝 Your Trust, Our Commitment</div>
     </div>
 
     <!-- Dynamic Message Box -->
@@ -701,36 +1018,11 @@
     <div class="section-card">
         <div class="section-title">Our <span>Services</span></div>
         <div class="services-grid">
-            <div class="service-card">
-                <div class="service-icon">📄</div>
-                <div class="service-title">Professional CV</div>
-                <div class="service-price">MK6,000 - MK10,000</div>
-                <div class="service-note">PDF format, ready to share</div>
-            </div>
-            <div class="service-card">
-                <div class="service-icon">📝</div>
-                <div class="service-title">Editable CV</div>
-                <div class="service-price">MK8,000 - MK12,000</div>
-                <div class="service-note">Word format — make future edits yourself</div>
-            </div>
-            <div class="service-card">
-                <div class="service-icon">💌</div>
-                <div class="service-title">Cover Letter</div>
-                <div class="service-price">MK5,000 - MK6,000</div>
-                <div class="service-note">Tailored to your dream job</div>
-            </div>
-            <div class="service-card">
-                <div class="service-icon">📎</div>
-                <div class="service-title">Editable Cover Letter</div>
-                <div class="service-price">MK8,000</div>
-                <div class="service-note">Word format — customize for each application</div>
-            </div>
-            <div class="service-card">
-                <div class="service-icon">✏️</div>
-                <div class="service-title">CV Update</div>
-                <div class="service-price">MK3,000 - MK6,000</div>
-                <div class="service-note">Update your existing CV</div>
-            </div>
+            <div class="service-card"><div class="service-icon">📄</div><div class="service-title">Professional CV</div><div class="service-price">MK6,000 - MK10,000</div><div class="service-note">PDF format, ready to share</div></div>
+            <div class="service-card"><div class="service-icon">📝</div><div class="service-title">Editable CV</div><div class="service-price">MK8,000 - MK12,000</div><div class="service-note">Word format — make future edits yourself</div></div>
+            <div class="service-card"><div class="service-icon">💌</div><div class="service-title">Cover Letter</div><div class="service-price">MK5,000 - MK6,000</div><div class="service-note">Tailored to your dream job</div></div>
+            <div class="service-card"><div class="service-icon">📎</div><div class="service-title">Editable Cover Letter</div><div class="service-price">MK8,000</div><div class="service-note">Word format — customize for each application</div></div>
+            <div class="service-card"><div class="service-icon">✏️</div><div class="service-title">CV Update</div><div class="service-price">MK3,000 - MK6,000</div><div class="service-note">Update your existing CV</div></div>
         </div>
     </div>
 
@@ -749,50 +1041,23 @@
     <!-- Pricing Section -->
     <div class="section-card">
         <div class="section-title">Pricing by <span>Category</span></div>
-        
         <div class="pricing-grid">
-            <div class="pricing-card">
-                <h3>🎓 Student</h3>
-                <div class="price">MK6,000 <small>CV</small></div>
-                <div class="price">MK8,000 <small>Editable CV</small></div>
-                <div class="price">MK5,000 <small>Cover Letter</small></div>
-                <div class="price">MK8,000 <small>Editable Cover Letter</small></div>
-            </div>
-            <div class="pricing-card">
-                <h3>📜 Recent Graduate</h3>
-                <div class="price">MK8,000 <small>CV</small></div>
-                <div class="price">MK10,000 <small>Editable CV</small></div>
-                <div class="price">MK5,000 <small>Cover Letter</small></div>
-                <div class="price">MK8,000 <small>Editable Cover Letter</small></div>
-            </div>
-            <div class="pricing-card">
-                <h3>💼 Professional</h3>
-                <div class="price">MK10,000 <small>CV</small></div>
-                <div class="price">MK12,000 <small>Editable CV</small></div>
-                <div class="price">MK6,000 <small>Cover Letter</small></div>
-                <div class="price">MK8,000 <small>Editable Cover Letter</small></div>
-            </div>
-            <div class="pricing-card">
-                <h3>🌱 Non-Working</h3>
-                <div class="price">MK8,000 <small>CV</small></div>
-                <div class="price">MK10,000 <small>Editable CV</small></div>
-                <div class="price">MK5,000 <small>Cover Letter</small></div>
-                <div class="price">MK8,000 <small>Editable Cover Letter</small></div>
-            </div>
+            <div class="pricing-card"><h3>🎓 Student</h3><div class="price">MK6,000 <small>CV</small></div><div class="price">MK8,000 <small>Editable CV</small></div><div class="price">MK5,000 <small>Cover Letter</small></div><div class="price">MK8,000 <small>Editable Cover Letter</small></div></div>
+            <div class="pricing-card"><h3>📜 Recent Graduate</h3><div class="price">MK8,000 <small>CV</small></div><div class="price">MK10,000 <small>Editable CV</small></div><div class="price">MK5,000 <small>Cover Letter</small></div><div class="price">MK8,000 <small>Editable Cover Letter</small></div></div>
+            <div class="pricing-card"><h3>💼 Professional</h3><div class="price">MK10,000 <small>CV</small></div><div class="price">MK12,000 <small>Editable CV</small></div><div class="price">MK6,000 <small>Cover Letter</small></div><div class="price">MK8,000 <small>Editable Cover Letter</small></div></div>
+            <div class="pricing-card"><h3>🌱 Non-Working</h3><div class="price">MK8,000 <small>CV</small></div><div class="price">MK10,000 <small>Editable CV</small></div><div class="price">MK5,000 <small>Cover Letter</small></div><div class="price">MK8,000 <small>Editable Cover Letter</small></div></div>
         </div>
         
-        <!-- Returning Client Pricing -->
-        <div style="margin-top: 30px; padding: 20px; background: var(--gray-light); border-radius: 16px; text-align: center;">
-            <h3 style="color: var(--dark);">🔄 Returning Client</h3>
+        <div style="margin-top: 30px; padding: 20px; background: rgba(138, 79, 255, 0.1); border-radius: 16px; text-align: center; border: 1px solid rgba(138, 79, 255, 0.2);">
+            <h3 style="color: #1f2937;">🔄 Returning Client</h3>
             <div class="pricing-grid" style="margin-top: 15px;">
-                <div class="pricing-card" style="background: white;"><div class="price">MK10,000 <small>Editable CV</small></div></div>
-                <div class="pricing-card" style="background: white;"><div class="price">MK8,000 <small>Editable Cover Letter</small></div></div>
-                <div class="pricing-card" style="background: white;"><div class="price">MK5,000 <small>CV Update</small></div></div>
-                <div class="pricing-card" style="background: white;"><div class="price">MK5,000 <small>Cover Letter</small></div></div>
+                <div class="pricing-card" style="background: rgba(255, 255, 255, 0.9);"><div class="price">MK10,000 <small>Editable CV</small></div></div>
+                <div class="pricing-card" style="background: rgba(255, 255, 255, 0.9);"><div class="price">MK8,000 <small>Editable Cover Letter</small></div></div>
+                <div class="pricing-card" style="background: rgba(255, 255, 255, 0.9);"><div class="price">MK5,000 <small>CV Update</small></div></div>
+                <div class="pricing-card" style="background: rgba(255, 255, 255, 0.9);"><div class="price">MK5,000 <small>Cover Letter</small></div></div>
             </div>
         </div>
 
-        <!-- Delivery Options -->
         <div class="section-title" style="margin-top: 40px;">Delivery <span>Options</span></div>
         <div class="delivery-grid">
             <div class="delivery-card"><div class="time">🚚 Standard</div><div class="price">6 hours — Free</div></div>
@@ -805,301 +1070,437 @@
     <div class="section-card">
         <div class="section-title">Payment <span>Methods</span></div>
         <div class="payment-methods">
-            <div class="payment-method"><div class="method-name">📱 Airtel Money</div><div class="method-detail">0991 295 401</div></div>
-            <div class="payment-method"><div class="method-name">📱 Mpamba</div><div class="method-detail">0886 928 639</div></div>
+            <div class="payment-method"><div class="method-name">📱 Airtel Money</div><a href="tel:+265991295401" class="clickable-phone" style="font-size: 15px;">0991 295 401</a></div>
+            <div class="payment-method"><div class="method-name">📱 Mpamba</div><a href="tel:+265886928639" class="clickable-phone" style="font-size: 15px;">0886 928 639</a></div>
             <div class="payment-method"><div class="method-name">🏦 MO626</div><div class="method-detail">1005 6536 18</div></div>
         </div>
-        <p style="text-align: center; color: var(--gray); font-size: 14px; margin-top: 15px;">After payment, type <strong>/confirm YOUR_REFERENCE</strong> in the Telegram bot</p>
+        <p style="text-align: center; color: #5a5a6e; font-size: 14px; margin-top: 15px;">After payment, type <strong>/confirm YOUR_REFERENCE</strong> in the Telegram bot</p>
     </div>
 
-    <!-- Satisfied Clients Section -->
-    <div class="section-card">
-        <div class="section-title">Our <span>Satisfied Clients</span></div>
-        <div class="clients-grid">
-            
-            <!-- 1. Fanny Mahata -->
-            <div class="client-card">
-                <div class="client-name">Fanny Mahata</div>
-                <div class="client-title">BSc in Agronomy | Enumerator</div>
-                <div class="client-detail"><span>📞</span> +265 999 *** ***</div>
-                <div class="client-detail"><span>📧</span> mahata****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Data Collection</span>
-                    <span class="skill-tag">Research</span>
-                    <span class="skill-tag">Agriculture</span>
-                    <span class="skill-tag">Enumeration</span>
+    <!-- Error Reporting Banner -->
+    <div class="error-report-banner">
+        <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+            <div style="font-size: 48px;">🐛</div>
+            <div style="flex: 1;">
+                <h3>Found a Bug? Help Us Fix It!</h3>
+                <p style="color: #4a4a6e; margin-bottom: 15px;">If the bot misbehaves, use the <code>/report</code> command in Telegram to send us a screenshot. We'll notify you when it's fixed!</p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <span class="error-step" style="color: #8A4FFF;">📸 Step 1: Take screenshot</span>
+                    <span class="error-step" style="color: #00C4CC;">💬 Step 2: Type /report</span>
+                    <span class="error-step" style="color: #8A4FFF;">🔔 Step 3: Get notified when resolved</span>
                 </div>
             </div>
-
-            <!-- 2. Francis Esau -->
-            <div class="client-card">
-                <div class="client-name">Francis Esau</div>
-                <div class="client-title">Metallurgy Engineer | Mine-to-Mill Optimization</div>
-                <div class="client-detail"><span>📞</span> +265 885 *** ***</div>
-                <div class="client-detail"><span>📧</span> francis****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Mineral Processing</span>
-                    <span class="skill-tag">Materials Testing</span>
-                    <span class="skill-tag">AutoCAD</span>
-                    <span class="skill-tag">SolidWorks</span>
-                </div>
-            </div>
-
-            <!-- 3. Maggie Zgambo -->
-            <div class="client-card">
-                <div class="client-name">Maggie Zgambo</div>
-                <div class="client-title">BSc Community Health Nursing | Data Collector</div>
-                <div class="client-detail"><span>📞</span> +265 884 *** ***</div>
-                <div class="client-detail"><span>📧</span> zgambo****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Public Health</span>
-                    <span class="skill-tag">Data Collection</span>
-                    <span class="skill-tag">Community Engagement</span>
-                    <span class="skill-tag">Research</span>
-                </div>
-            </div>
-
-            <!-- 4. Richard Chinyama -->
-            <div class="client-card">
-                <div class="client-name">Richard Chinyama</div>
-                <div class="client-title">Carpenter | Interior Design Technician</div>
-                <div class="client-detail"><span>📞</span> +265 995 *** ***</div>
-                <div class="client-detail"><span>📧</span> richard****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Furniture Design</span>
-                    <span class="skill-tag">Joinery</span>
-                    <span class="skill-tag">Blueprint Reading</span>
-                    <span class="skill-tag">Installation</span>
-                </div>
-            </div>
-
-            <!-- 5. Thomson Fanuel -->
-            <div class="client-card">
-                <div class="client-name">Thomson Fanuel</div>
-                <div class="client-title">Carpenter & Joiner | TEVET Certified</div>
-                <div class="client-detail"><span>📞</span> +265 991 *** ***</div>
-                <div class="client-detail"><span>📧</span> thomson****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Furniture Making</span>
-                    <span class="skill-tag">Roofing</span>
-                    <span class="skill-tag">Power Tools</span>
-                    <span class="skill-tag">Scaffolding</span>
-                </div>
-            </div>
-
-            <!-- 6. Jessie Misomali -->
-            <div class="client-card">
-                <div class="client-name">Jessie Misomali</div>
-                <div class="client-title">General Fitter | Mechanical Technician</div>
-                <div class="client-detail"><span>📞</span> +265 886 *** ***</div>
-                <div class="client-detail"><span>📧</span> misomali****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Mechanical Repairs</span>
-                    <span class="skill-tag">Welding</span>
-                    <span class="skill-tag">Fabrication</span>
-                    <span class="skill-tag">Preventive Maintenance</span>
-                </div>
-            </div>
-
-            <!-- 7. Brenda Mwenyedawa -->
-            <div class="client-card">
-                <div class="client-name">Brenda Mwenyedawa</div>
-                <div class="client-title">Extension Development Officer | Enumerator</div>
-                <div class="client-detail"><span>📞</span> +265 995 *** ***</div>
-                <div class="client-detail"><span>📧</span> brenda****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Extension Services</span>
-                    <span class="skill-tag">Data Collection</span>
-                    <span class="skill-tag">Farmer Training</span>
-                    <span class="skill-tag">Project Management</span>
-                </div>
-            </div>
-
-            <!-- 8. Emily Backshion Masiye -->
-            <div class="client-card">
-                <div class="client-name">Emily Backshion Masiye</div>
-                <div class="client-title">BSc Child Health Nursing | Civic Educator</div>
-                <div class="client-detail"><span>📞</span> +265 889 *** ***</div>
-                <div class="client-detail"><span>📧</span> backshion****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Public Education</span>
-                    <span class="skill-tag">Civic Engagement</span>
-                    <span class="skill-tag">Health Education</span>
-                    <span class="skill-tag">Event Coordination</span>
-                </div>
-            </div>
-
-            <!-- 9. Alinafe Mandala -->
-            <div class="client-card">
-                <div class="client-name">Alinafe Mandala</div>
-                <div class="client-title">General Fitter | Mechanical Assembly</div>
-                <div class="client-detail"><span>📞</span> +265 881 *** ***</div>
-                <div class="client-detail"><span>📧</span> alinafe****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Mechanical Assembly</span>
-                    <span class="skill-tag">Fault Diagnosis</span>
-                    <span class="skill-tag">Welding</span>
-                    <span class="skill-tag">Equipment Calibration</span>
-                </div>
-            </div>
-
-            <!-- 10. Maria Mangani -->
-            <div class="client-card">
-                <div class="client-name">Maria Mangani</div>
-                <div class="client-title">ICT Certificate | Sales Professional</div>
-                <div class="client-detail"><span>📞</span> +265 993 *** ***</div>
-                <div class="client-detail"><span>📧</span> maria****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Sales</span>
-                    <span class="skill-tag">Customer Engagement</span>
-                    <span class="skill-tag">Microsoft Office</span>
-                    <span class="skill-tag">IT Support</span>
-                </div>
-            </div>
-
-            <!-- 11. Mayamiko Chipwata -->
-            <div class="client-card">
-                <div class="client-name">Mayamiko Chipwata</div>
-                <div class="client-title">Metallurgy & Materials Engineering</div>
-                <div class="client-detail"><span>📞</span> +265 881 *** ***</div>
-                <div class="client-detail"><span>📧</span> met-***@must.ac.mw</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Material Science</span>
-                    <span class="skill-tag">Thermodynamics</span>
-                    <span class="skill-tag">Heat Treatment</span>
-                    <span class="skill-tag">Quality Assurance</span>
-                </div>
-            </div>
-
-            <!-- 12. Praise Sakanako -->
-            <div class="client-card">
-                <div class="client-name">Praise Sakanako</div>
-                <div class="client-title">Diploma in Horticulture | Extension Officer</div>
-                <div class="client-detail"><span>📞</span> +265 880 *** ***</div>
-                <div class="client-detail"><span>📧</span> sakanako****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Horticulture</span>
-                    <span class="skill-tag">Extension Delivery</span>
-                    <span class="skill-tag">Data Entry</span>
-                    <span class="skill-tag">Community Mobilization</span>
-                </div>
-            </div>
-
-            <!-- 13. Smey Charles -->
-            <div class="client-card">
-                <div class="client-name">Smey Charles</div>
-                <div class="client-title">Driver | Transportation Specialist</div>
-                <div class="client-detail"><span>📞</span> +265 880 *** ***</div>
-                <div class="client-detail"><span>📧</span> smey****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Safe Driving</span>
-                    <span class="skill-tag">Route Management</span>
-                    <span class="skill-tag">Vehicle Maintenance</span>
-                    <span class="skill-tag">Schedule Management</span>
-                </div>
-            </div>
-
-            <!-- 14. Rodrick Samangaya -->
-            <div class="client-card">
-                <div class="client-name">Rodrick Samangaya</div>
-                <div class="client-title">Metallurgy & Materials Engineering Student</div>
-                <div class="client-detail"><span>📞</span> +265 990 *** ***</div>
-                <div class="client-detail"><span>📧</span> rodrick****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Materials Analysis</span>
-                    <span class="skill-tag">Machine Operation</span>
-                    <span class="skill-tag">Metal Fabrication</span>
-                    <span class="skill-tag">Welding</span>
-                </div>
-            </div>
-
-            <!-- 15. Chifundo Maganizo -->
-            <div class="client-card">
-                <div class="client-name">Chifundo Maganizo</div>
-                <div class="client-title">BSc Nutrition & Food Science | Researcher</div>
-                <div class="client-detail"><span>📞</span> +265 991 *** ***</div>
-                <div class="client-detail"><span>📧</span> chifundo****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Nutrition Education</span>
-                    <span class="skill-tag">Data Collection</span>
-                    <span class="skill-tag">Research</span>
-                    <span class="skill-tag">Teaching</span>
-                </div>
-            </div>
-
-            <!-- 16. Lameck Phiri Dickson -->
-            <div class="client-card">
-                <div class="client-name">Lameck Phiri Dickson</div>
-                <div class="client-title">Mechanical Technician | Water & Land Management</div>
-                <div class="client-detail"><span>📞</span> +265 992 *** ***</div>
-                <div class="client-detail"><span>📧</span> lameck****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Mechanical Systems</span>
-                    <span class="skill-tag">Water Management</span>
-                    <span class="skill-tag">Land Use Planning</span>
-                    <span class="skill-tag">Hydrology</span>
-                </div>
-            </div>
-
-            <!-- 17. Fexter Mingola -->
-            <div class="client-card">
-                <div class="client-name">Fexter Mingola</div>
-                <div class="client-title">Clinical Medicine | Medical Assistant</div>
-                <div class="client-detail"><span>📞</span> +265 996 *** ***</div>
-                <div class="client-detail"><span>📧</span> mingola****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Patient Assessment</span>
-                    <span class="skill-tag">Medication Administration</span>
-                    <span class="skill-tag">Minor Surgery</span>
-                    <span class="skill-tag">Medical Data Management</span>
-                </div>
-            </div>
-
-            <!-- 18. Roberk Kandima Fraighton -->
-            <div class="client-card">
-                <div class="client-name">Roberk Kandima Fraighton</div>
-                <div class="client-title">BSc Food Science & Technology</div>
-                <div class="client-detail"><span>📞</span> +265 992 *** ***</div>
-                <div class="client-detail"><span>📧</span> fraighton****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Food Chemistry</span>
-                    <span class="skill-tag">Food Processing</span>
-                    <span class="skill-tag">Sensory Evaluation</span>
-                    <span class="skill-tag">Product Development</span>
-                </div>
-            </div>
-
-            <!-- 19. C. Kamphonje -->
-            <div class="client-card">
-                <div class="client-name">C. Kamphonje</div>
-                <div class="client-title">Welder | Metal Fabrication</div>
-                <div class="client-detail"><span>📞</span> +265 *** *** ***</div>
-                <div class="client-detail"><span>📧</span> kamphonje****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Welding</span>
-                    <span class="skill-tag">Metal Fabrication</span>
-                    <span class="skill-tag">Blueprint Reading</span>
-                    <span class="skill-tag">Quality Control</span>
-                </div>
-            </div>
-
-            <!-- 20. Brenda (Agriculture - second CV) -->
-            <div class="client-card">
-                <div class="client-name">Brenda (Mwenyedawa)</div>
-                <div class="client-title">Extension Development Officer | Agriculture</div>
-                <div class="client-detail"><span>📞</span> +265 995 *** ***</div>
-                <div class="client-detail"><span>📧</span> brenda****@gmail.com</div>
-                <div class="client-skills">
-                    <span class="skill-tag">Extension Services</span>
-                    <span class="skill-tag">Farmer Training</span>
-                    <span class="skill-tag">Crop Management</span>
-                    <span class="skill-tag">Data Collection</span>
-                </div>
-            </div>
-
         </div>
-        <p style="text-align: center; margin-top: 25px; color: var(--gray); font-size: 13px;">*Contact details partially hidden for privacy. These are real clients we've successfully helped across Malawi.</p>
     </div>
+
+  <!-- Satisfied Clients Section - ALL 20 CLIENTS WITH INDUSTRY COLORS -->
+<div class="section-card">
+    <div class="section-title">Our <span>Satisfied Clients</span></div>
+    <div class="clients-grid">
+        
+        <!-- 1. Fanny Mahata - Agriculture -->
+        <div class="client-card agriculture">
+            <div class="client-name">
+                Fanny Mahata
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">BSc in Agronomy | Enumerator</div>
+            <div class="client-detail"><span>📞</span> +265 999 *** ***</div>
+            <div class="client-detail"><span>📧</span> mahata****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Data Collection</span><span class="skill-tag">Research</span><span class="skill-tag">Agriculture</span><span class="skill-tag">Enumeration</span>
+            </div>
+        </div>
+
+        <!-- 2. Francis Esau - Engineering -->
+        <div class="client-card engineering">
+            <div class="client-name">
+                Francis Esau
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">Metallurgy Engineer | Mine-to-Mill Optimization</div>
+            <div class="client-detail"><span>📞</span> +265 885 *** ***</div>
+            <div class="client-detail"><span>📧</span> francis****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Mineral Processing</span><span class="skill-tag">Materials Testing</span><span class="skill-tag">AutoCAD</span><span class="skill-tag">SolidWorks</span>
+            </div>
+        </div>
+
+        <!-- 3. Maggie Zgambo - Healthcare -->
+        <div class="client-card healthcare">
+            <div class="client-name">
+                Maggie Zgambo
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">BSc Community Health Nursing | Data Collector</div>
+            <div class="client-detail"><span>📞</span> +265 884 *** ***</div>
+            <div class="client-detail"><span>📧</span> zgambo****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Public Health</span><span class="skill-tag">Data Collection</span><span class="skill-tag">Community Engagement</span><span class="skill-tag">Research</span>
+            </div>
+        </div>
+
+        <!-- 4. Richard Chinyama - Carpentry -->
+        <div class="client-card carpentry">
+            <div class="client-name">
+                Richard Chinyama
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">Carpenter | Interior Design Technician</div>
+            <div class="client-detail"><span>📞</span> +265 995 *** ***</div>
+            <div class="client-detail"><span>📧</span> richard****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Furniture Design</span><span class="skill-tag">Joinery</span><span class="skill-tag">Blueprint Reading</span><span class="skill-tag">Installation</span>
+            </div>
+        </div>
+
+        <!-- 5. Thomson Fanuel - Carpentry -->
+        <div class="client-card carpentry">
+            <div class="client-name">
+                Thomson Fanuel
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">Carpenter & Joiner | TEVET Certified</div>
+            <div class="client-detail"><span>📞</span> +265 991 *** ***</div>
+            <div class="client-detail"><span>📧</span> thomson****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Furniture Making</span><span class="skill-tag">Roofing</span><span class="skill-tag">Power Tools</span><span class="skill-tag">Scaffolding</span>
+            </div>
+        </div>
+
+        <!-- 6. Jessie Misomali - Engineering -->
+        <div class="client-card engineering">
+            <div class="client-name">
+                Jessie Misomali
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">General Fitter | Mechanical Technician</div>
+            <div class="client-detail"><span>📞</span> +265 886 *** ***</div>
+            <div class="client-detail"><span>📧</span> misomali****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Mechanical Repairs</span><span class="skill-tag">Welding</span><span class="skill-tag">Fabrication</span><span class="skill-tag">Preventive Maintenance</span>
+            </div>
+        </div>
+
+        <!-- 7. Brenda Mwenyedawa - Agriculture -->
+        <div class="client-card agriculture">
+            <div class="client-name">
+                Brenda Mwenyedawa
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">Extension Development Officer | Enumerator</div>
+            <div class="client-detail"><span>📞</span> +265 995 *** ***</div>
+            <div class="client-detail"><span>📧</span> brenda****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Extension Services</span><span class="skill-tag">Data Collection</span><span class="skill-tag">Farmer Training</span><span class="skill-tag">Project Management</span>
+            </div>
+        </div>
+
+        <!-- 8. Emily Backshion Masiye - Healthcare -->
+        <div class="client-card healthcare">
+            <div class="client-name">
+                Emily Backshion Masiye
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">BSc Child Health Nursing | Civic Educator</div>
+            <div class="client-detail"><span>📞</span> +265 889 *** ***</div>
+            <div class="client-detail"><span>📧</span> backshion****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Public Education</span><span class="skill-tag">Civic Engagement</span><span class="skill-tag">Health Education</span><span class="skill-tag">Event Coordination</span>
+            </div>
+        </div>
+
+        <!-- 9. Alinafe Mandala - Engineering -->
+        <div class="client-card engineering">
+            <div class="client-name">
+                Alinafe Mandala
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">General Fitter | Mechanical Assembly</div>
+            <div class="client-detail"><span>📞</span> +265 881 *** ***</div>
+            <div class="client-detail"><span>📧</span> alinafe****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Mechanical Assembly</span><span class="skill-tag">Fault Diagnosis</span><span class="skill-tag">Welding</span><span class="skill-tag">Equipment Calibration</span>
+            </div>
+        </div>
+
+        <!-- 10. Maria Mangani - Sales -->
+        <div class="client-card sales">
+            <div class="client-name">
+                Maria Mangani
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">ICT Certificate | Sales Professional</div>
+            <div class="client-detail"><span>📞</span> +265 993 *** ***</div>
+            <div class="client-detail"><span>📧</span> maria****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Sales</span><span class="skill-tag">Customer Engagement</span><span class="skill-tag">Microsoft Office</span><span class="skill-tag">IT Support</span>
+            </div>
+        </div>
+
+        <!-- 11. Mayamiko Chipwata - Engineering -->
+        <div class="client-card engineering">
+            <div class="client-name">
+                Mayamiko Chipwata
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">Metallurgy & Materials Engineering</div>
+            <div class="client-detail"><span>📞</span> +265 881 *** ***</div>
+            <div class="client-detail"><span>📧</span> met-***@must.ac.mw</div>
+            <div class="client-skills">
+                <span class="skill-tag">Material Science</span><span class="skill-tag">Thermodynamics</span><span class="skill-tag">Heat Treatment</span><span class="skill-tag">Quality Assurance</span>
+            </div>
+        </div>
+
+        <!-- 12. Praise Sakanako - Agriculture -->
+        <div class="client-card agriculture">
+            <div class="client-name">
+                Praise Sakanako
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">Diploma in Horticulture | Extension Officer</div>
+            <div class="client-detail"><span>📞</span> +265 880 *** ***</div>
+            <div class="client-detail"><span>📧</span> sakanako****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Horticulture</span><span class="skill-tag">Extension Delivery</span><span class="skill-tag">Data Entry</span><span class="skill-tag">Community Mobilization</span>
+            </div>
+        </div>
+
+        <!-- 13. Smey Charles - Logistics -->
+        <div class="client-card logistics">
+            <div class="client-name">
+                Smey Charles
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">Driver | Transportation Specialist</div>
+            <div class="client-detail"><span>📞</span> +265 880 *** ***</div>
+            <div class="client-detail"><span>📧</span> smey****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Safe Driving</span><span class="skill-tag">Route Management</span><span class="skill-tag">Vehicle Maintenance</span><span class="skill-tag">Schedule Management</span>
+            </div>
+        </div>
+
+        <!-- 14. Rodrick Samangaya - Engineering -->
+        <div class="client-card engineering">
+            <div class="client-name">
+                Rodrick Samangaya
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">Metallurgy & Materials Engineering Student</div>
+            <div class="client-detail"><span>📞</span> +265 990 *** ***</div>
+            <div class="client-detail"><span>📧</span> rodrick****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Materials Analysis</span><span class="skill-tag">Machine Operation</span><span class="skill-tag">Metal Fabrication</span><span class="skill-tag">Welding</span>
+            </div>
+        </div>
+
+        <!-- 15. Chifundo Maganizo - Healthcare -->
+        <div class="client-card healthcare">
+            <div class="client-name">
+                Chifundo Maganizo
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">BSc Nutrition & Food Science | Researcher</div>
+            <div class="client-detail"><span>📞</span> +265 991 *** ***</div>
+            <div class="client-detail"><span>📧</span> chifundo****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Nutrition Education</span><span class="skill-tag">Data Collection</span><span class="skill-tag">Research</span><span class="skill-tag">Teaching</span>
+            </div>
+        </div>
+
+        <!-- 16. Lameck Phiri Dickson - Engineering -->
+        <div class="client-card engineering">
+            <div class="client-name">
+                Lameck Phiri Dickson
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">Mechanical Technician | Water & Land Management</div>
+            <div class="client-detail"><span>📞</span> +265 992 *** ***</div>
+            <div class="client-detail"><span>📧</span> lameck****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Mechanical Systems</span><span class="skill-tag">Water Management</span><span class="skill-tag">Land Use Planning</span><span class="skill-tag">Hydrology</span>
+            </div>
+        </div>
+
+        <!-- 17. Fexter Mingola - Healthcare -->
+        <div class="client-card healthcare">
+            <div class="client-name">
+                Fexter Mingola
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">Clinical Medicine | Medical Assistant</div>
+            <div class="client-detail"><span>📞</span> +265 996 *** ***</div>
+            <div class="client-detail"><span>📧</span> mingola****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Patient Assessment</span><span class="skill-tag">Medication Administration</span><span class="skill-tag">Minor Surgery</span><span class="skill-tag">Medical Data Management</span>
+            </div>
+        </div>
+
+        <!-- 18. Roberk Kandima Fraighton - Food Science -->
+        <div class="client-card food-science">
+            <div class="client-name">
+                Roberk Kandima Fraighton
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">BSc Food Science & Technology</div>
+            <div class="client-detail"><span>📞</span> +265 992 *** ***</div>
+            <div class="client-detail"><span>📧</span> fraighton****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Food Chemistry</span><span class="skill-tag">Food Processing</span><span class="skill-tag">Sensory Evaluation</span><span class="skill-tag">Product Development</span>
+            </div>
+        </div>
+
+        <!-- 19. C. Kamphonje - Welding -->
+        <div class="client-card welding">
+            <div class="client-name">
+                C. Kamphonje
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">Welder | Metal Fabrication</div>
+            <div class="client-detail"><span>📞</span> +265 *** *** ***</div>
+            <div class="client-detail"><span>📧</span> kamphonje****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Welding</span><span class="skill-tag">Metal Fabrication</span><span class="skill-tag">Blueprint Reading</span><span class="skill-tag">Quality Control</span>
+            </div>
+        </div>
+
+        <!-- 20. Brenda (Agriculture - second CV) -->
+        <div class="client-card agriculture">
+            <div class="client-name">
+                Brenda (Mwenyedawa)
+                <span class="satisfaction-stars">
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                    <span class="satisfaction-star">★</span>
+                </span>
+            </div>
+            <div class="client-title">Extension Development Officer | Agriculture</div>
+            <div class="client-detail"><span>📞</span> +265 995 *** ***</div>
+            <div class="client-detail"><span>📧</span> brenda****@gmail.com</div>
+            <div class="client-skills">
+                <span class="skill-tag">Extension Services</span><span class="skill-tag">Farmer Training</span><span class="skill-tag">Crop Management</span><span class="skill-tag">Data Collection</span>
+            </div>
+        </div>
+
+    </div>
+    <p style="text-align: center; margin-top: 25px; color: #5a5a6e; font-size: 13px;">*Contact details partially hidden for privacy. These are real clients we've successfully helped across Malawi.</p>
+</div>     
 
     <!-- Review Process -->
     <div class="section-card">
@@ -1111,96 +1512,120 @@
             <div class="review-step"><div class="step-num">4</div><div>You approve the final version</div></div>
             <div class="review-step"><div class="step-num">5</div><div>You receive your downloadable document</div></div>
         </div>
-        <p style="text-align: center; margin-top: 20px; color: var(--gray);">Additional revisions: MK2,000 each</p>
+        <p style="text-align: center; margin-top: 20px; color: #5a5a6e;">Additional revisions: MK2,000 each</p>
     </div>
 
-    <!-- FAQ Section -->
-    <div class="section-card">
-        <div class="section-title">Frequently <span>Asked Questions</span></div>
-        
-        <div class="faq-item">
-            <div class="faq-question" onclick="toggleFAQ(this)">How do I place an order? <span class="faq-icon">▼</span></div>
-            <div class="faq-answer">Click the "Start on Telegram" button below. The bot will guide you through selecting your category, service, and collecting your information. You can also upload an existing CV draft to save time.</div>
-        </div>
-        
-        <div class="faq-item">
-            <div class="faq-question" onclick="toggleFAQ(this)">What payment methods do you accept? <span class="faq-icon">▼</span></div>
-            <div class="faq-answer">We accept <strong>Airtel Money</strong> (0991 295 401), <strong>Mpamba</strong> (0886 928 639), and <strong>MO626</strong> (1005 6536 18). After sending payment, type /confirm YOUR_REFERENCE in the bot.</div>
-        </div>
-        
-        <div class="faq-item">
-            <div class="faq-question" onclick="toggleFAQ(this)">Can I pay in installments? <span class="faq-icon">▼</span></div>
-            <div class="faq-answer">Yes! We offer a 2-part installment plan:
-                <ul style="margin-top: 10px; margin-left: 20px;">
-                    <li><strong>First payment (50%):</strong> CV creation begins immediately</li>
-                    <li><strong>Second payment (50%):</strong> Due within 7 days. You receive your final document after this payment</li>
-                </ul>
-                Late payments may incur a 10% penalty after 7 days overdue. Extensions available upon request (max 2 extensions).</div>
-        </div>
-        
-        <div class="faq-item">
-            <div class="faq-question" onclick="toggleFAQ(this)">How does the referral program work? <span class="faq-icon">▼</span></div>
-            <div class="faq-answer">Share your unique referral code with friends. When they complete their first order:
-                <ul style="margin-top: 10px; margin-left: 20px;">
-                    <li>🎁 Your friend gets <strong>10% off</strong> their first order</li>
-                    <li>💰 You earn <strong>MK2,000 credit</strong> toward your next order</li>
-                </ul>
-                Type /referral in the bot to get your code and track your earnings.</div>
-        </div>
-        
-        <div class="faq-item">
-            <div class="faq-question" onclick="toggleFAQ(this)">Will I receive notifications? <span class="faq-icon">▼</span></div>
-            <div class="faq-answer">Yes! You'll receive:
-                <ul style="margin-top: 10px; margin-left: 20px;">
-                    <li>📧 <strong>Email notifications</strong> for order confirmation and delivery (if you provide your email)</li>
-                    <li>💬 <strong>Telegram notifications</strong> for all updates</li>
-                    <li>📱 <strong>SMS alerts</strong> for urgent matters (if you provide your phone number)</li>
-                </ul>
-                You can update your contact information anytime using /update_profile in the bot.</div>
-        </div>
-        
-        <div class="faq-item">
-            <div class="faq-question" onclick="toggleFAQ(this)">When will I receive my document? <span class="faq-icon">▼</span></div>
-            <div class="faq-answer">Delivery starts AFTER payment confirmation:
-                <ul style="margin-top: 10px; margin-left: 20px;">
-                    <li>🚚 <strong>Standard:</strong> 6 hours — Free</li>
-                    <li>⚡ <strong>Express:</strong> 2 hours — +MK3,000</li>
-                    <li>🏃 <strong>Rush:</strong> 1 hour — +MK5,000</li>
-                </ul>
-                You'll receive a preview first, have 2 chances to request changes, then receive the final downloadable document.</div>
-        </div>
-        
-        <div class="faq-item">
-            <div class="faq-question" onclick="toggleFAQ(this)">What's the difference between standard and editable? <span class="faq-icon">▼</span></div>
-            <div class="faq-answer"><strong>Standard (PDF):</strong> Ready to print/share, cannot edit. <strong>Editable (Word):</strong> You can make future changes yourself, anytime.</div>
-        </div>
-        
-        <div class="faq-item">
-            <div class="faq-question" onclick="toggleFAQ(this)">Do I need a Telegram account? <span class="faq-icon">▼</span></div>
-            <div class="faq-answer">Yes. Telegram is free and available on both Android and iOS. Download it from your app store, then click the button below to start the EasySuccor bot.</div>
-        </div>
-        
-        <div class="faq-item">
-            <div class="faq-question" onclick="toggleFAQ(this)">Is my information secure? <span class="faq-icon">▼</span></div>
-            <div class="faq-answer">Absolutely. All your personal information is encrypted and only used to create your CV/cover letter. We never share your data with third parties.</div>
+    <!-- FAQ Section - COMPREHENSIVE -->
+<div class="section-card">
+    <div class="section-title">Frequently <span>Asked Questions</span></div>
+    
+    <!-- Ordering & Getting Started -->
+    <h3 style="color: #8A4FFF; margin: 25px 0 15px 0;">📋 Ordering & Getting Started</h3>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">How do I place an order? <span class="faq-icon">▼</span></div><div class="faq-answer">Click the "Start on Telegram" button. The bot guides you through selecting your category (Student, Recent Graduate, Professional, Non-Working, or Returning Client), choosing your service, and providing your information. You can upload an existing draft to save time.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">Do I need a Telegram account? <span class="faq-icon">▼</span></div><div class="faq-answer">Yes. Telegram is free on Android and iOS. Download it from your app store, then click the button above to start the EasySuccor bot. No phone number is shared with us beyond what you provide in your CV.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">Can I upload my existing CV? <span class="faq-icon">▼</span></div><div class="faq-answer">Absolutely! Our system extracts all information from your draft (PDF, DOCX, or image). We'll identify missing sections and only ask for what's needed, saving you significant time.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">What information do I need to provide? <span class="faq-icon">▼</span></div><div class="faq-answer">We collect comprehensive information across 18+ categories: Personal details, Work Experience, Education, Skills, Certifications, Languages, Projects, Achievements, Volunteer work, Leadership roles, Awards, Publications, Conferences, Referees, Interests, and Social Media links. Many are optional.</div></div>
+
+    <!-- Pricing & Payment -->
+    <h3 style="color: #8A4FFF; margin: 25px 0 15px 0;">💰 Pricing & Payment</h3>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">What payment methods do you accept? <span class="faq-icon">▼</span></div><div class="faq-answer">We accept <strong>Airtel Money</strong> (<a href="tel:+265991295401" class="clickable-phone">0991 295 401</a>), <strong>Mpamba</strong> (<a href="tel:+265886928639" class="clickable-phone">0886 928 639</a>), and <strong>MO626 Bank</strong> (1005 6536 18). After payment, type /confirm YOUR_REFERENCE in the bot.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">How much does a CV cost? <span class="faq-icon">▼</span></div><div class="faq-answer">Pricing varies by category: Student (MK6,000-MK8,000), Recent Graduate (MK8,000-MK10,000), Professional (MK10,000-MK12,000), Non-Working (MK8,000-MK10,000). Editable versions cost more. Cover letters are MK5,000-MK8,000. CV Updates are MK3,000-MK6,000.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">Can I pay in installments? <span class="faq-icon">▼</span></div><div class="faq-answer">Yes! We offer a 2-part installment plan: <strong>First payment (50%)</strong> starts CV creation immediately. <strong>Second payment (50%)</strong> due within 7 days to receive your final document. 10% late penalty after 7 days. Up to 2 extensions (3 days each) available upon request.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">What is "Pay Later"? <span class="faq-icon">▼</span></div><div class="faq-answer">Pay Later allows you to receive your document preview, then pay within 7 days to get the final downloadable version. Reminders sent before due date. 10% penalty if overdue beyond 7 days.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">Are there any hidden fees? <span class="faq-icon">▼</span></div><div class="faq-answer">No hidden fees. Standard delivery (6 hours) is free. Express (2 hours) adds MK3,000. Rush (1 hour) adds MK5,000. Additional revisions beyond the 2 free ones cost MK2,000 each.</div></div>
+
+    <!-- Delivery & Revisions -->
+    <h3 style="color: #8A4FFF; margin: 25px 0 15px 0;">📬 Delivery & Revisions</h3>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">When will I receive my document? <span class="faq-icon">▼</span></div><div class="faq-answer">Delivery starts AFTER payment confirmation: <strong>Standard:</strong> 6 hours (Free), <strong>Express:</strong> 2 hours (+MK3,000), <strong>Rush:</strong> 1 hour (+MK5,000). You receive a preview first, then have 2 free revision requests before final delivery.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">How many revisions do I get? <span class="faq-icon">▼</span></div><div class="faq-answer">Every order includes <strong>2 free revision requests</strong>. After previewing your document, you can request changes twice at no cost. Additional revisions cost MK2,000 each.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">What's the difference between Standard and Editable? <span class="faq-icon">▼</span></div><div class="faq-answer"><strong>Standard (PDF):</strong> Ready to print and share, cannot be edited. <strong>Editable (Word .docx):</strong> You can make future changes yourself anytime. Recommended if you plan to update your CV regularly.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">Can I update my CV later? <span class="faq-icon">▼</span></div><div class="faq-answer">Yes! Use the <strong>CV Update</strong> service (MK3,000-MK6,000). Simply tell us what changes you need like "Add 2 years as Project Manager at XYZ Ltd" or "Update my phone number."</div></div>
+
+    <!-- Referral Program -->
+    <h3 style="color: #8A4FFF; margin: 25px 0 15px 0;">🎁 Referral Program</h3>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">How does the referral program work? <span class="faq-icon">▼</span></div><div class="faq-answer">Share your unique referral code with friends. When they complete their first order: <strong>🎁 Your friend gets 10% off</strong> their first order. <strong>💰 You earn MK2,000 credit</strong> toward your next order. Plus, you earn from their referrals too (3 levels)! Type /referral in the bot to get your code.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">What are the referral tiers? <span class="faq-icon">▼</span></div><div class="faq-answer">Bronze (0-4 refs): MK2,000/ref | Silver (5-9): MK2,500 + 5% bonus | Gold (10-24): MK3,000 + 10% bonus | Platinum (25-49): MK4,000 + 15% bonus | Diamond (50+): MK5,000 + 20% bonus. Milestone bonuses at 5, 10, 25, and 50 referrals!</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">When do I receive my referral credit? <span class="faq-icon">▼</span></div><div class="faq-answer">Credit is added to your account immediately after your referred friend completes payment for their first order. You can use it on any future EasySuccor service.</div></div>
+
+    <!-- Technical & Support -->
+    <h3 style="color: #8A4FFF; margin: 25px 0 15px 0;">🛠️ Technical & Support</h3>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">Will I receive notifications? <span class="faq-icon">▼</span></div><div class="faq-answer">Yes! You'll receive: 📧 <strong>Email notifications</strong> for order confirmation and delivery (if email provided), 💬 <strong>Telegram notifications</strong> for all updates, 📱 <strong>SMS alerts</strong> for urgent matters. Update contact info with /update_profile.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">What if the bot misbehaves? <span class="faq-icon">▼</span></div><div class="faq-answer">Use the <code>/report</code> command in Telegram. Take a screenshot, describe the issue, and send it. We'll investigate and notify you when resolved. You can also type /pause to save progress and /resume later.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">How do I contact support? <span class="faq-icon">▼</span></div><div class="faq-answer">📞 Phone/WhatsApp: <a href="tel:+265991295401">+265 991 295 401</a> | <a href="https://wa.me/265881193707">+265 881 193 707</a> | 📧 Email: easysuccor.bot@gmail.com | 💬 Telegram: @EasySuccor_bot. Business hours: Mon-Fri 8AM-8PM, Sat 9AM-5PM.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">Is my information secure? <span class="faq-icon">▼</span></div><div class="faq-answer">Absolutely. All personal information is encrypted and used solely for creating your CV/cover letter. We never share your data with third parties. Contact details on satisfied clients are partially hidden for privacy.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">Can I request specific CV templates? <span class="faq-icon">▼</span></div><div class="faq-answer">Yes! We offer multiple professional templates optimized for different industries. Mention your preference during the ordering process, and we'll accommodate your request.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">Do you offer CVs for specific industries? <span class="faq-icon">▼</span></div><div class="faq-answer">Yes! We've successfully created CVs for Agriculture, Engineering, Healthcare, Carpentry, Technology, Education, Sales, Logistics, Food Science, Welding, and many more. Our team tailors content to your industry.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">What are the 18+ categories? <span class="faq-icon">▼</span></div><div class="faq-answer">We collect comprehensive information: Personal Info, Professional Summary, Work Experience, Education, Skills (Technical/Soft/Tools), Certifications, Languages, Projects, Achievements, Volunteer Experience, Leadership Roles, Awards, Publications, Conferences, Referees, Interests, Social Media, and Portfolio links.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">Can I pause and resume later? <span class="faq-icon">▼</span></div><div class="faq-answer">Yes! Type /pause anytime to save your progress. When ready, type /resume to continue exactly where you left off. Your session is saved for 30 days.</div></div>
+    
+    <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)">What if I'm not satisfied? <span class="faq-icon">▼</span></div><div class="faq-answer">We offer 2 free revisions with every order. If you're still not satisfied, contact support and we'll work with you to make it right. Our goal is your success!</div></div>
+</div>
+
+    <!-- Hire Reporting Banner -->
+<div class="section-card" style="background: linear-gradient(135deg, rgba(0, 196, 204, 0.08), rgba(138, 79, 255, 0.05));">
+    <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+        <div style="font-size: 48px;">🎉</div>
+        <div style="flex: 1;">
+            <h3 style="color: #00C4CC; margin-bottom: 10px;">Got Hired? Let Us Celebrate With You!</h3>
+            <p style="color: #4a4a6e; margin-bottom: 15px;">Your success story inspires others. If you landed a job using our CV or cover letter, let us know! Use <code style="background: rgba(0, 196, 204, 0.15); padding: 4px 12px; border-radius: 8px; font-weight: 700; color: #00C4CC;">/hired</code> in the Telegram bot to share your achievement.</p>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <span style="background: rgba(0, 196, 204, 0.1); padding: 6px 14px; border-radius: 30px; font-size: 13px; color: #00C4CC;">🏆 Step 1: Land the job</span>
+                <span style="background: rgba(138, 79, 255, 0.1); padding: 6px 14px; border-radius: 30px; font-size: 13px; color: #8A4FFF;">💬 Step 2: Type /hired</span>
+                <span style="background: rgba(0, 196, 204, 0.1); padding: 6px 14px; border-radius: 30px; font-size: 13px; color: #00C4CC;">🌟 Step 3: Inspire others</span>
+            </div>
         </div>
     </div>
+</div>
 
     <!-- CTA Section -->
     <div class="cta-section">
-        <a href="https://t.me/EasySuccor_bot" class="telegram-btn" target="_blank">
-            <span>📱</span> Start on Telegram <span>→</span>
-        </a>
-        <div class="email-option">
-            Or <span class="email-link" onclick="openEmailModal()">send the link to my email</span> — I'll come back when ready
-        </div>
+        <a href="https://t.me/EasySuccor_bot" class="telegram-btn" target="_blank"><span>📱</span> Start on Telegram <span>→</span></a>
+        <div class="email-option">Or <span class="email-link" onclick="openEmailModal()">send the link to my email</span> — I'll come back when ready</div>
     </div>
 
     <div class="footer">
         <p>© 2025 EasySuccor — Professional CV & Cover Letter Services</p>
-        <p>📞 +265 991 295 401 | 📧 easysuccor.bot@gmail.com</p>
-        <p>💬 WhatsApp: +265 881 193 707</p>
-        <p>Telegram: <a href="https://t.me/EasySuccor_bot" style="color: var(--primary);">@EasySuccor_bot</a></p>
+        <p>📞 <a href="tel:+265991295401">+265 991 295 401</a> | 📧 <a href="mailto:easysuccor.bot@gmail.com">easysuccor.bot@gmail.com</a></p>
+        <p>💬 WhatsApp: <a href="https://wa.me/265881193707" target="_blank">+265 881 193 707</a></p>
+        <p>Telegram: <a href="https://t.me/EasySuccor_bot" target="_blank">@EasySuccor_bot</a></p>
+    </div>
+</div>
+
+<!-- Name Capture Modal -->
+<div id="nameModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeNameModal()">&times;</span>
+        <div style="font-size: 48px; margin-bottom: 15px;">👋</div>
+        <h3 style="margin-bottom: 10px; color: #8A4FFF;">Welcome to EasySuccor!</h3>
+        <p style="color: #5a5a6e; margin-bottom: 20px;">We're honored you chose us for your professional journey.</p>
+        <p style="color: #5a5a6e; margin-bottom: 15px; font-size: 14px;">May we know your name? (Optional)</p>
+        <input type="text" id="visitorName" placeholder="Your name">
+        <div style="display: flex; gap: 10px; margin-top: 20px;"><button onclick="continueToTelegram()" style="flex: 1;">Continue to Telegram →</button></div>
+        <p style="margin-top: 15px; font-size: 12px; color: #5a5a6e;"><a href="#" onclick="skipNameAndContinue()" style="color: #8A4FFF; text-decoration: none;">Skip and continue anonymously</a></p>
     </div>
 </div>
 
@@ -1216,20 +1641,31 @@
     </div>
 </div>
 
+<!-- Admin Login Modal -->
+<div id="adminLoginModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeAdminLogin()">&times;</span>
+        <div style="font-size: 48px; margin-bottom: 15px;">🔐</div>
+        <h3 style="margin-bottom: 10px; color: #8A4FFF;">Admin Access</h3>
+        <p style="color: #5a5a6e; margin-bottom: 20px;">Enter your admin API key to access the portal.</p>
+        <input type="password" id="adminApiKeyInput" placeholder="Admin API Key">
+        <button onclick="loginAsAdmin()" style="width: 100%;">Login to Admin Panel</button>
+        <div id="adminLoginStatus" style="margin-top: 15px; font-size: 14px;"></div>
+    </div>
+</div>
+
 <script>
-    // ============================================================
-    // DYNAMIC MESSAGES
-    // ============================================================
+    // ============ DYNAMIC MESSAGES ============
     const dynamicMessages = [
-        { main: "📄 Professional CVs That Get Noticed", sub: "Our expert team creates CVs that highlight your strengths and land interviews." },
-        { main: "⏱️ Delivered in as Little as 1 Hour", sub: "Need it urgently? Choose Rush delivery and get your document in 1 hour." },
-        { main: "📝 Editable Word Format Available", sub: "Get your CV in Word format — make future updates yourself, anytime." },
-        { main: "🔄 2 Free Revisions Included", sub: "Your satisfaction is guaranteed. Request changes until it's perfect." },
-        { main: "💳 Simple Payment Options", sub: "Pay via Airtel Money, Mpamba, or MO626. Easy, fast, and secure." },
-        { main: "🎯 Tailored for Your Industry", sub: "Whether you're in tech, healthcare, education, or business — we speak your language." },
-        { main: "👥 Refer Friends & Earn Credits", sub: "Share your referral code. Friends get 10% off, you earn MK2,000 credit." },
-        { main: "📧 Email Notifications", sub: "Get order confirmations and delivery alerts directly to your email." },
-        { main: "📎 Editable Cover Letters", sub: "Get your cover letter in Word format — customize for each job application." }
+        { main: "🙏 We're Honored You're Here", sub: "Your trust in EasySuccor inspires us to deliver excellence." },
+        { main: "📄 Professional CVs That Open Doors", sub: "Crafted with care, tailored to your unique journey." },
+        { main: "⏱️ Delivered in as Little as 1 Hour", sub: "Because we respect your time and urgency." },
+        { main: "📝 Editable Word Format Available", sub: "Your document, your control — always." },
+        { main: "🔄 2 Free Revisions Included", sub: "Your satisfaction is our sacred commitment." },
+        { main: "💳 Simple Payment Options", sub: "Airtel Money, Mpamba, or MO626 — we've got you covered." },
+        { main: "🎯 Tailored for Your Industry", sub: "We speak your professional language." },
+        { main: "👥 Refer Friends & Earn Credits", sub: "Share the blessing, earn MK2,000 credit." },
+        { main: "📧 Email Notifications", sub: "Stay informed every step of the way." }
     ];
 
     let currentMessageIndex = 0;
@@ -1239,7 +1675,6 @@
         const msg = dynamicMessages[currentMessageIndex];
         document.getElementById('dynamicMessage').textContent = msg.main;
         document.getElementById('dynamicSubMessage').textContent = msg.sub;
-        
         const indicators = document.getElementById('messageIndicators');
         indicators.innerHTML = '';
         dynamicMessages.forEach((_, idx) => {
@@ -1252,81 +1687,158 @@
 
     function resetInterval() {
         clearInterval(messageInterval);
-        messageInterval = setInterval(() => {
-            currentMessageIndex = (currentMessageIndex + 1) % dynamicMessages.length;
-            updateDynamicMessage();
-        }, 5000);
+        messageInterval = setInterval(() => { currentMessageIndex = (currentMessageIndex + 1) % dynamicMessages.length; updateDynamicMessage(); }, 5000);
     }
 
     updateDynamicMessage();
     resetInterval();
 
-    // ============================================================
-    // FAQ ACCORDION
-    // ============================================================
-    function toggleFAQ(element) {
-        const parent = element.closest('.faq-item');
-        const answer = parent.querySelector('.faq-answer');
-        parent.classList.toggle('open');
-        answer.classList.toggle('show');
+    // ============ FAQ ACCORDION ============
+    function toggleFAQ(element) { 
+        const parent = element.closest('.faq-item'); 
+        parent.classList.toggle('open'); 
     }
 
-    // ============================================================
-    // EMAIL FUNCTION
-    // ============================================================
+    // ============ NAME CAPTURE ============
     const TELEGRAM_BOT_LINK = "https://t.me/EasySuccor_bot";
-
-    function openEmailModal() {
-        document.getElementById('emailModal').style.display = 'flex';
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const telegramBtn = document.querySelector('.telegram-btn');
+        if (telegramBtn) { 
+            telegramBtn.addEventListener('click', function(e) { 
+                e.preventDefault(); 
+                openNameModal(); 
+            }); 
+        }
+        checkAdminStatus();
+    });
+    
+    function openNameModal() { document.getElementById('nameModal').style.display = 'flex'; }
+    function closeNameModal() { document.getElementById('nameModal').style.display = 'none'; }
+    
+    function continueToTelegram() {
+        const name = document.getElementById('visitorName').value.trim();
+        let telegramUrl = TELEGRAM_BOT_LINK;
+        if (name) { 
+            const encodedName = encodeURIComponent(name); 
+            telegramUrl = `${TELEGRAM_BOT_LINK}?start=${encodedName}`; 
+            localStorage.setItem('easysuccor_visitor_name', name); 
+        }
+        window.open(telegramUrl, '_blank'); 
+        closeNameModal();
+    }
+    
+    function skipNameAndContinue() { 
+        window.open(TELEGRAM_BOT_LINK, '_blank'); 
+        closeNameModal(); 
     }
 
-    function closeEmailModal() {
-        document.getElementById('emailModal').style.display = 'none';
-        document.getElementById('userEmail').value = '';
-        document.getElementById('emailStatus').innerHTML = '';
+    // ============ EMAIL MODAL ============
+    function openEmailModal() { document.getElementById('emailModal').style.display = 'flex'; }
+    function closeEmailModal() { 
+        document.getElementById('emailModal').style.display = 'none'; 
+        document.getElementById('userEmail').value = ''; 
+        document.getElementById('emailStatus').innerHTML = ''; 
     }
 
     async function sendLinkToEmail() {
         const email = document.getElementById('userEmail').value.trim();
         const statusDiv = document.getElementById('emailStatus');
-        
-        if (!email || !email.includes('@')) {
-            statusDiv.innerHTML = '<span style="color: red;">❌ Please enter a valid email address</span>';
-            return;
+        if (!email || !email.includes('@')) { 
+            statusDiv.innerHTML = '<span style="color: red;">❌ Please enter a valid email address</span>'; 
+            return; 
         }
-        
-        statusDiv.innerHTML = '<span style="color: #1a56db;">📤 Sending...</span>';
-        
+        statusDiv.innerHTML = '<span style="color: #8A4FFF;">📤 Sending...</span>';
         try {
-            const response = await fetch('/api/send-telegram-link', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email, link: TELEGRAM_BOT_LINK })
+            const response = await fetch('/api/send-telegram-link', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ email: email, link: TELEGRAM_BOT_LINK }) 
             });
             const result = await response.json();
-            if (result.success) {
-                statusDiv.innerHTML = '<span style="color: #0e9f6e;">✅ Link sent to your email! Check your inbox.</span>';
-                setTimeout(() => closeEmailModal(), 3000);
-            } else {
-                throw new Error();
+            if (result.success) { 
+                statusDiv.innerHTML = '<span style="color: #00C4CC;">✅ Link sent to your email! Check your inbox.</span>'; 
+                setTimeout(() => closeEmailModal(), 3000); 
+            } else { 
+                throw new Error(); 
             }
         } catch (error) {
             await navigator.clipboard.writeText(TELEGRAM_BOT_LINK);
-            statusDiv.innerHTML = '<span style="color: #0e9f6e;">📋 Link copied to clipboard! Paste it anywhere.</span>';
+            statusDiv.innerHTML = '<span style="color: #00C4CC;">📋 Link copied to clipboard! Paste it anywhere.</span>';
             setTimeout(() => closeEmailModal(), 2000);
         }
     }
 
-    window.onclick = function(event) {
-        const modal = document.getElementById('emailModal');
-        if (event.target === modal) {
-            closeEmailModal();
+    // ============ ADMIN AUTHENTICATION ============
+    const ADMIN_API_KEY = '0.i45qbafdnui0.0b656qiu0v3';
+
+    function checkAdminStatus() {
+        const adminToken = localStorage.getItem('easysuccor_admin_token');
+        const adminExpiry = localStorage.getItem('easysuccor_admin_expiry');
+        
+        if (adminToken && adminExpiry && Date.now() < parseInt(adminExpiry)) {
+            document.getElementById('adminQuickLinks').style.display = 'flex';
+            document.getElementById('adminLoginBtn').style.display = 'none';
+        } else {
+            document.getElementById('adminLoginBtn').style.display = 'block';
+            document.getElementById('adminQuickLinks').style.display = 'none';
+            if (adminToken) {
+                localStorage.removeItem('easysuccor_admin_token');
+                localStorage.removeItem('easysuccor_admin_expiry');
+            }
         }
     }
 
-    document.getElementById('telegramLink').addEventListener('click', function() {
-        console.log('Telegram bot link clicked at:', new Date().toISOString());
-    });
+    function showAdminLogin() {
+        document.getElementById('adminLoginModal').style.display = 'flex';
+        document.getElementById('adminApiKeyInput').value = '';
+        document.getElementById('adminLoginStatus').innerHTML = '';
+    }
+
+    function closeAdminLogin() {
+        document.getElementById('adminLoginModal').style.display = 'none';
+    }
+
+    function loginAsAdmin() {
+        const apiKey = document.getElementById('adminApiKeyInput').value.trim();
+        const statusDiv = document.getElementById('adminLoginStatus');
+        
+        if (!apiKey) {
+            statusDiv.innerHTML = '<span style="color: #e74c3c;">❌ Please enter your admin API key</span>';
+            return;
+        }
+        
+        if (apiKey === ADMIN_API_KEY) {
+            const expiry = Date.now() + (24 * 60 * 60 * 1000);
+            localStorage.setItem('easysuccor_admin_token', apiKey);
+            localStorage.setItem('easysuccor_admin_expiry', expiry.toString());
+            
+            statusDiv.innerHTML = '<span style="color: #00C4CC;">✅ Access granted!</span>';
+            
+            setTimeout(() => {
+                closeAdminLogin();
+                checkAdminStatus();
+            }, 1000);
+        } else {
+            statusDiv.innerHTML = '<span style="color: #e74c3c;">❌ Invalid API key</span>';
+        }
+    }
+
+    function logoutAdmin() {
+        localStorage.removeItem('easysuccor_admin_token');
+        localStorage.removeItem('easysuccor_admin_expiry');
+        checkAdminStatus();
+    }
+
+    // ============ MODAL OUTSIDE CLICK ============
+    window.onclick = function(event) { 
+        const nameModal = document.getElementById('nameModal'); 
+        const emailModal = document.getElementById('emailModal'); 
+        const adminModal = document.getElementById('adminLoginModal');
+        if (event.target === nameModal) closeNameModal(); 
+        if (event.target === emailModal) closeEmailModal(); 
+        if (event.target === adminModal) closeAdminLogin();
+    }
 </script>
 </body>
 </html>

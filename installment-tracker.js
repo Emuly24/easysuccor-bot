@@ -308,7 +308,8 @@ Thank you for completing your payment! 🎉`;
       
       if (daysOverdue > 0 && !currentInstallment.penalty_applied) {
         if (daysOverdue >= 7) {
-          const penalty = Math.floor(currentInstallment.amount * 0.1);
+          const penaltyPercent = parseInt(process.env.INSTALLMENT_PENALTY_PERCENT) || 10;
+          const penalty = Math.floor(currentInstallment.amount * (penaltyPercent / 100));
           currentInstallment.amount += penalty;
           installment.penalty_amount += penalty;
           currentInstallment.penalty_applied = true;

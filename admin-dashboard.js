@@ -3,7 +3,8 @@ const db = require('./database');
 const cron = require('node-cron');
 
 class AdminDashboard {
-  constructor() {
+  constructor(bot) {
+    this.bot = bot; // Store bot instance for sending messages
     this.stats = {};
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
@@ -46,7 +47,7 @@ class AdminDashboard {
       allOrders, allClients, allFeedback, testimonials,
       pendingPayments, weeklyOrders, monthlyOrders, yearlyOrders,
       allCVOrders, allCoverOrders, allUpdateOrders,
-      installmentPlans, payLaterPlans
+      installmentPlans, payLaterPlans, errorReports
     ] = await Promise.all([
       db.getAllOrders(),
       db.getAllClients(),
@@ -60,7 +61,8 @@ class AdminDashboard {
       db.getOrdersByService('cover letter', 'editable cover letter', 'legacy_cover_letter'),
       db.getOrdersByService('cv update'),
       db.getAllInstallmentPlans(),
-      db.getAllPayLaterPlans()
+      db.getAllPayLaterPlans(),
+      db.getErrorReports ? db.getErrorReports(null, 1000) : [] // Get all error reports
     ]);
     
     // Today's orders
@@ -89,6 +91,10 @@ class AdminDashboard {
     let totalCertifications = 0;
     let totalLanguages = 0;
     let totalReferees = 0;
+    let totalAwards = 0;
+    let totalPublications = 0;
+    let totalConferences = 0;
+    let totalInterests = 0;
     
     for (const order of allCVOrders) {
       const cvData = order.cv_data || {};
@@ -100,6 +106,10 @@ class AdminDashboard {
       totalCertifications += cvData.certifications?.length || 0;
       totalLanguages += cvData.languages?.length || 0;
       totalReferees += cvData.referees?.length || 0;
+      totalAwards += cvData.awards?.length || 0;
+      totalPublications += cvData.publications?.length || 0;
+      totalConferences += cvData.conferences?.length || 0;
+      totalInterests += cvData.interests?.length || 0;
     }
     
     const avgSkillsPerCV = allCVOrders.length > 0 ? Math.round(totalSkills / allCVOrders.length) : 0;
@@ -148,6 +158,31 @@ class AdminDashboard {
     const completedPayLater = payLaterPlans.filter(p => p.status === 'completed').length;
     const overduePayLater = payLaterPlans.filter(p => p.status === 'pending' && new Date(p.due_date) < new Date()).length;
     const totalPayLaterAmount = payLaterPlans.reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    // ============ ERROR REPORTING STATS (NEW) ============
+    const totalErrorReports = errorReports.length;
+    const pendingErrorReports = errorReports.filter(r => r.status === 'pending').length;
+    const resolvedErrorReports = errorReports.filter(r => r.status === 'resolved').length;
+    const errorReportsToday = errorReports.filter(r => r.created_at?.split('T')[0] === today).length;
+    const errorReportsThisWeek = errorReports.filter(r => r.created_at >= firstDayOfWeek).length;
+    const errorReportsThisMonth = errorReports.filter(r => r.created_at >= firstDayOfMonth).length;
+    
+    // Average resolution time for resolved reports
+    let totalResolutionHours = 0;
+    let resolvedWithTime = 0;
+    for (const report of errorReports.filter(r => r.status === 'resolved' && r.resolved_at)) {
+      const created = new Date(report.created_at);
+      const resolved = new Date(report.resolved_at);
+      totalResolutionHours += (resolved - created) / (1000 * 60 * 60);
+      resolvedWithTime++;
+    }
+    const avgResolutionHours = resolvedWithTime > 0 ? Math.round(totalResolutionHours / resolvedWithTime) : 0;
+    
+    // Recent pending reports (last 5)
+    const recentPendingReports = errorReports
+      .filter(r => r.status === 'pending')
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 5);
     
     // Client retention
     const totalClients = allClients.length;
@@ -230,7 +265,11 @@ class AdminDashboard {
         total_leadership: totalLeadership,
         total_certifications: totalCertifications,
         total_languages: totalLanguages,
-        total_referees: totalReferees
+        total_referees: totalReferees,
+        total_awards: totalAwards,
+        total_publications: totalPublications,
+        total_conferences: totalConferences,
+        total_interests: totalInterests
       },
       
       cover_letter_analytics: {
@@ -254,6 +293,24 @@ class AdminDashboard {
           total_amount: totalPayLaterAmount,
           overdue_rate: activePayLater > 0 ? (overduePayLater / activePayLater) * 100 : 0
         }
+      },
+      
+      // ============ ERROR REPORTING ANALYTICS (NEW) ============
+      error_analytics: {
+        total_reports: totalErrorReports,
+        pending: pendingErrorReports,
+        resolved: resolvedErrorReports,
+        resolution_rate: totalErrorReports > 0 ? ((resolvedErrorReports / totalErrorReports) * 100).toFixed(1) : 0,
+        avg_resolution_hours: avgResolutionHours,
+        today: errorReportsToday,
+        this_week: errorReportsThisWeek,
+        this_month: errorReportsThisMonth,
+        recent_pending: recentPendingReports.map(r => ({
+          id: r.id,
+          description: r.description?.slice(0, 50) + (r.description?.length > 50 ? '...' : ''),
+          created_at: r.created_at,
+          client_id: r.client_id
+        }))
       },
       
       clients: {
@@ -284,7 +341,7 @@ class AdminDashboard {
 
   calculateRevenue(orders) {
     return orders.reduce((sum, o) => {
-      const amount = parseInt(o.total_charge?.replace('MK', '').replace(',', '') || 0);
+      const amount = parseInt(String(o.total_charge).replace(/[^0-9]/g, '') || 0);
       return sum + amount;
     }, 0);
   }
@@ -324,8 +381,8 @@ class AdminDashboard {
 ║  • Returning:           ${s.month.returning_clients.toString().padStart(10)}                                                    ║
 ║  • Revenue:             MK${s.month.revenue.toLocaleString().padStart(12)}                                             ║
 ║  • Avg rating:          ${s.month.avg_rating.toString().padStart(10)} ★                                              ║
-║  • Most requested:      ${s.month.most_requested.padEnd(25)} (${s.month.most_requested_count})                     ║
-║  • Top revenue service: ${s.month.highest_revenue_service.padEnd(25)}                                               ║
+║  • Most requested:      ${(s.month.most_requested || 'None').padEnd(25)} (${s.month.most_requested_count || 0})                     ║
+║  • Top revenue service: ${(s.month.highest_revenue_service || 'None').padEnd(25)}                                               ║
 ║                                                                                          ║
 ║  📊 CV ANALYTICS (18+ Categories)                                                        ║
 ║  ─────────────────────────────────────────────────────────────────────────────────────── ║
@@ -351,6 +408,16 @@ class AdminDashboard {
 ║  • Installments Done:   ${s.payment_analytics.installments.completed.toString().padStart(10)}                                                    ║
 ║  • Pay Later Active:    ${s.payment_analytics.pay_later.active.toString().padStart(10)}                                                    ║
 ║  • Pay Later Overdue:   ${s.payment_analytics.pay_later.overdue.toString().padStart(10)}                                                    ║
+║                                                                                          ║
+║  🐛 ERROR REPORTING ANALYTICS                                                            ║
+║  ─────────────────────────────────────────────────────────────────────────────────────── ║
+║  • Total Reports:       ${s.error_analytics.total_reports.toString().padStart(10)}                                                    ║
+║  • Pending:             ${s.error_analytics.pending.toString().padStart(10)}                                                    ║
+║  • Resolved:            ${s.error_analytics.resolved.toString().padStart(10)}                                                    ║
+║  • Resolution Rate:     ${s.error_analytics.resolution_rate.toString().padStart(10)}%                                                   ║
+║  • Avg Resolution:      ${s.error_analytics.avg_resolution_hours.toString().padStart(10)} hours                                              ║
+║  • Today:               ${s.error_analytics.today.toString().padStart(10)}                                                    ║
+║  • This Week:           ${s.error_analytics.this_week.toString().padStart(10)}                                                    ║
 ║                                                                                          ║
 ║  👥 CLIENT INSIGHTS                                                                      ║
 ║  ─────────────────────────────────────────────────────────────────────────────────────── ║
@@ -390,33 +457,41 @@ class AdminDashboard {
 
   async sendWeeklyReport() {
     await this.refreshStats();
+    const s = this.stats;
     const report = `
 📊 *WEEKLY REPORT - ${new Date().toLocaleDateString()}*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📈 PERFORMANCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Orders: ${this.stats.week.orders}
-• Revenue: MK${this.stats.week.revenue.toLocaleString()}
-• Growth: ${this.stats.week.growth.toFixed(1)}%
+• Orders: ${s.week.orders}
+• Revenue: MK${s.week.revenue.toLocaleString()}
+• Growth: ${s.week.growth.toFixed(1)}%
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 👥 CLIENTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• New: ${this.stats.month.new_clients}
-• Active: ${this.stats.clients.active}
-• Retention: ${this.stats.clients.retention_rate}%
+• New: ${s.month.new_clients}
+• Active: ${s.clients.active}
+• Retention: ${s.clients.retention_rate}%
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⭐ FEEDBACK
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Avg Rating: ${this.stats.month.avg_rating} ★
-• Testimonials: ${this.stats.testimonials.approved} approved
+• Avg Rating: ${s.month.avg_rating} ★
+• Testimonials: ${s.testimonials.approved} approved
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🐛 ERROR REPORTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Pending: ${s.error_analytics.pending}
+• Resolved: ${s.error_analytics.resolved}
+• Resolution Rate: ${s.error_analytics.resolution_rate}%
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎯 TOP SERVICE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• ${this.stats.month.most_requested} (${this.stats.month.most_requested_count} orders)
+• ${s.month.most_requested || 'None'} (${s.month.most_requested_count || 0} orders)
 
 Keep up the great work! 🚀`;
     
@@ -428,35 +503,44 @@ Keep up the great work! 🚀`;
 
   async sendMonthlyReport() {
     await this.refreshStats();
+    const s = this.stats;
     const report = `
 📊 *MONTHLY REPORT - ${new Date().toLocaleDateString()}*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📈 SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Total Orders: ${this.stats.month.orders}
-• Revenue: MK${this.stats.month.revenue.toLocaleString()}
-• New Clients: ${this.stats.month.new_clients}
-• Returning Clients: ${this.stats.month.returning_clients}
+• Total Orders: ${s.month.orders}
+• Revenue: MK${s.month.revenue.toLocaleString()}
+• New Clients: ${s.month.new_clients}
+• Returning Clients: ${s.month.returning_clients}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 CV ANALYTICS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Total CVs: ${this.stats.cv_analytics.total_cvs}
-• Avg Skills/CV: ${this.stats.cv_analytics.avg_skills_per_cv}
-• Total Projects: ${this.stats.cv_analytics.total_projects}
+• Total CVs: ${s.cv_analytics.total_cvs}
+• Avg Skills/CV: ${s.cv_analytics.avg_skills_per_cv}
+• Total Projects: ${s.cv_analytics.total_projects}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💳 PAYMENTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Installments Completed: ${this.stats.payment_analytics.installments.completed}
-• Pay Later Overdue: ${this.stats.payment_analytics.pay_later.overdue}
+• Installments Completed: ${s.payment_analytics.installments.completed}
+• Pay Later Overdue: ${s.payment_analytics.pay_later.overdue}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🐛 ERROR REPORTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Total Reports: ${s.error_analytics.total_reports}
+• Pending: ${s.error_analytics.pending}
+• Resolved: ${s.error_analytics.resolved}
+• Avg Resolution: ${s.error_analytics.avg_resolution_hours} hours
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⭐ RATINGS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Average Rating: ${this.stats.month.avg_rating} ★
-• Testimonials: ${this.stats.testimonials.approved} approved
+• Average Rating: ${s.month.avg_rating} ★
+• Testimonials: ${s.testimonials.approved} approved
 
 Great month! On to the next! 🎯`;
     
@@ -517,13 +601,26 @@ Great month! On to the next! 🎯`;
   }
 
   async getDeepSeekUsageStats() {
-    // This would integrate with DeepSeek API if they provide usage metrics
-    // For now, return placeholder
     return {
       total_extractions: 0,
       estimated_cost: 0,
       average_tokens_per_extraction: 0
     };
+  }
+
+  // ============ ERROR REPORTING METHODS (NEW) ============
+  async getErrorReportStats() {
+    await this.refreshStats();
+    return this.stats.error_analytics;
+  }
+
+  async getPendingErrorReports(limit = 20) {
+    const reports = await db.getErrorReports('pending', limit);
+    return reports;
+  }
+
+  async getErrorReportById(reportId) {
+    return await db.getErrorReportById(reportId);
   }
 }
 

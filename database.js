@@ -1,4 +1,4 @@
-// database.js - Updated for Railway
+// database.js - Updated for Railway with Error Reports
 const fs = require('fs');
 const path = require('path');
 
@@ -115,6 +115,9 @@ async function createTablesPostgres(pool) {
             total_charge TEXT,
             payment_status TEXT,
             payment_method TEXT,
+            payment_type TEXT DEFAULT 'standard',
+            installment_status TEXT,
+            pay_later_status TEXT,
             cv_data TEXT,
             portfolio_links TEXT,
             certificates_appendix TEXT,
@@ -204,6 +207,20 @@ async function createTablesPostgres(pool) {
     `);
     
     await pool.query(`
+        CREATE TABLE IF NOT EXISTS pay_later (
+            id SERIAL PRIMARY KEY,
+            order_id TEXT UNIQUE,
+            client_id INTEGER,
+            data TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP,
+            FOREIGN KEY (order_id) REFERENCES orders(id),
+            FOREIGN KEY (client_id) REFERENCES clients(id)
+        )
+    `);
+    
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS admin_logs (
             id SERIAL PRIMARY KEY,
             admin_id TEXT,
@@ -224,6 +241,20 @@ async function createTablesPostgres(pool) {
             feedback TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (order_id) REFERENCES orders(id)
+        )
+    `);
+    
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS error_reports (
+            id SERIAL PRIMARY KEY,
+            client_id INTEGER,
+            file_id TEXT,
+            description TEXT,
+            status TEXT DEFAULT 'pending',
+            resolution_notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TIMESTAMP,
+            FOREIGN KEY (client_id) REFERENCES clients(id)
         )
     `);
     
@@ -287,6 +318,9 @@ async function createTablesSQLite(db) {
             total_charge TEXT,
             payment_status TEXT,
             payment_method TEXT,
+            payment_type TEXT DEFAULT 'standard',
+            installment_status TEXT,
+            pay_later_status TEXT,
             cv_data TEXT,
             portfolio_links TEXT,
             certificates_appendix TEXT,
@@ -376,6 +410,20 @@ async function createTablesSQLite(db) {
     `);
     
     await db.exec(`
+        CREATE TABLE IF NOT EXISTS pay_later (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id TEXT UNIQUE,
+            client_id INTEGER,
+            data TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME,
+            FOREIGN KEY (order_id) REFERENCES orders(id),
+            FOREIGN KEY (client_id) REFERENCES clients(id)
+        )
+    `);
+    
+    await db.exec(`
         CREATE TABLE IF NOT EXISTS admin_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admin_id TEXT,
@@ -399,12 +447,27 @@ async function createTablesSQLite(db) {
         )
     `);
     
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS error_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id INTEGER,
+            file_id TEXT,
+            description TEXT,
+            status TEXT DEFAULT 'pending',
+            resolution_notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            resolved_at DATETIME,
+            FOREIGN KEY (client_id) REFERENCES clients(id)
+        )
+    `);
+    
     console.log('✅ SQLite tables created');
 }
 
 // ============ EXPORT ALL FUNCTIONS ============
 module.exports = {
     initDatabase,
+    
     // Client functions
     getClient: async (telegramId) => {
         if (dbType === 'postgres') {
@@ -414,6 +477,7 @@ module.exports = {
             return await db.get('SELECT * FROM clients WHERE telegram_id = ?', [telegramId]);
         }
     },
+    
     getClientByEmail: async (email) => {
         if (dbType === 'postgres') {
             const result = await db.query('SELECT * FROM clients WHERE email = $1', [email]);
@@ -422,6 +486,7 @@ module.exports = {
             return await db.get('SELECT * FROM clients WHERE email = ?', [email]);
         }
     },
+    
     getClientByPhone: async (phone) => {
         if (dbType === 'postgres') {
             const result = await db.query('SELECT * FROM clients WHERE phone = $1', [phone]);
@@ -430,6 +495,16 @@ module.exports = {
             return await db.get('SELECT * FROM clients WHERE phone = ?', [phone]);
         }
     },
+    
+    getClientByReferralCode: async (referralCode) => {
+        if (dbType === 'postgres') {
+            const result = await db.query('SELECT * FROM clients WHERE referral_code = $1', [referralCode]);
+            return result.rows[0];
+        } else {
+            return await db.get('SELECT * FROM clients WHERE referral_code = ?', [referralCode]);
+        }
+    },
+    
     createClient: async (telegramId, username, firstName, lastName) => {
         const referralCode = Math.random().toString(36).substring(2, 10).toUpperCase();
         
@@ -449,6 +524,7 @@ module.exports = {
             return await db.get('SELECT * FROM clients WHERE id = ?', [result.lastID]);
         }
     },
+    
     getClientById: async (clientId) => {
         if (dbType === 'postgres') {
             const result = await db.query('SELECT * FROM clients WHERE id = $1', [clientId]);
@@ -457,6 +533,16 @@ module.exports = {
             return await db.get('SELECT * FROM clients WHERE id = ?', [clientId]);
         }
     },
+    
+    getClientByName: async (name) => {
+        if (dbType === 'postgres') {
+            const result = await db.query('SELECT * FROM clients WHERE first_name ILIKE $1 OR last_name ILIKE $1 LIMIT 1', [`%${name}%`]);
+            return result.rows[0];
+        } else {
+            return await db.get('SELECT * FROM clients WHERE first_name LIKE ? OR last_name LIKE ? LIMIT 1', [`%${name}%`, `%${name}%`]);
+        }
+    },
+    
     updateClient: async (clientId, data) => {
         const fields = [];
         const values = [];
@@ -487,6 +573,7 @@ module.exports = {
             );
         }
     },
+    
     getAllClients: async () => {
         if (dbType === 'postgres') {
             const result = await db.query('SELECT * FROM clients ORDER BY created_at DESC');
@@ -495,14 +582,17 @@ module.exports = {
             return await db.all('SELECT * FROM clients ORDER BY created_at DESC');
         }
     },
+    
     deleteClientData: async (clientId) => {
         if (dbType === 'postgres') {
+            await db.query('DELETE FROM error_reports WHERE client_id = $1', [clientId]);
             await db.query('DELETE FROM orders WHERE client_id = $1', [clientId]);
             await db.query('DELETE FROM sessions WHERE client_id = $1', [clientId]);
             await db.query('DELETE FROM feedback WHERE client_id = $1', [clientId]);
             await db.query('DELETE FROM referrals WHERE referrer_id = $1 OR referred_id = $1', [clientId]);
             await db.query('DELETE FROM clients WHERE id = $1', [clientId]);
         } else {
+            await db.run('DELETE FROM error_reports WHERE client_id = ?', [clientId]);
             await db.run('DELETE FROM orders WHERE client_id = ?', [clientId]);
             await db.run('DELETE FROM sessions WHERE client_id = ?', [clientId]);
             await db.run('DELETE FROM feedback WHERE client_id = ?', [clientId]);
@@ -510,39 +600,43 @@ module.exports = {
             await db.run('DELETE FROM clients WHERE id = ?', [clientId]);
         }
     },
-   clearAllData: async () => {
-    if (dbType === 'postgres') {
-        // Safer for Railway PostgreSQL
-        const tables = ['orders', 'sessions', 'feedback', 'referrals', 'clients', 'admin_logs', 'document_reviews', 'cv_versions', 'testimonials', 'installments'];
-        for (const table of tables) {
-            await db.query(`DELETE FROM ${table}`);
+    
+    clearAllData: async () => {
+        if (dbType === 'postgres') {
+            const tables = ['orders', 'sessions', 'feedback', 'referrals', 'clients', 'admin_logs', 'document_reviews', 'cv_versions', 'testimonials', 'installments', 'pay_later', 'error_reports'];
+            for (const table of tables) {
+                await db.query(`DELETE FROM ${table}`);
+            }
+            await db.query('ALTER SEQUENCE clients_id_seq RESTART WITH 1');
+            await db.query('ALTER SEQUENCE sessions_id_seq RESTART WITH 1');
+            await db.query('ALTER SEQUENCE feedback_id_seq RESTART WITH 1');
+            await db.query('ALTER SEQUENCE referrals_id_seq RESTART WITH 1');
+            await db.query('ALTER SEQUENCE testimonials_id_seq RESTART WITH 1');
+            await db.query('ALTER SEQUENCE installments_id_seq RESTART WITH 1');
+            await db.query('ALTER SEQUENCE pay_later_id_seq RESTART WITH 1');
+            await db.query('ALTER SEQUENCE admin_logs_id_seq RESTART WITH 1');
+            await db.query('ALTER SEQUENCE document_reviews_id_seq RESTART WITH 1');
+            await db.query('ALTER SEQUENCE cv_versions_id_seq RESTART WITH 1');
+            await db.query('ALTER SEQUENCE error_reports_id_seq RESTART WITH 1');
+            console.log('✅ All data cleared');
+        } else {
+            await db.run('DELETE FROM orders');
+            await db.run('DELETE FROM sessions');
+            await db.run('DELETE FROM feedback');
+            await db.run('DELETE FROM referrals');
+            await db.run('DELETE FROM clients');
+            await db.run('DELETE FROM admin_logs');
+            await db.run('DELETE FROM document_reviews');
+            await db.run('DELETE FROM cv_versions');
+            await db.run('DELETE FROM testimonials');
+            await db.run('DELETE FROM installments');
+            await db.run('DELETE FROM pay_later');
+            await db.run('DELETE FROM error_reports');
+            await db.run('DELETE FROM sqlite_sequence');
+            console.log('✅ All data cleared');
         }
-        // Reset ID sequences
-        await db.query('ALTER SEQUENCE clients_id_seq RESTART WITH 1');
-        await db.query('ALTER SEQUENCE sessions_id_seq RESTART WITH 1');
-        await db.query('ALTER SEQUENCE feedback_id_seq RESTART WITH 1');
-        await db.query('ALTER SEQUENCE referrals_id_seq RESTART WITH 1');
-        await db.query('ALTER SEQUENCE testimonials_id_seq RESTART WITH 1');
-        await db.query('ALTER SEQUENCE installments_id_seq RESTART WITH 1');
-        await db.query('ALTER SEQUENCE admin_logs_id_seq RESTART WITH 1');
-        await db.query('ALTER SEQUENCE document_reviews_id_seq RESTART WITH 1');
-        await db.query('ALTER SEQUENCE cv_versions_id_seq RESTART WITH 1');
-        console.log('✅ All data cleared');
-    } else {
-        await db.run('DELETE FROM orders');
-        await db.run('DELETE FROM sessions');
-        await db.run('DELETE FROM feedback');
-        await db.run('DELETE FROM referrals');
-        await db.run('DELETE FROM clients');
-        await db.run('DELETE FROM admin_logs');
-        await db.run('DELETE FROM document_reviews');
-        await db.run('DELETE FROM cv_versions');
-        await db.run('DELETE FROM testimonials');
-        await db.run('DELETE FROM installments');
-        await db.run('DELETE FROM sqlite_sequence');
-        console.log('✅ All data cleared');
-    }
-},
+    },
+    
     // Session functions
     getActiveSession: async (clientId) => {
         if (dbType === 'postgres') {
@@ -558,6 +652,7 @@ module.exports = {
             );
         }
     },
+    
     getPausedSession: async (clientId) => {
         if (dbType === 'postgres') {
             const result = await db.query(
@@ -572,6 +667,7 @@ module.exports = {
             );
         }
     },
+    
     saveSession: async (clientId, stage, currentSection, data, isPaused = 0) => {
         if (dbType === 'postgres') {
             await db.query(`UPDATE sessions SET is_paused = 1 WHERE client_id = $1 AND is_paused = 0`, [clientId]);
@@ -591,6 +687,7 @@ module.exports = {
             return result.lastID;
         }
     },
+    
     updateSession: async (sessionId, stage, currentSection, data, isPaused = 0) => {
         if (dbType === 'postgres') {
             await db.query(
@@ -604,6 +701,7 @@ module.exports = {
             );
         }
     },
+    
     endSession: async (clientId) => {
         if (dbType === 'postgres') {
             await db.query(`UPDATE sessions SET is_paused = 1 WHERE client_id = $1 AND is_paused = 0`, [clientId]);
@@ -611,41 +709,43 @@ module.exports = {
             await db.run(`UPDATE sessions SET is_paused = 1 WHERE client_id = ? AND is_paused = 0`, [clientId]);
         }
     },
+    
     // Order functions
     createOrder: async (orderData) => {
         if (dbType === 'postgres') {
             await db.query(
-                `INSERT INTO orders (id, client_id, service, category, delivery_option, delivery_time, base_price, delivery_fee, total_charge, payment_status, cv_data, certificates_appendix, portfolio_links, status)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+                `INSERT INTO orders (id, client_id, service, category, delivery_option, delivery_time, base_price, delivery_fee, total_charge, payment_status, payment_type, cv_data, certificates_appendix, portfolio_links, status)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
                 [orderData.id, orderData.client_id, orderData.service, orderData.category,
                  orderData.delivery_option, orderData.delivery_time, orderData.base_price,
                  orderData.delivery_fee, orderData.total_charge, orderData.payment_status,
-                 JSON.stringify(orderData.cv_data), orderData.certificates_appendix, 
-                 orderData.portfolio_links || '[]', 'pending']
+                 orderData.payment_type || 'standard', JSON.stringify(orderData.cv_data), 
+                 orderData.certificates_appendix, orderData.portfolio_links || '[]', 'pending']
             );
             
             await db.query(
                 `UPDATE clients SET total_orders = total_orders + 1, total_spent = total_spent + $1 WHERE id = $2`,
-                [parseInt(orderData.total_charge.replace('MK', '').replace(',', '')), orderData.client_id]
+                [parseInt(String(orderData.total_charge).replace(/[^0-9]/g, '')), orderData.client_id]
             );
         } else {
             await db.run(
-                `INSERT INTO orders (id, client_id, service, category, delivery_option, delivery_time, base_price, delivery_fee, total_charge, payment_status, cv_data, certificates_appendix, portfolio_links, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO orders (id, client_id, service, category, delivery_option, delivery_time, base_price, delivery_fee, total_charge, payment_status, payment_type, cv_data, certificates_appendix, portfolio_links, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [orderData.id, orderData.client_id, orderData.service, orderData.category,
                  orderData.delivery_option, orderData.delivery_time, orderData.base_price,
                  orderData.delivery_fee, orderData.total_charge, orderData.payment_status,
-                 JSON.stringify(orderData.cv_data), orderData.certificates_appendix, 
-                 orderData.portfolio_links || '[]', 'pending']
+                 orderData.payment_type || 'standard', JSON.stringify(orderData.cv_data), 
+                 orderData.certificates_appendix, orderData.portfolio_links || '[]', 'pending']
             );
             
             await db.run(
                 `UPDATE clients SET total_orders = total_orders + 1, total_spent = total_spent + ? WHERE id = ?`,
-                [parseInt(orderData.total_charge.replace('MK', '').replace(',', '')), orderData.client_id]
+                [parseInt(String(orderData.total_charge).replace(/[^0-9]/g, '')), orderData.client_id]
             );
         }
         return orderData.id;
     },
+    
     getOrder: async (orderId) => {
         if (dbType === 'postgres') {
             const result = await db.query('SELECT * FROM orders WHERE id = $1', [orderId]);
@@ -658,6 +758,7 @@ module.exports = {
             return order;
         }
     },
+    
     getClientOrders: async (clientId) => {
         if (dbType === 'postgres') {
             const result = await db.query('SELECT * FROM orders WHERE client_id = $1 ORDER BY created_at DESC', [clientId]);
@@ -666,6 +767,7 @@ module.exports = {
             return await db.all('SELECT * FROM orders WHERE client_id = ? ORDER BY created_at DESC', [clientId]);
         }
     },
+    
     getAllOrders: async () => {
         if (dbType === 'postgres') {
             const result = await db.query('SELECT * FROM orders ORDER BY created_at DESC');
@@ -674,6 +776,16 @@ module.exports = {
             return await db.all('SELECT * FROM orders ORDER BY created_at DESC');
         }
     },
+    
+    getPendingPaymentOrders: async () => {
+        if (dbType === 'postgres') {
+            const result = await db.query("SELECT * FROM orders WHERE payment_status = 'pending' AND status != 'cancelled' ORDER BY created_at ASC");
+            return result.rows;
+        } else {
+            return await db.all("SELECT * FROM orders WHERE payment_status = 'pending' AND status != 'cancelled' ORDER BY created_at ASC");
+        }
+    },
+    
     updateOrderStatus: async (orderId, status) => {
         if (dbType === 'postgres') {
             await db.query(
@@ -687,6 +799,7 @@ module.exports = {
             );
         }
     },
+    
     updateOrderPaymentStatus: async (orderId, status) => {
         if (dbType === 'postgres') {
             await db.query(`UPDATE orders SET payment_status = $1 WHERE id = $2`, [status, orderId]);
@@ -694,6 +807,21 @@ module.exports = {
             await db.run(`UPDATE orders SET payment_status = ? WHERE id = ?`, [status, orderId]);
         }
     },
+    
+    updatePaymentReminder: async (orderId, daysSince) => {
+        if (dbType === 'postgres') {
+            await db.query(
+                `UPDATE orders SET reminder_sent = reminder_sent + 1, last_reminder = $1 WHERE id = $2`,
+                [`${daysSince} days`, orderId]
+            );
+        } else {
+            await db.run(
+                `UPDATE orders SET reminder_sent = reminder_sent + 1, last_reminder = ? WHERE id = ?`,
+                [`${daysSince} days`, orderId]
+            );
+        }
+    },
+    
     // Document Reviews
     saveDocumentReview: async (data) => {
         if (dbType === 'postgres') {
@@ -712,6 +840,7 @@ module.exports = {
             return result.lastID;
         }
     },
+    
     getDocumentReviews: async (orderId) => {
         if (dbType === 'postgres') {
             const result = await db.query(`SELECT * FROM document_reviews WHERE order_id = $1 ORDER BY version ASC`, [orderId]);
@@ -720,6 +849,7 @@ module.exports = {
             return await db.all(`SELECT * FROM document_reviews WHERE order_id = ? ORDER BY version ASC`, [orderId]);
         }
     },
+    
     // Admin logs
     logAdminAction: async (data) => {
         if (dbType === 'postgres') {
@@ -734,12 +864,240 @@ module.exports = {
             );
         }
     },
+    
     getAdminLogs: async (limit = 100) => {
         if (dbType === 'postgres') {
             const result = await db.query(`SELECT * FROM admin_logs ORDER BY timestamp DESC LIMIT $1`, [limit]);
             return result.rows;
         } else {
             return await db.all(`SELECT * FROM admin_logs ORDER BY timestamp DESC LIMIT ?`, [limit]);
+        }
+    },
+    
+    // Referral functions
+    recordReferral: async (referrerId, referredId, referralCode) => {
+        if (dbType === 'postgres') {
+            await db.query(
+                `INSERT INTO referrals (referrer_id, referred_id, referral_code, status, created_at)
+                 VALUES ($1, $2, $3, 'pending', $4)`,
+                [referrerId, referredId, referralCode, new Date().toISOString()]
+            );
+            await db.query(`UPDATE clients SET referred_by = $1 WHERE id = $2`, [referrerId, referredId]);
+        } else {
+            await db.run(
+                `INSERT INTO referrals (referrer_id, referred_id, referral_code, status, created_at)
+                 VALUES (?, ?, ?, 'pending', ?)`,
+                [referrerId, referredId, referralCode, new Date().toISOString()]
+            );
+            await db.run(`UPDATE clients SET referred_by = ? WHERE id = ?`, [referrerId, referredId]);
+        }
+    },
+    
+    getPendingReferral: async (referrerId, referredId) => {
+        if (dbType === 'postgres') {
+            const result = await db.query(
+                `SELECT * FROM referrals WHERE referrer_id = $1 AND referred_id = $2 AND status = 'pending'`,
+                [referrerId, referredId]
+            );
+            return result.rows[0];
+        } else {
+            return await db.get(
+                `SELECT * FROM referrals WHERE referrer_id = ? AND referred_id = ? AND status = 'pending'`,
+                [referrerId, referredId]
+            );
+        }
+    },
+    
+    getReferrerOfReferrer: async (userId) => {
+        if (dbType === 'postgres') {
+            const result = await db.query(`SELECT referred_by FROM clients WHERE id = $1`, [userId]);
+            if (result.rows[0]?.referred_by) {
+                const referrerResult = await db.query(`SELECT referred_by FROM clients WHERE id = $1`, [result.rows[0].referred_by]);
+                return referrerResult.rows[0];
+            }
+            return null;
+        } else {
+            const client = await db.get(`SELECT referred_by FROM clients WHERE id = ?`, [userId]);
+            if (client?.referred_by) {
+                return await db.get(`SELECT referred_by FROM clients WHERE id = ?`, [client.referred_by]);
+            }
+            return null;
+        }
+    },
+    
+    updateReferralStatus: async (referralId, status) => {
+        if (dbType === 'postgres') {
+            await db.query(
+                `UPDATE referrals SET status = $1, completed_at = $2 WHERE id = $3`,
+                [status, status === 'completed' ? new Date().toISOString() : null, referralId]
+            );
+        } else {
+            await db.run(
+                `UPDATE referrals SET status = ?, completed_at = ? WHERE id = ?`,
+                [status, status === 'completed' ? new Date().toISOString() : null, referralId]
+            );
+        }
+    },
+    
+    getUserReferrals: async (userId) => {
+        if (dbType === 'postgres') {
+            const result = await db.query(
+                `SELECT r.*, c.first_name as referred_name 
+                 FROM referrals r 
+                 JOIN clients c ON r.referred_id = c.id 
+                 WHERE r.referrer_id = $1 
+                 ORDER BY r.created_at DESC`,
+                [userId]
+            );
+            return result.rows;
+        } else {
+            return await db.all(
+                `SELECT r.*, c.first_name as referred_name 
+                 FROM referrals r 
+                 JOIN clients c ON r.referred_id = c.id 
+                 WHERE r.referrer_id = ? 
+                 ORDER BY r.created_at DESC`,
+                [userId]
+            );
+        }
+    },
+    
+    getReferralInfo: async (userId) => {
+        const referrals = await module.exports.getUserReferrals(userId);
+        const completed = referrals.filter(r => r.status === 'completed').length;
+        const pending = referrals.filter(r => r.status === 'pending').length;
+        const client = await module.exports.getClientById(userId);
+        
+        return {
+            referral_code: client?.referral_code || 'N/A',
+            total_referrals: referrals.length,
+            completed_referrals: completed,
+            pending_referrals: pending,
+            pending_reward: completed * 2000,
+            available_credit: client?.referral_credit || 0
+        };
+    },
+    
+    addReferralCredit: async (userId, amount) => {
+        if (dbType === 'postgres') {
+            await db.query(
+                `UPDATE clients SET referral_credit = COALESCE(referral_credit, 0) + $1 WHERE id = $2`,
+                [amount, userId]
+            );
+        } else {
+            await db.run(
+                `UPDATE clients SET referral_credit = COALESCE(referral_credit, 0) + ? WHERE id = ?`,
+                [amount, userId]
+            );
+        }
+    },
+    
+    // Installment functions
+    getAllInstallmentPlans: async () => {
+        if (dbType === 'postgres') {
+            const result = await db.query(`SELECT * FROM installments ORDER BY created_at DESC`);
+            return result.rows.map(row => ({ ...row, ...JSON.parse(row.data || '{}') }));
+        } else {
+            const rows = await db.all(`SELECT * FROM installments ORDER BY created_at DESC`);
+            return rows.map(row => ({ ...row, ...JSON.parse(row.data || '{}') }));
+        }
+    },
+    
+    // Pay Later functions
+    getAllPayLaterPlans: async () => {
+        if (dbType === 'postgres') {
+            const result = await db.query(`SELECT * FROM pay_later ORDER BY created_at DESC`);
+            return result.rows.map(row => ({ ...row, ...JSON.parse(row.data || '{}') }));
+        } else {
+            const rows = await db.all(`SELECT * FROM pay_later ORDER BY created_at DESC`);
+            return rows.map(row => ({ ...row, ...JSON.parse(row.data || '{}') }));
+        }
+    },
+    
+    // Error Reports functions
+    saveErrorReport: async (data) => {
+        if (dbType === 'postgres') {
+            const result = await db.query(
+                `INSERT INTO error_reports (client_id, file_id, description, status, created_at)
+                 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+                [data.client_id, data.file_id, data.description, data.status || 'pending', new Date().toISOString()]
+            );
+            return result.rows[0].id;
+        } else {
+            const result = await db.run(
+                `INSERT INTO error_reports (client_id, file_id, description, status, created_at)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [data.client_id, data.file_id, data.description, data.status || 'pending', new Date().toISOString()]
+            );
+            return result.lastID;
+        }
+    },
+    
+    getErrorReports: async (status = null, limit = 50) => {
+        if (dbType === 'postgres') {
+            const query = status 
+                ? 'SELECT * FROM error_reports WHERE status = $1 ORDER BY created_at DESC LIMIT $2'
+                : 'SELECT * FROM error_reports ORDER BY created_at DESC LIMIT $1';
+            const params = status ? [status, limit] : [limit];
+            const result = await db.query(query, params);
+            return result.rows;
+        } else {
+            const query = status 
+                ? 'SELECT * FROM error_reports WHERE status = ? ORDER BY created_at DESC LIMIT ?'
+                : 'SELECT * FROM error_reports ORDER BY created_at DESC LIMIT ?';
+            const params = status ? [status, limit] : [limit];
+            return await db.all(query, params);
+        }
+    },
+    
+    getErrorReportById: async (id) => {
+        if (dbType === 'postgres') {
+            const result = await db.query('SELECT * FROM error_reports WHERE id = $1', [id]);
+            return result.rows[0];
+        } else {
+            return await db.get('SELECT * FROM error_reports WHERE id = ?', [id]);
+        }
+    },
+    
+    updateErrorReportStatus: async (id, status, resolutionNotes = null) => {
+        if (dbType === 'postgres') {
+            await db.query(
+                `UPDATE error_reports 
+                 SET status = $1, resolution_notes = $2, resolved_at = $3 
+                 WHERE id = $4`,
+                [status, resolutionNotes, status === 'resolved' ? new Date().toISOString() : null, id]
+            );
+        } else {
+            await db.run(
+                `UPDATE error_reports 
+                 SET status = ?, resolution_notes = ?, resolved_at = ? 
+                 WHERE id = ?`,
+                [status, resolutionNotes, status === 'resolved' ? new Date().toISOString() : null, id]
+            );
+        }
+    },
+    
+    getPendingErrorReportsCount: async () => {
+        if (dbType === 'postgres') {
+            const result = await db.query("SELECT COUNT(*) FROM error_reports WHERE status = 'pending'");
+            return parseInt(result.rows[0].count);
+        } else {
+            const result = await db.get("SELECT COUNT(*) as count FROM error_reports WHERE status = 'pending'");
+            return result.count;
+        }
+    },
+    
+    logReferralEvent: async (data) => {
+        if (dbType === 'postgres') {
+            await db.query(
+                `INSERT INTO admin_logs (admin_id, action, details, timestamp) VALUES ($1, $2, $3, $4)`,
+                ['referral_system', data.event, JSON.stringify(data), new Date().toISOString()]
+            );
+        } else {
+            await db.run(
+                `INSERT INTO admin_logs (admin_id, action, details, timestamp) VALUES (?, ?, ?, ?)`,
+                ['referral_system', data.event, JSON.stringify(data), new Date().toISOString()]
+            );
         }
     }
 };

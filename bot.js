@@ -22,6 +22,26 @@ const intelligentUpdate = require('./intelligent-update');
 
 dotenv.config();
 
+// ============ APPRECIATION MESSAGES ============
+const appreciationMessages = [
+    "🙏 Thank you for your patience. You're a joy to work with!",
+    "🤝 Your cooperation makes our work a pleasure. Thank you!",
+    "🌟 We appreciate your trust in us. You're in excellent hands.",
+    "💫 Your positive spirit inspires us. Thank you for choosing EasySuccor!",
+    "🕊️ Thank you for your humbleness. It's an honor to serve you.",
+    "🙌 Your obedience and trust make all the difference. We're grateful!",
+    "💝 Clients like you make our work meaningful. Thank you!"
+];
+
+function getRandomAppreciation() {
+    return appreciationMessages[Math.floor(Math.random() * appreciationMessages.length)];
+}
+
+async function sendAppreciation(ctx) {
+    const msg = getRandomAppreciation();
+    await ctx.reply(msg);
+}
+
 // ============ EXPRESS SERVER SETUP ============
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1351,27 +1371,447 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 async function sendMarkdown(ctx, message, extra = {}) {
     return await ctx.reply(message, { parse_mode: 'Markdown', ...extra });
 }
-
-// ============ HUMAN-LIKE DYNAMIC RESPONSES (NO GREETING) ============
-const RESPONSES = {
-    encouragements: {
-        start: ["Awesome choice! 🎯", "You've got this! 💪", "Let's make it happen! ✨", "Perfect! Let's go! 🚀"],
-        progress: [
-            (p) => `📊 You're ${p}% there! Keep going! `,
-            (p) => `🎯 Almost there! ${p}% complete! ⭐`,
-            (p) => `💪 Great progress! ${p}% done! 🎯`
+// ============ TIME-BASED GREETINGS SYSTEM ============
+const TIME_GREETINGS = {
+    morning: {
+        greetings: [
+            (name) => `🌅 *Good Morning, ${name}!* 🌅`,
+            (name) => `☀️ *Rise and Shine, ${name}!* ☀️`,
+            (name) => `🌄 *Beautiful Morning, ${name}!* 🌄`,
+            (name) => `🌞 *Top of the Morning, ${name}!* 🌞`,
+            (name) => `🌸 *Good Morning, ${name}!* 🌸`,
+            (name) => `🕊️ *Peaceful Morning, ${name}!* 🕊️`,
+            (name) => `✨ *Morning Excellence, ${name}!* ✨`,
+            (name) => `💫 *Fresh Start, ${name}!* 💫`
         ],
-        sectionComplete: [
-            (s) => `✅ ${s} saved! You're on a roll! 🎯`,
-            (s) => `🎉 ${s} done! What's next?`,
-            (s) => `👍 ${s} looks great! Moving forward!`
+        subMessages: [
+            "Starting your day with career investment? That's how winners begin!",
+            "The early professional catches the opportunities!",
+            "What a productive way to start your morning!",
+            "Morning dedication leads to evening success!",
+            "Investing in yourself before noon? Admirable!",
+            "Your future self will thank you for this morning's work!",
+            "There's something special about morning ambition!"
         ],
-        final: [
-            (n) => `🎉 Amazing job ${n}! You've provided everything I need!`,
-            (n) => `✨ Perfect ${n}! Your document is going to be fantastic!`,
-            (n) => `💪 Way to go ${n}! Now let's get your document ready!`
-        ]
+        emojis: ['🌅', '☀️', '🌄', '🌞', '🌸', '🕊️', '✨', '💫', '🌤️', '⛅']
     },
+    afternoon: {
+        greetings: [
+            (name) => `☀️ *Good Afternoon, ${name}!* ☀️`,
+            (name) => `🌤️ *Beautiful Afternoon, ${name}!* 🌤️`,
+            (name) => `⛅ *Wonderful Afternoon, ${name}!* ⛅`,
+            (name) => `🌟 *Good Afternoon, ${name}!* 🌟`,
+            (name) => `💪 *Power Through, ${name}!* 💪`,
+            (name) => `🎯 *Afternoon Excellence, ${name}!* 🎯`,
+            (name) => `✨ *Productive Afternoon, ${name}!* ✨`,
+            (name) => `🔥 *Afternoon Momentum, ${name}!* 🔥`
+        ],
+        subMessages: [
+            "Powering through the day like a true professional!",
+            "Midday career moves - that's the spirit!",
+            "Making the most of every hour. Inspiring!",
+            "Your afternoon dedication sets you apart!",
+            "While others slow down, you're leveling up!",
+            "Afternoon ambition leads to career success!",
+            "This is when champions do the work!"
+        ],
+        emojis: ['☀️', '🌤️', '⛅', '🌟', '💪', '🎯', '✨', '🔥', '📊', '⚡']
+    },
+    evening: {
+        greetings: [
+            (name) => `🌆 *Good Evening, ${name}!* 🌆`,
+            (name) => `🌙 *Lovely Evening, ${name}!* 🌙`,
+            (name) => `✨ *Wonderful Evening, ${name}!* ✨`,
+            (name) => `🌠 *Good Evening, ${name}!* 🌠`,
+            (name) => `🕊️ *Peaceful Evening, ${name}!* 🕊️`,
+            (name) => `💫 *Evening Excellence, ${name}!* 💫`,
+            (name) => `🌟 *Golden Hour, ${name}!* 🌟`,
+            (name) => `🌇 *Beautiful Sunset, ${name}!* 🌇`
+        ],
+        subMessages: [
+            "Investing in yourself even after hours? That's true dedication!",
+            "Ending your day with career growth - you're going places!",
+            "Evening ambition shows real commitment to your future!",
+            "Working on yourself when others are resting? Admirable!",
+            "The evening is when visionaries plan their success!",
+            "Tomorrow's success starts with tonight's preparation!"
+        ],
+        emojis: ['🌆', '🌙', '✨', '🌠', '🕊️', '💫', '🌟', '🌇', '🌃', '🎑']
+    },
+    night: {
+        greetings: [
+            (name) => `🌙 *Good Night, ${name}!* 🌙`,
+            (name) => `⭐ *Late Night Excellence, ${name}!* ⭐`,
+            (name) => `🌃 *Good Evening, ${name}!* 🌃`,
+            (name) => `🌠 *Starry Night, ${name}!* 🌠`,
+            (name) => `🦉 *Night Owl Mode, ${name}!* 🦉`,
+            (name) => `✨ *Midnight Dedication, ${name}!* ✨`,
+            (name) => `💫 *Nighttime Ambition, ${name}!* 💫`,
+            (name) => `🌌 *Under the Stars, ${name}!* 🌌`
+        ],
+        subMessages: [
+            "Working while others sleep? That's the mindset of achievers!",
+            "Late night career moves - your dedication is remarkable!",
+            "The quiet hours are when great things are built!",
+            "Your commitment to excellence knows no clock!",
+            "Burning the midnight oil for your future? Respect!",
+            "Success doesn't sleep, and apparently neither do you!",
+            "The night is when dreams are turned into plans!"
+        ],
+        emojis: ['🌙', '⭐', '🌃', '🌠', '🦉', '✨', '💫', '🌌', '🌟', '☪️']
+    }
+};
+
+// ============ TIME-BASED WELCOME MESSAGES ============
+const TIME_BASED_WELCOME = {
+    morning: {
+        firstTime: {
+            honor: [
+                (name) => `🌅 *${name}, a Blessed Morning to You!* 🌅\n\n🤝 We are truly honored you chose EasySuccor today.`,
+                (name) => `☀️ *Good Morning, ${name}!* ☀️\n\n✨ What a privilege to start this day with you.`,
+                (name) => `🌄 *${name}, Welcome to a New Beginning!* 🌄\n\n🙏 Thank you for trusting us this morning.`
+            ],
+            appreciation: [
+                "Starting your morning with career investment? That's the mark of a true professional.",
+                "The early hours are when successful people plant seeds for their future. You're doing exactly that.",
+                "Morning dedication like yours is what separates achievers from dreamers.",
+                "While others are still sleeping, you're building your professional legacy. Respect!"
+            ]
+        },
+        returning: {
+            greeting: [
+                (name) => `🌅 *Welcome Back This Beautiful Morning, ${name}!* 🌅`,
+                (name) => `☀️ *Good Morning, ${name}! So Good to See You Again!* ☀️`,
+                (name) => `🌄 *${name}, You Brighten Our Morning!* 🌄`
+            ],
+            appreciation: [
+                "Starting your day with us again? We're truly honored by your loyalty.",
+                "Morning clients like you make our work a joy. Welcome back!",
+                "There's no better way to start our morning than serving a returning champion like you."
+            ]
+        }
+    },
+    afternoon: {
+        firstTime: {
+            honor: [
+                (name) => `☀️ *${name}, a Wonderful Afternoon to You!* ☀️\n\n🤝 We're truly honored you chose EasySuccor today.`,
+                (name) => `🌤️ *Good Afternoon, ${name}!* 🌤️\n\n✨ Thank you for spending part of your day with us.`,
+                (name) => `⛅ *${name}, Welcome to EasySuccor!* ⛅\n\n🙏 Your trust this afternoon means everything.`
+            ],
+            appreciation: [
+                "Making career moves in the afternoon? That's how professionals level up!",
+                "While others are counting down to evening, you're counting up your achievements!",
+                "Afternoon dedication shows you're serious about your future. We love that energy!",
+                "Midday motivation like yours is rare and valuable. Let's create something exceptional!"
+            ]
+        },
+        returning: {
+            greeting: [
+                (name) => `☀️ *Welcome Back This Afternoon, ${name}!* ☀️`,
+                (name) => `🌤️ *Good Afternoon, ${name}! Always a Pleasure!* 🌤️`,
+                (name) => `⛅ *${name}, You Make Our Afternoon Brighter!* ⛅`
+            ],
+            appreciation: [
+                "Returning in the afternoon? Your continued trust warms our hearts.",
+                "Afternoon clients who come back are the ultimate compliment. Thank you!",
+                "You could be anywhere this afternoon, but you chose us. We're grateful!"
+            ]
+        }
+    },
+    evening: {
+        firstTime: {
+            honor: [
+                (name) => `🌆 *${name}, a Peaceful Evening to You!* 🌆\n\n🤝 We're truly honored you chose EasySuccor tonight.`,
+                (name) => `🌙 *Good Evening, ${name}!* 🌙\n\n✨ Thank you for ending your day with us.`,
+                (name) => `🌠 *${name}, Welcome This Beautiful Evening!* 🌠\n\n🙏 Your trust means the world to us.`
+            ],
+            appreciation: [
+                "Investing in yourself after hours? That's the dedication of a true professional.",
+                "Ending your day with career growth? Tomorrow you'll wake up ahead of the competition.",
+                "Evening ambition like yours is what builds extraordinary careers.",
+                "While others are winding down, you're gearing up. That's a winning mindset!"
+            ]
+        },
+        returning: {
+            greeting: [
+                (name) => `🌆 *Welcome Back This Evening, ${name}!* 🌆`,
+                (name) => `🌙 *Good Evening, ${name}! Wonderful to See You!* 🌙`,
+                (name) => `🌠 *${name}, You Make Our Evening Special!* 🌠`
+            ],
+            appreciation: [
+                "Ending your day with us again? We're truly honored by your loyalty.",
+                "Evening returns like yours remind us why we love what we do.",
+                "You chose to spend your evening with us. That means everything."
+            ]
+        }
+    },
+    night: {
+        firstTime: {
+            honor: [
+                (name) => `🌙 *${name}, a Peaceful Night to You!* 🌙\n\n🤝 We're deeply honored you chose EasySuccor tonight.`,
+                (name) => `⭐ *Good Evening, ${name}!* ⭐\n\n✨ Your dedication this late inspires us.`,
+                (name) => `🌃 *${name}, Welcome to EasySuccor Tonight!* 🌃\n\n🙏 Thank you for trusting us at this hour.`
+            ],
+            appreciation: [
+                "Working on your career while the world sleeps? That's extraordinary dedication.",
+                "The quiet hours are when future leaders build their foundations. You're doing just that.",
+                "Late night ambition like yours is rare and powerful. We're honored to serve you.",
+                "Success doesn't have office hours, and clearly neither do you. Respect!"
+            ]
+        },
+        returning: {
+            greeting: [
+                (name) => `🌙 *Welcome Back Tonight, ${name}!* 🌙`,
+                (name) => `⭐ *Good Evening, ${name}! Always a Privilege!* ⭐`,
+                (name) => `🌃 *${name}, You Light Up Our Night!* 🌃`
+            ],
+            appreciation: [
+                "Returning at this hour? Your dedication and loyalty inspire us.",
+                "Night owl clients like you are special. Thank you for coming back.",
+                "You chose us again, even at this hour. We're truly grateful."
+            ]
+        }
+    }
+};
+
+// ============ COMPREHENSIVE DYNAMIC ENCOURAGEMENTS ============
+const ENCOURAGEMENTS = {
+    start: [
+        (name) => `🎯 Excellent choice, ${name}! This is where greatness begins.`,
+        (name) => `💪 ${name}, you're already making smart decisions!`,
+        (name) => `✨ ${name}, I can tell you're serious about your career!`,
+        (name) => `🚀 Let's create something exceptional, ${name}!`,
+        (name) => `🌟 ${name}, you're on the path to professional excellence!`,
+        (name) => `💫 This is going to be fantastic, ${name}!`,
+        (name) => `🏆 ${name}, winners make decisive choices. Well done!`,
+        (name) => `🔥 ${name}, let's turn your experience into a powerful CV!`,
+        (name) => `📄 ${name}, your professional story deserves to be told brilliantly.`,
+        (name) => `⭐ ${name}, you've just taken the first step toward standing out!`
+    ],
+    progress: [
+        (p, name) => `📊 ${name}, you're ${p}% there! Keep that momentum going! 💪`,
+        (p, name) => `🎯 ${name}, ${p}% complete! You're making excellent progress! ⭐`,
+        (p, name) => `💪 ${p}% done, ${name}! You're crushing it! 🎯`,
+        (p, name) => `✨ ${name}, ${p}% finished! Your dedication shows! 🌟`,
+        (p, name) => `🚀 ${p}% complete, ${name}! Almost at the finish line! 🏁`,
+        (p, name) => `💫 ${name}, you're ${p}% there! Looking better with every step!`,
+        (p, name) => `🔥 ${p}% done, ${name}! Your future self will thank you!`,
+        (p, name) => `📈 ${name}, ${p}% complete! The hardest part is behind you!`,
+        (p, name) => `🎨 ${p}% finished, ${name}! We're crafting something beautiful!`,
+        (p, name) => `⚡ ${name}, you're ${p}% there! Keep that energy flowing!`
+    ],
+    sectionComplete: [
+        (section, name) => `✅ ${name}, your ${section} is saved perfectly! You're on a roll! 🎯`,
+        (section, name) => `🎉 ${section} complete, ${name}! This is coming together beautifully! ✨`,
+        (section, name) => `👍 ${name}, ${section} looks excellent! Moving forward with confidence! 💪`,
+        (section, name) => `📝 ${section} recorded, ${name}. You're doing an amazing job! 🌟`,
+        (section, name) => `💫 ${section} done, ${name}! Every detail makes you shine brighter!`,
+        (section, name) => `🏆 ${name}, your ${section} is impressive! Employers will notice!`,
+        (section, name) => `✨ ${section} saved, ${name}! Your professionalism shows!`,
+        (section, name) => `🔥 ${name}, ${section} looks fantastic! Keep that momentum!`,
+        (section, name) => `🎯 ${section} complete, ${name}! You're building something powerful!`,
+        (section, name) => `💎 ${name}, ${section} is polished and ready! On to the next!`
+    ],
+    final: [
+        (name) => `🎉 *AMAZING JOB, ${name}!* 🎉\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYou've provided everything I need to create a CV that truly represents your professional excellence.\n\nYour thoroughness and dedication are exactly what employers look for. This CV is going to open doors!`,
+        (name) => `✨ *PERFECT, ${name}!* ✨\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYou've done an exceptional job providing all the details. Your future CV already reflects the professional you are.\n\nNow let's get this masterpiece ready for you!`,
+        (name) => `💪 *WAY TO GO, ${name}!* 💪\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYou've completed every step with excellence. The foundation you've laid will result in a powerful, compelling CV.\n\nLet's bring it to life!`,
+        (name) => `🌟 *OUTSTANDING WORK, ${name}!* 🌟\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYour attention to detail and commitment to excellence shine through every section. This CV is going to make employers take notice.\n\nReady for the final step?`,
+        (name) => `🏆 *YOU DID IT, ${name}!* 🏆\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nFrom start to finish, you've shown the dedication of a true professional. Your CV will reflect exactly that.\n\nNow let's get it delivered!`,
+        (name) => `💫 *INCREDIBLE JOB, ${name}!* 💫\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYou've shared your professional journey beautifully. I can already tell this CV is going to be exceptional.\n\nLet's complete the process!`,
+        (name) => `🔥 *PHENOMENAL, ${name}!* 🔥\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nThe thoroughness you've shown tells me you're serious about your career. Employers value that.\n\nYour CV will showcase the professional you truly are!`,
+        (name) => `📄 *MASTERFUL, ${name}!* 📄\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nEvery section you've completed adds to a compelling professional narrative. Your CV is going to stand out.\n\nReady to receive it?`,
+        (name) => `⭐ *EXCELLENT WORK, ${name}!* ⭐\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYou've provided everything needed for a powerful, professional CV. Your future self will thank you for this investment.\n\nLet's finish strong!`,
+        (name) => `🎯 *BRILLIANT, ${name}!* 🎯\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYou've completed your part with excellence. Now it's my turn to craft a CV that opens doors for you.\n\nLet's make it official!`
+    ],
+    halfway: [
+        (name) => `🎯 ${name}, you're halfway there! This is where most people give up - but not you! 💪`,
+        (name) => `✨ ${name}, 50% complete! Your dedication is inspiring! Keep going! 🌟`,
+        (name) => `💫 Halfway done, ${name}! The finish line is in sight! 🏁`,
+        (name) => `🔥 ${name}, you've made it halfway! This CV is already looking impressive!`,
+        (name) => `🚀 ${name}, 50% there! Your future self is already proud of you!`
+    ],
+    almostThere: [
+        (name) => `🎯 ${name}, you're almost at the finish line! Just a few more details! 💪`,
+        (name) => `✨ So close, ${name}! 90% complete - the end is in sight! 🌟`,
+        (name) => `💫 ${name}, you're nearly done! This CV is going to be worth every moment!`,
+        (name) => `🔥 Almost there, ${name}! The hardest part is behind you!`,
+        (name) => `🚀 ${name}, you're at the final stretch! Let's bring this home!`
+    ],
+    longSectionComplete: [
+        (name, section) => `😮‍💨 ${name}, that was a detailed section! Thank you for your patience and thoroughness! 🙏`,
+        (name, section) => `💪 ${name}, you powered through ${section} like a true professional! Excellent work!`,
+        (name, section) => `🌟 ${name}, your attention to detail in ${section} is remarkable! Employers notice this!`,
+        (name, section) => `🎯 ${name}, completing ${section} with such care shows real dedication. Impressive!`,
+        (name, section) => `✨ ${name}, ${section} is perfectly done! Your professionalism shines through!`
+    ],
+    timeBased: {
+        morning: [
+            (name) => `🌅 Good morning, ${name}! Starting your day with career investment - that's how winners begin!`,
+            (name) => `☀️ ${name}, what a productive way to start your morning! Let's create something great!`,
+            (name) => `🌄 Rise and shine, ${name}! Your future CV awaits. Let's make today count!`
+        ],
+        afternoon: [
+            (name) => `☀️ ${name}, powering through the afternoon like a true professional! Keep going!`,
+            (name) => `🌤️ ${name}, your dedication this afternoon is inspiring! Almost there!`,
+            (name) => `⛅ ${name}, making career moves in the afternoon - that's how it's done!`
+        ],
+        evening: [
+            (name) => `🌙 ${name}, investing in yourself even in the evening? That's true dedication!`,
+            (name) => `✨ ${name}, ending your day with career growth - you're going places!`,
+            (name) => `🌠 ${name}, working on your future this evening? Admirable! Let's finish strong!`
+        ],
+        night: [
+            (name) => `🌙 ${name}, burning the midnight oil for your career? That's commitment!`,
+            (name) => `⭐ ${name}, late night career moves - you're dedicated to success!`,
+            (name) => `🌃 ${name}, working while others sleep - that's the mindset of achievers!`
+        ]
+    }
+};
+
+// ============ TIME HELPER FUNCTIONS ============
+function getTimePeriod() {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return 'morning';
+    else if (hour >= 12 && hour < 17) return 'afternoon';
+    else if (hour >= 17 && hour < 21) return 'evening';
+    else return 'night';
+}
+
+function getCurrentHour() {
+    return new Date().getHours();
+}
+
+function getTimeEmoji() {
+    const period = getTimePeriod();
+    const emojis = TIME_GREETINGS[period].emojis;
+    return emojis[Math.floor(Math.random() * emojis.length)];
+}
+
+// ============ HELPER FUNCTIONS ============
+function randomMessage(messages) {
+    if (typeof messages === 'function') return messages;
+    if (Array.isArray(messages)) {
+        return messages[Math.floor(Math.random() * messages.length)];
+    }
+    return messages;
+}
+
+function getRandomEncouragement(type, value1, value2 = null) {
+    const messages = ENCOURAGEMENTS[type];
+    if (!messages) return '';
+    let selectedMessage;
+    if (Array.isArray(messages)) {
+        selectedMessage = messages[Math.floor(Math.random() * messages.length)];
+    } else {
+        const subType = value2 || 'morning';
+        selectedMessage = messages[subType]?.[Math.floor(Math.random() * messages[subType]?.length)];
+    }
+    if (typeof selectedMessage === 'function') {
+        return selectedMessage(value1, value2);
+    }
+    return selectedMessage || '';
+}
+
+function getProgressEncouragement(percent, name) {
+    if (percent >= 90) {
+        const almostMessages = ENCOURAGEMENTS.almostThere;
+        return almostMessages[Math.floor(Math.random() * almostMessages.length)](name);
+    } else if (percent >= 45 && percent <= 55) {
+        const halfwayMessages = ENCOURAGEMENTS.halfway;
+        return halfwayMessages[Math.floor(Math.random() * halfwayMessages.length)](name);
+    } else {
+        return getRandomEncouragement('progress', percent, name);
+    }
+}
+
+function getSectionEncouragement(section, name, isLongSection = false) {
+    if (isLongSection) {
+        return getRandomEncouragement('longSectionComplete', name, section);
+    }
+    return getRandomEncouragement('sectionComplete', section, name);
+}
+
+function getTimeBasedEncouragement(name) {
+    const period = getTimePeriod();
+    const messages = ENCOURAGEMENTS.timeBased[period];
+    const msg = messages[Math.floor(Math.random() * messages.length)];
+    return msg(name);
+}
+
+// ============ WELCOME MESSAGE BUILDERS ============
+function getTimeBasedFirstTimeWelcome(name) {
+    const period = getTimePeriod();
+    const welcomeData = TIME_BASED_WELCOME[period].firstTime;
+    
+    const honor = welcomeData.honor[Math.floor(Math.random() * welcomeData.honor.length)](name);
+    const appreciation = welcomeData.appreciation[Math.floor(Math.random() * welcomeData.appreciation.length)];
+    
+    const trustMessages = [
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🙏 *Thank You for Your Trust*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✨ *We Don't Take This Lightly*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🤝 *Your Trust Inspires Us*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n💫 *We're Committed to Excellence*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    ];
+    const trust = trustMessages[Math.floor(Math.random() * trustMessages.length)];
+    
+    const promiseMessages = [
+        "We promise to deliver excellence worthy of your trust.",
+        "Your CV will reflect the professional you truly are.",
+        "We'll craft a document that makes you proud.",
+        "Expect nothing less than exceptional quality.",
+        "Your success is our success. Let's make it happen."
+    ];
+    const promise = promiseMessages[Math.floor(Math.random() * promiseMessages.length)];
+    
+    const beginMessages = [
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📋 *Let's Begin Your Journey*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🚀 *Ready to Transform Your Career?*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✨ *Your Professional Journey Starts Here*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 *Let's Create Something Exceptional*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    ];
+    const begin = beginMessages[Math.floor(Math.random() * beginMessages.length)];
+    
+    return `${honor}
+
+${trust}
+
+${appreciation}
+
+${promise}
+
+${begin}
+
+Please select your category:`;
+}
+
+function getTimeBasedReturningWelcome(name) {
+    const period = getTimePeriod();
+    const welcomeData = TIME_BASED_WELCOME[period].returning;
+    
+    const greeting = welcomeData.greeting[Math.floor(Math.random() * welcomeData.greeting.length)](name);
+    const appreciation = welcomeData.appreciation[Math.floor(Math.random() * welcomeData.appreciation.length)].replace('${name}', name);
+    
+    const honorMessages = [
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🙏 *We're Honored You Returned*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✨ *Your Loyalty Inspires Us*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n💝 *Clients Like You Make Our Work Meaningful*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🤝 *Thank You for Your Continued Trust*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    ];
+    const honor = honorMessages[Math.floor(Math.random() * honorMessages.length)];
+    
+    return `${greeting}
+
+${honor}
+
+${appreciation}
+
+What would you like to do today?`;
+}
+
+// ============ HUMAN-LIKE DYNAMIC RESPONSES ============
+const RESPONSES = {
+    encouragements: ENCOURAGEMENTS,
     questions: {
         name: ["What's your full name? 📛", "Tell me your name so I can personalize your CV. 📛"],
         email: ["What's your email address? 📧", "Your email please? 📧"],
@@ -1387,9 +1827,8 @@ const RESPONSES = {
     },
     help: ["Need help? Just type what you're unsure about. Or type /pause to save progress. I'm here for you! 💙"],
     
-    // ============ UPDATED PAYMENT SECTION WITH CLICKABLE BUTTONS ============
+    // ============ PAYMENT SECTION (INSIDE RESPONSES) ============
     payment: {
-        // Step 1: After order creation - show payment method options
         order_created: (orderId, service, deliveryTime, total) => `✅ *ORDER CREATED!* 🎉
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1407,7 +1846,6 @@ Service: ${service}
 
 Choose how you would like to pay:`,
         
-        // Step 2: After selecting payment method - show instructions
         payment_options: (reference, total) => `💳 *COMPLETE YOUR PAYMENT*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1423,7 +1861,6 @@ Reference: \`${reference}\`
 
 Select your preferred payment method:`,
         
-        // Mobile Money payment instructions
         mobile_payment: (reference, total, airtelNumber, mpambaNumber) => `💳 *MOBILE MONEY PAYMENT*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1460,7 +1897,6 @@ Reference: \`${reference}\`
 
 Click the button below to confirm your payment:`,
         
-        // Bank Transfer payment instructions
         bank_payment: (reference, total, bankAccount) => `💳 *BANK TRANSFER PAYMENT*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1494,7 +1930,6 @@ Reference: \`${reference}\`
 
 Click the button below to confirm your payment:`,
         
-        // Pay Later plan created
         pay_later_created: (orderId, total, reference, dueDate) => `⏳ *PAY LATER PLAN ACTIVATED*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1527,7 +1962,6 @@ Reference: \`${reference}\`
 
 Click the button below when you make payment:`,
         
-        // Installment plan created
         installment_created: (orderId, total, firstAmount, secondAmount, reference, dueDate) => `📅 *INSTALLMENT PLAN ACTIVATED*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1572,7 +2006,6 @@ Reference: \`${reference}\`
 
 Click the button below when you make your first payment:`,
         
-        // First installment confirmed
         first_installment_confirmed: (firstAmount, secondAmount, dueDate) => `✅ *FIRST INSTALLMENT CONFIRMED!*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1612,7 +2045,6 @@ You will receive your downloadable document immediately.
 
 Thank you for choosing EasySuccor! 🙏`,
         
-        // Second installment confirmed (final)
         second_installment_confirmed: (totalAmount) => `✅ *FINAL INSTALLMENT CONFIRMED!*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1639,7 +2071,6 @@ Thank you for completing your payment! 🎉
 
 Thank you for choosing EasySuccor! 🙏`,
         
-        // Payment confirmed by user
         payment_confirmed: (amount, orderId, deliveryTime) => `✅ *PAYMENT CONFIRMED!* 🎉
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1657,7 +2088,6 @@ Your document will be delivered within *${deliveryTime}*.
 
 Thank you for your trust in EasySuccor! 🙏`,
         
-        // Payment verified by admin
         payment_verified: (amount, orderId) => `✅ *PAYMENT VERIFIED!*
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1676,6 +2106,276 @@ Your document is now being prepared. You will receive it within the delivery tim
 Thank you for choosing EasySuccor! 🙏`
     }
 };
+
+// ============ DYNAMIC THANK YOU RESPONSES ============
+const THANK_YOU_RESPONSES = [
+    (name) => `🙏 *Our pleasure, ${name}.* Serving dedicated professionals like you is why we do what we do.`,
+    (name) => `🤝 *The honor is ours, ${name}.* Thank you for trusting EasySuccor with your career journey.`,
+    (name) => `✨ *You're most welcome, ${name}.* Your success is our greatest reward.`,
+    (name) => `💫 *Thank YOU, ${name}.* Clients like you inspire excellence.`,
+    (name) => `🌟 *Our privilege, ${name}.* Wishing you continued success.`
+`━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌟 *WHEN YOU LAND THE JOB*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+We'd love to celebrate with you! 
+Type /hired to share your success story.
+
+Your achievement inspires others!`
+];
+
+// ============ THANK YOU COMMAND ============
+bot.command('thankyou', async (ctx) => {
+    const client = await db.getClient(ctx.from.id);
+    const name = client?.first_name || 'Friend';
+    const response = THANK_YOU_RESPONSES[Math.floor(Math.random() * THANK_YOU_RESPONSES.length)](name);
+    await ctx.reply(response, { parse_mode: 'Markdown' });
+});
+
+// ============ HIRED COMMAND - Client Reports Job Success ============
+bot.command('hired', async (ctx) => {
+    const client = await db.getClient(ctx.from.id);
+    const name = client?.first_name || 'Friend';
+    
+    await ctx.reply(`🎉 *CONGRATULATIONS, ${name}!* 🎉
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌟 *This Is What We Work For!*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your success is our greatest reward. We're truly honored to have played a part in your journey.
+
+*Would you like to share your story?*
+
+Tell us:
+• What position did you get?
+• Which company?
+• Any advice for other job seekers?
+
+*Just type your story below (or click Skip):*`, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "⏭️ Skip for now", callback_data: "hired_skip" }],
+                [{ text: "📝 Share anonymously", callback_data: "hired_anonymous" }]
+            ]
+        }
+    });
+    
+    // Set session state to await hire story
+    const session = await db.getActiveSession(client.id);
+    if (session) {
+        session.data.awaiting_hire_story = true;
+        await db.updateSession(session.id, session.stage, session.current_section, session.data);
+    } else {
+        await db.saveSession(client.id, 'awaiting_hire_story', null, { awaiting_hire_story: true }, 0);
+    }
+});
+
+// Handle hire story skip
+bot.action('hired_skip', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    
+    if (session?.data?.awaiting_hire_story) {
+        session.data.awaiting_hire_story = false;
+        await db.updateSession(session.id, session.stage, session.current_section, session.data);
+    }
+    
+    await ctx.editMessageText(`🎉 *Congratulations again!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Your achievement inspires us all.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Thank you for choosing EasySuccor. We wish you continued success in your career!
+
+🤝 The EasySuccor Team`, { parse_mode: 'Markdown' });
+    
+    // Log the hire (anonymous)
+    await db.logAdminAction({
+        admin_id: 'system',
+        action: 'client_hired',
+        details: `Client ${client?.first_name || 'Anonymous'} reported getting hired (skipped story)`
+    });
+    
+    // Notify admin
+    const adminChatId = process.env.ADMIN_CHAT_ID;
+    if (adminChatId) {
+        await bot.telegram.sendMessage(
+            adminChatId,
+            `🎉 *Client Got Hired!*\n\nClient: ${client?.first_name || 'Anonymous'}\nStatus: Skipped sharing details`,
+            { parse_mode: 'Markdown' }
+        );
+    }
+});
+
+// Handle anonymous share
+bot.action('hired_anonymous', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    
+    if (session?.data?.awaiting_hire_story) {
+        session.data.awaiting_hire_story = false;
+        session.data.hire_anonymous = true;
+        await db.updateSession(session.id, session.stage, session.current_section, session.data);
+    }
+    
+    await ctx.editMessageText(`🕊️ *Thank you for sharing!*
+
+Your story will inspire others while keeping your identity private.
+
+*What position did you get?* (Optional)
+Type your response or click Skip.`, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "hire_detail_skip" }]]
+        }
+    });
+});
+
+// Handle hire story text input
+bot.on('text', async (ctx, next) => {
+    const client = await db.getClient(ctx.from.id);
+    if (!client) return next();
+    
+    const session = await db.getActiveSession(client.id);
+    
+    if (session?.data?.awaiting_hire_story && !ctx.message.text.startsWith('/')) {
+        const story = ctx.message.text;
+        const isAnonymous = session.data.hire_anonymous || false;
+        
+        // Save the hire story
+        await db.saveTestimonial({
+            client_id: client.id,
+            name: isAnonymous ? 'Anonymous' : (client.first_name || 'Valued Client'),
+            text: story,
+            rating: 5,
+            position: 'Hired Client',
+            approved: false,
+            is_hire_story: true,
+            anonymous: isAnonymous
+        });
+        
+        session.data.awaiting_hire_story = false;
+        session.data.hire_anonymous = false;
+        await db.updateSession(session.id, session.stage, session.current_section, session.data);
+        
+        await ctx.reply(`🌟 *Thank You for Sharing Your Success!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Your story will inspire countless others on their career journey.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+We're truly honored to have been part of your success. Wishing you continued growth and achievement!
+
+🤝 With gratitude,
+The EasySuccor Team`, { parse_mode: 'Markdown' });
+        
+        // Log the hire
+        await db.logAdminAction({
+            admin_id: 'system',
+            action: 'client_hired',
+            details: `Client ${client.first_name || 'Anonymous'} reported getting hired. Story: ${story.substring(0, 100)}`
+        });
+        
+        // Notify admin
+        const adminChatId = process.env.ADMIN_CHAT_ID;
+        if (adminChatId) {
+            await bot.telegram.sendMessage(
+                adminChatId,
+                `🎉 *Client Got Hired!*\n\nClient: ${isAnonymous ? 'Anonymous' : (client.first_name || 'Unknown')}\nStory: ${story}\n\nUse /approve_testimonial to review.`,
+                { parse_mode: 'Markdown' }
+            );
+        }
+        
+        return;
+    }
+    
+    return next();
+});
+
+// Handle hire detail skip
+bot.action('hire_detail_skip', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    
+    if (session?.data?.awaiting_hire_story) {
+        session.data.awaiting_hire_story = false;
+        session.data.hire_anonymous = false;
+        await db.updateSession(session.id, session.stage, session.current_section, session.data);
+    }
+    
+    await ctx.editMessageText(`🌟 *Thank You!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Your success is what drives us. Congratulations again on your achievement!
+
+🤝 The EasySuccor Team`, { parse_mode: 'Markdown' });
+    
+    // Log the hire
+    await db.logAdminAction({
+        admin_id: 'system',
+        action: 'client_hired',
+        details: `Client ${client?.first_name || 'Anonymous'} reported getting hired (minimal details)`
+    });
+    
+    // Notify admin
+    const adminChatId = process.env.ADMIN_CHAT_ID;
+    if (adminChatId) {
+        await bot.telegram.sendMessage(
+            adminChatId,
+            `🎉 *Client Got Hired!*\n\nClient: ${client?.first_name || 'Anonymous'}\nStatus: Shared minimal details`,
+            { parse_mode: 'Markdown' }
+        );
+    }
+});
+
+// ============ APPRECIATE COMMAND (Admin) ============
+bot.command('appreciate', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) return;
+    
+    const [_, targetId, ...messageParts] = ctx.message.text.split(' ');
+    if (!targetId) return ctx.reply('Usage: `/appreciate [telegram_id] [message]`', { parse_mode: 'Markdown' });
+    
+    const client = await db.getClientById(targetId);
+    if (!client) return ctx.reply('❌ Client not found.');
+    
+    const customMessage = messageParts.join(' ') || 'Your professionalism and patience make all the difference.';
+    
+    const appreciations = [
+        `🌟 *A Note of Appreciation*\n\nDear ${client.first_name || 'Friend'},\n\n${customMessage}\n\nThank you for being an exceptional client.\n\n— The EasySuccor Team 🤝`,
+        `💫 *With Gratitude*\n\nDear ${client.first_name || 'Friend'},\n\n${customMessage}\n\nClients like you elevate our work.\n\n— The EasySuccor Team 🤝`,
+        `🙏 *Thank You*\n\nDear ${client.first_name || 'Friend'},\n\n${customMessage}\n\nYour trust means everything.\n\n— The EasySuccor Team 🤝`
+    ];
+    
+    await bot.telegram.sendMessage(targetId, appreciations[Math.floor(Math.random() * appreciations.length)], { parse_mode: 'Markdown' });
+    await ctx.reply(`✅ Appreciation sent to ${client.first_name || 'the client'}.`);
+});
+
+// ============ LEGACY SUPPORT FUNCTIONS ============
+function random(arr) { 
+    return arr[Math.floor(Math.random() * arr.length)]; 
+}
+
+function getQuestion(type) { 
+    return random(RESPONSES.questions[type]); 
+}
+
+function getReaction() { 
+    return random([...RESPONSES.reactions.positive, ...RESPONSES.reactions.funny]); 
+}
+
+function getEncouragement(type, value, name = '') { 
+    if (type === 'progress') return getProgressEncouragement(value, name);
+    if (type === 'sectionComplete') return getSectionEncouragement(value, name);
+    if (type === 'final') return getRandomEncouragement('final', value);
+    if (type === 'start') return getRandomEncouragement('start', value);
+    return getReaction();
+}
 
 function random(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function getQuestion(type) { return random(RESPONSES.questions[type]); }
@@ -2390,6 +3090,40 @@ async function startDataCollection(ctx, client, session) {
     session.data.collection_step = 'name';
     session.data.special_docs_list = [];
     await db.updateSession(session.id, 'collecting_personal', 'personal', session.data);
+}
+
+// Add to your cron jobs or periodic checks
+async function sendHireReminder(clientId) {
+    const client = await db.getClientById(clientId);
+    if (!client) return;
+    
+    const orders = await db.getClientOrders(clientId);
+    const lastOrder = orders[0];
+    
+    if (!lastOrder) return;
+    
+    const daysSinceOrder = Math.floor((Date.now() - new Date(lastOrder.created_at)) / (1000 * 60 * 60 * 24));
+    
+    // Send reminder 30 days after order completion
+    if (daysSinceOrder === 30 && lastOrder.status === 'delivered') {
+        await bot.telegram.sendMessage(
+            client.telegram_id,
+            `👋 *Hello ${client.first_name || 'Friend'}!*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌟 *How's Your Job Search Going?*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+It's been a month since we created your CV. If you've landed a job, we'd love to celebrate with you!
+
+Type /hired to share your success story.
+
+Your achievement inspires others in their career journey!
+
+🤝 The EasySuccor Team`,
+            { parse_mode: 'Markdown' }
+        );
+    }
 }
 
 // ============ PERSONAL COLLECTION (UPDATED - includes LinkedIn, GitHub, etc.) ============
@@ -4593,13 +5327,70 @@ Need help? Type /help anytime.`;
     await sendMarkdown(ctx, message);
 }
 
-// ============ BOT COMMANDS (UPDATED) ============
-
 // ============ START COMMAND ============
-bot.command('start', async (ctx) => {
-    const client = await getOrCreateClient(ctx);
-    const session = await getOrCreateSession(client.id);
-    await startDirect(ctx, client, session);  // NO WELCOME MESSAGE
+// ============ WARM WELCOME - DYNAMIC RESPONSES ============
+bot.start(async (ctx) => {
+    const client = await db.getClient(ctx.from.id);
+    const startPayload = ctx.startPayload;
+    
+    // Check if this is a referral link
+    if (startPayload && startPayload.startsWith('ref_')) {
+        const referralCode = startPayload.replace('ref_', '');
+        await handleReferralStart(ctx, referralCode);
+        return;
+    }
+    
+    // Get name from Telegram
+    const telegramName = ctx.from.first_name || 'Valued Professional';
+    
+    // NEW CLIENT - Never interacted before
+    if (!client) {
+        const newClient = await db.createClient(
+            ctx.from.id, 
+            ctx.from.username, 
+            telegramName,
+            ctx.from.last_name || ''
+        );
+        
+        // DYNAMIC WELCOME
+        const welcomeMessage = buildFirstTimeWelcome(telegramName);
+        
+        await ctx.reply(welcomeMessage, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "🎓 Student / Recent Graduate", callback_data: "category_student" }],
+                    [{ text: "💼 Professional (3+ years)", callback_data: "category_professional" }],
+                    [{ text: "🌱 Career Starter / Non-Working", callback_data: "category_nonworking" }],
+                    [{ text: "🔄 Returning Client", callback_data: "category_returning" }]
+                ]
+            }
+        });
+        
+        await db.logAdminAction({
+            admin_id: 'system',
+            action: 'warm_welcome',
+            details: `New client ${telegramName} joined`
+        });
+        
+        return;
+    }
+    
+    // RETURNING CLIENT - Dynamic welcome back
+    const clientName = client.first_name || telegramName;
+    const welcomeBackMessage = buildReturningWelcome(clientName);
+    
+    await ctx.reply(welcomeBackMessage, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "📄 New CV", callback_data: "service_new_cv" }],
+                [{ text: "✏️ Update Existing CV", callback_data: "prefill_update" }],
+                [{ text: "💌 Cover Letter", callback_data: "service_cover_letter" }],
+                [{ text: "🏢 Client Portal", callback_data: "portal_main" }]
+            ]
+        }
+    });
 });
 
 // ============ HEALTH CHECK COMMAND (DeepSeek API status) ============
@@ -4970,6 +5761,111 @@ DeepSeek AI is ready to process CV extractions!`);
 Please check your DEEPSEEK_API_KEY environment variable.`);
     }
 });
+// ============ ADMIN: LIST PENDING REPORTS ============
+bot.command('reports', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) return;
+    
+    const reports = await db.getErrorReports('pending', 20);
+    
+    if (reports.length === 0) {
+        return ctx.reply('✅ No pending error reports.');
+    }
+    
+    let message = `🐛 *Pending Error Reports*\n\n`;
+    for (const r of reports) {
+        const client = await db.getClientById(r.client_id);
+        message += `*ID:* ${r.id}\n`;
+        message += `*Client:* ${client?.first_name || 'Unknown'}\n`;
+        message += `*Desc:* ${r.description.slice(0, 50)}${r.description.length > 50 ? '...' : ''}\n`;
+        message += `*Date:* ${new Date(r.created_at).toLocaleDateString()}\n`;
+        message += `*File:* \`${r.file_id.slice(0, 8)}\`\n`;
+        message += `/resolve ${r.id}\n\n`;
+    }
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+});
+
+// ============ ADMIN: RESOLVE REPORT ============
+bot.command('resolve', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) return;
+    
+    const reportId = ctx.message.text.split(' ')[1];
+    if (!reportId) return ctx.reply('Usage: /resolve [report_id]');
+    
+    const report = await db.getErrorReportById(parseInt(reportId));
+    if (!report) return ctx.reply('❌ Report not found.');
+    
+    await db.updateErrorReportStatus(reportId, 'resolved', 'Issue fixed');
+    
+    const client = await db.getClientById(report.client_id);
+    if (client) {
+        await bot.telegram.sendMessage(
+            client.telegram_id,
+            `✅ *Issue Resolved!*\n\nThank you for your patience. The issue you reported has been fixed!\n\n*Reference:* \`${report.file_id.slice(0, 8)}\`\n\nWe appreciate you helping us improve EasySuccor! 🤝`,
+            { parse_mode: 'Markdown' }
+        );
+    }
+    
+    await ctx.reply(`✅ Report #${reportId} resolved. Client ${client?.first_name || 'Unknown'} has been notified.`);
+});
+
+// ============ ADMIN: RESOLVE BY FILE ID ============
+bot.command('resolve_report', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) return;
+    
+    const fileId = ctx.message.text.split(' ')[1];
+    if (!fileId) return ctx.reply('Usage: /resolve_report [file_id]');
+    
+    const reports = await db.getErrorReports('pending', 100);
+    const report = reports.find(r => r.file_id === fileId || r.file_id.startsWith(fileId));
+    
+    if (!report) return ctx.reply('❌ Report not found.');
+    
+    await db.updateErrorReportStatus(report.id, 'resolved', 'Issue fixed');
+    
+    const client = await db.getClientById(report.client_id);
+    if (client) {
+        await bot.telegram.sendMessage(
+            client.telegram_id,
+            `✅ *Issue Resolved!*\n\nThank you for your patience. The issue you reported has been fixed!\n\n*Reference:* \`${report.file_id.slice(0, 8)}\`\n\nWe appreciate you helping us improve EasySuccor! 🤝`,
+            { parse_mode: 'Markdown' }
+        );
+    }
+    
+    await ctx.reply(`✅ Report resolved. Client ${client?.first_name || 'Unknown'} has been notified.`);
+});
+// ============ ADMIN: QUICK STATISTICS ============
+bot.command('admin_stats', async (ctx) => {
+    if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) {
+        return await ctx.reply("⛔ Unauthorized.");
+    }
+    
+    const orders = await db.getAllOrders();
+    const clients = await db.getAllClients();
+    const completed = orders.filter(o => o.payment_status === 'completed');
+    const pending = orders.filter(o => o.payment_status === 'pending');
+    const revenue = completed.reduce((sum, o) => {
+        return sum + (parseInt(String(o.total_charge).replace(/[^0-9]/g, '') || 0));
+    }, 0);
+    
+    const today = new Date().toISOString().split('T')[0];
+    const todayOrders = orders.filter(o => o.created_at?.startsWith(today));
+    
+    const message = `📊 *QUICK STATISTICS*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👥 *Clients:* ${clients.length}
+📦 *Total Orders:* ${orders.length}
+✅ *Completed:* ${completed.length}
+⏳ *Pending:* ${pending.length}
+💰 *Revenue:* MK${revenue.toLocaleString()}
+📅 *Today's Orders:* ${todayOrders.length}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 *Full Dashboard:* ${process.env.WEBHOOK_URL}/admin`;
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+});
 
 // ============ USER COMMANDS (UPDATED) ============
 
@@ -5327,6 +6223,7 @@ bot.command('testimonials', async (ctx) => {
     }
 });
 
+
 bot.command('reset', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     await db.endSession(client.id);
@@ -5371,6 +6268,150 @@ ${process.env.WEBHOOK_URL || 'https://easysuccor-bot.onrender.com'}
 We're here to help! 💙`);
 });
 
+// ============ REQUEST EXTENSION COMMAND ============
+bot.command('extend', async (ctx) => {
+    const client = await db.getClient(ctx.from.id);
+    const orders = await db.getClientOrders(client.id);
+    
+    // Find active installment order
+    const activeInstallment = orders.find(o => 
+        o.payment_type === 'installment' && 
+        o.installment_status === 'active'
+    );
+    
+    if (!activeInstallment) {
+        return ctx.reply('❌ No active installment plan found.');
+    }
+    
+    const result = await installmentTracker.requestExtension(activeInstallment.id, ctx);
+    
+    if (result.success) {
+        await ctx.reply(result.message, { parse_mode: 'Markdown' });
+    } else {
+        await ctx.reply(`❌ ${result.error}`, { parse_mode: 'Markdown' });
+    }
+});
+
+// ============ ERROR REPORTING COMMAND ============
+bot.command('report', async (ctx) => {
+    const client = await db.getClient(ctx.from.id);
+    
+    await ctx.reply(`🐛 *Report a Bug*
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📸 *How to Report*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ Take a screenshot of the issue
+2️⃣ Send the screenshot here with a brief description
+3️⃣ We'll investigate and notify you when fixed!
+
+*Please describe what happened:*
+(Type your description or click Cancel)`, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [[
+                { text: "❌ Cancel", callback_data: "report_cancel" }
+            ]]
+        }
+    });
+    
+    const session = await db.getActiveSession(client.id);
+    if (session) {
+        session.data.awaiting_report = true;
+        await db.updateSession(session.id, session.stage, session.current_section, session.data);
+    } else {
+        await db.saveSession(client.id, 'awaiting_report', null, { awaiting_report: true }, 0);
+    }
+});
+
+// ============ HANDLE REPORT CANCELLATION ============
+bot.action('report_cancel', async (ctx) => {
+    await ctx.answerCbQuery();
+    
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    
+    if (session?.data?.awaiting_report) {
+        session.data.awaiting_report = false;
+        await db.updateSession(session.id, session.stage, session.current_section, session.data);
+    }
+    
+    await ctx.editMessageText('❌ Report cancelled. Type /report if you need to report an issue later.');
+});
+
+// ============ HANDLE REPORT SUBMISSION (PHOTO + TEXT) ============
+bot.on('photo', async (ctx, next) => {
+    const client = await db.getClient(ctx.from.id);
+    if (!client) return next();
+    
+    const session = await db.getActiveSession(client.id);
+    
+    if (session?.data?.awaiting_report) {
+        const photo = ctx.message.photo;
+        const caption = ctx.message.caption || 'No description provided';
+        const fileId = photo[photo.length - 1].file_id;
+        
+        await db.saveErrorReport({
+            client_id: client.id,
+            file_id: fileId,
+            description: caption,
+            status: 'pending'
+        });
+        
+        // Notify admin
+        const adminChatId = process.env.ADMIN_CHAT_ID;
+        if (adminChatId) {
+            await bot.telegram.sendMessage(
+                adminChatId,
+                `🐛 *New Error Report*\n\n*Client:* ${client.first_name || 'Anonymous'}\n*Description:* ${caption}\n*File ID:* \`${fileId}\`\n\n/resolve_report ${fileId}`,
+                { parse_mode: 'Markdown' }
+            );
+        }
+        
+        await ctx.reply(`✅ *Report Submitted!*
+
+Thank you for helping us improve EasySuccor!
+
+We'll investigate this issue and notify you when it's resolved.
+
+*Reference:* \`${fileId.slice(0, 8)}\``, { parse_mode: 'Markdown' });
+        
+        session.data.awaiting_report = false;
+        await db.updateSession(session.id, session.stage, session.current_section, session.data);
+        return;
+    }
+    
+    return next();
+});
+
+// ============ HANDLE TEXT FOR REPORT DESCRIPTION ============
+bot.on('text', async (ctx, next) => {
+    const client = await db.getClient(ctx.from.id);
+    if (!client) return next();
+    
+    const session = await db.getActiveSession(client.id);
+    
+    if (session?.data?.awaiting_report && !ctx.message.text.startsWith('/')) {
+        session.data.report_description = ctx.message.text;
+        await db.updateSession(session.id, session.stage, session.current_section, session.data);
+        
+        await ctx.reply(`📝 *Description saved!*
+
+Now please send the screenshot of the issue.`, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [[
+                    { text: "❌ Cancel", callback_data: "report_cancel" }
+                ]]
+            }
+        });
+        return;
+    }
+    
+    return next();
+});
+
 // ============ START BOT (UPDATED) ============
 async function startBot() {
     console.log('🚀 Starting EasySuccor Bot...');
@@ -5412,37 +6453,64 @@ async function startBot() {
     }
     
     // ============ SET BOT COMMANDS (UPDATED) ============
-    try {
-        await bot.telegram.setMyCommands([
-            // User commands
-            { command: 'start', description: '🚀 Start the bot' },
-            { command: 'resume', description: '▶️ Resume paused session' },
-            { command: 'pause', description: '⏸️ Save progress and pause' },
-            { command: 'pay', description: '💰 Make a payment' },
-            { command: 'portal', description: '🏠 Your dashboard' },
-            { command: 'mydocs', description: '📄 Your documents' },
-            { command: 'versions', description: '📁 View CV versions' },
-            { command: 'referral', description: '🎁 Share & earn' },
-            { command: 'feedback', description: '📝 Share your experience' },
-            { command: 'testimonials', description: '⭐ See success stories' },
-            { command: 'website', description: '🌐 Visit our website' },
-            { command: 'reset', description: '🔄 Reset current session' },
-            { command: 'help', description: '🆘 Get help' },
-            
-            // Admin commands (only visible to admin)
-            { command: 'admin_stats', description: '📊 View statistics' },
-            { command: 'admin_orders', description: '📋 View all orders' },
-            { command: 'admin_clients', description: '👥 View all clients' },
-            { command: 'admin_deepseek', description: '🧠 Check DeepSeek API' },
-            { command: 'health', description: '🩺 System health check' }
-        ]);
-        console.log('✅ Bot commands registered');
-    } catch (cmdError) {
-        console.log('⚠️ Could not set commands:', cmdError.message);
-    }
+try {
+   await bot.telegram.setMyCommands([
+    // User commands
+    { command: 'start', description: '🚀 Begin your journey' },
+    { command: 'resume', description: '▶️ Resume where you left off' },
+    { command: 'pause', description: '⏸️ Save and pause session' },
+    { command: 'pay', description: '💰 Make a payment' },
+    { command: 'portal', description: '🏠 Your client dashboard' },
+    { command: 'mydocs', description: '📄 View your documents' },
+    { command: 'versions', description: '📁 CV version history' },
+    { command: 'referral', description: '🎁 Refer friends, earn credit' },
+    { command: 'feedback', description: '⭐ Leave feedback' },
+    { command: 'testimonials', description: '🌟 Read success stories' },
+    { command: 'website', description: '🌐 Visit our landing page' },
+    { command: 'report', description: '🐛 Report an issue' },
+    { command: 'thankyou', description: '🙏 We appreciate you' },
+    { command: 'hired', description: '🎉 Report you got hired!' },
+    { command: 'help', description: '🆘 Get help' },
+    { command: 'reset', description: '🔄 Start fresh' },
     
+    // Admin commands
+    { command: 'admin_orders', description: '📋 View all orders' },
+    { command: 'admin_clients', description: '👥 View all clients' },
+    { command: 'admin_price', description: '💲 Update pricing' },
+    { command: 'admin_deepseek', description: '🧠 Check AI status' },
+    { command: 'reports', description: '🐛 View error reports' },
+    { command: 'appreciate', description: '💝 Send appreciation' },
+    { command: 'health', description: '🩺 System health' }
+]);
+    console.log('✅ Bot commands registered');
+} catch (cmdError) {
+    console.log('⚠️ Could not set commands:', cmdError.message);
+}
+async function refreshBotCommands() {
+    const commands = [
+        { command: 'start', description: '🚀 Begin your journey' },
+        { command: 'resume', description: '▶️ Resume where you left off' },
+        { command: 'pause', description: '⏸️ Save and pause session' },
+        { command: 'pay', description: '💰 Make a payment' },
+        { command: 'portal', description: '🏠 Your client dashboard' },
+        { command: 'mydocs', description: '📄 View your documents' },
+        { command: 'versions', description: '📁 CV version history' },
+        { command: 'referral', description: '🎁 Refer friends, earn credit' },
+        { command: 'feedback', description: '⭐ Leave feedback' },
+        { command: 'testimonials', description: '🌟 Read success stories' },
+        { command: 'website', description: '🌐 Visit our landing page' },
+        { command: 'report', description: '🐛 Report an issue' },
+        { command: 'thankyou', description: '🙏 We appreciate you' },
+        { command: 'help', description: '🆘 Get help' },
+        { command: 'reset', description: '🔄 Start fresh' }
+    ];
+    
+    await bot.telegram.setMyCommands(commands);
+    console.log('✅ Commands refreshed');
+}
     // ============ SETUP WEBHOOK ============
-    const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://easysuccor-bot.onrender.com';
+    const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://easysuccor-bot-production.up.railway.app';
+;
     const webhookPath = '/webhook';
     const fullWebhookUrl = `${WEBHOOK_URL}${webhookPath}`;
     

@@ -1601,6 +1601,96 @@ app.get('/admin/client/:id', adminAuth, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// ============ PAYMENT DASHBOARD ENDPOINTS ============
+
+// Get payment statistics
+app.get('/admin/payment-stats', adminAuth, async (req, res) => {
+    try {
+        const orders = await db.getAllOrders();
+        const installments = await db.getAllInstallmentPlans ? await db.getAllInstallmentPlans() : [];
+        const payLater = await db.getAllPayLaterPlans ? await db.getAllPayLaterPlans() : [];
+        
+        const pendingOrders = orders.filter(o => o.payment_status === 'pending');
+        const pendingAmount = pendingOrders.reduce((sum, o) => {
+            const amount = parseInt(String(o.total_charge).replace(/[^0-9]/g, '') || 0);
+            return sum + amount;
+        }, 0);
+        
+        const activeInstallments = installments.filter(i => i.status === 'active' || i.status === 'first_paid');
+        const overduePayLater = payLater.filter(p => 
+            p.status === 'pending' && new Date(p.due_date) < new Date()
+        );
+        
+        res.json({
+            total_pending: pendingOrders.length,
+            total_pending_amount: pendingAmount,
+            installments_active: activeInstallments.length,
+            installments_completed: installments.filter(i => i.status === 'completed').length,
+            pay_later_active: payLater.filter(p => p.status === 'pending').length,
+            pay_later_completed: payLater.filter(p => p.status === 'completed').length,
+            pay_later_overdue: overduePayLater.length
+        });
+    } catch (error) {
+        console.error('Payment stats error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get installments list
+app.get('/admin/installments', adminAuth, async (req, res) => {
+    try {
+        const installments = await db.getAllInstallmentPlans ? await db.getAllInstallmentPlans() : [];
+        
+        const formatted = installments.map(inst => {
+            const currentInstallment = inst.installments?.[inst.current_installment - 1] || {};
+            const dueDate = currentInstallment.due_date;
+            const daysOverdue = dueDate ? 
+                Math.floor((new Date() - new Date(dueDate)) / (1000 * 60 * 60 * 24)) : 0;
+            
+            return {
+                order_id: inst.orderId,
+                client_name: inst.clientName,
+                current_installment: inst.current_installment,
+                paid_amount: inst.paid_amount || 0,
+                remaining_amount: inst.remaining_amount || 0,
+                next_due_date: dueDate,
+                days_overdue: daysOverdue > 0 ? daysOverdue : 0,
+                status: inst.status
+            };
+        });
+        
+        res.json(formatted);
+    } catch (error) {
+        console.error('Installments error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get pay later list
+app.get('/admin/pay-later', adminAuth, async (req, res) => {
+    try {
+        const payLater = await db.getAllPayLaterPlans ? await db.getAllPayLaterPlans() : [];
+        
+        const formatted = payLater.map(pl => {
+            const daysUntilDue = pl.due_date ? 
+                Math.ceil((new Date(pl.due_date) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+            
+            return {
+                order_id: pl.orderId,
+                client_name: pl.clientName,
+                amount: pl.amount || 0,
+                due_date: pl.due_date,
+                days_until_due: daysUntilDue,
+                status: pl.status
+            };
+        });
+        
+        res.json(formatted);
+    } catch (error) {
+        console.error('Pay later error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // ============ START EXPRESS SERVER (ONLY ONCE!) ============
 

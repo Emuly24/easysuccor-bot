@@ -1705,6 +1705,7 @@
 
     updateDynamicMessage();
     resetInterval();
+
 // ============ FORCE ALL FAQS CLOSED ON PAGE LOAD ============
 document.addEventListener('DOMContentLoaded', function() {
     // Remove 'open' class from all FAQ items
@@ -1724,16 +1725,21 @@ function toggleFAQ(element) {
 
     // ============ HANDLE REFERRAL CODE FROM URL ============
 document.addEventListener('DOMContentLoaded', function() {
+    const telegramBtn = document.querySelector('.telegram-btn');
+    if (telegramBtn) {
+        telegramBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            openNameModal();
+        });
+    }
+    
     // Check for referral code in URL
     const urlParams = new URLSearchParams(window.location.search);
     const refCode = urlParams.get('ref');
     
     if (refCode) {
-        // Store referral code for when user clicks Telegram button
         localStorage.setItem('easysuccor_referral_code', refCode);
-        
-        // Show a welcome banner for referred visitors
-        showReferredWelcome();
+        showReferralBanner();
     }
     
     checkAdminStatus();
@@ -1810,40 +1816,56 @@ function continueToTelegram() {
         parent.classList.toggle('open'); 
     }
 
-    // ============ NAME CAPTURE ============
-    const TELEGRAM_BOT_LINK = "https://t.me/EasySuccor_bot";
-    
-    document.addEventListener('DOMContentLoaded', function() {
-        const telegramBtn = document.querySelector('.telegram-btn');
-        if (telegramBtn) { 
-            telegramBtn.addEventListener('click', function(e) { 
-                e.preventDefault(); 
-                openNameModal(); 
-            }); 
-        }
-        checkAdminStatus();
-    });
-    
-    function openNameModal() { document.getElementById('nameModal').style.display = 'flex'; }
-    function closeNameModal() { document.getElementById('nameModal').style.display = 'none'; }
-    
-    function continueToTelegram() {
-        const name = document.getElementById('visitorName').value.trim();
-        let telegramUrl = TELEGRAM_BOT_LINK;
-        if (name) { 
-            const encodedName = encodeURIComponent(name); 
-            telegramUrl = `${TELEGRAM_BOT_LINK}?start=${encodedName}`; 
-            localStorage.setItem('easysuccor_visitor_name', name); 
-        }
-        window.open(telegramUrl, '_blank'); 
-        closeNameModal();
-    }
-    
-    function skipNameAndContinue() { 
-        window.open(TELEGRAM_BOT_LINK, '_blank'); 
-        closeNameModal(); 
-    }
+    // ============ FIXED TELEGRAM REDIRECT ============
+const TELEGRAM_BOT_LINK = "https://t.me/EasySuccor_bot";
 
+function continueToTelegram() {
+    const name = document.getElementById('visitorName').value.trim();
+    const refCode = localStorage.getItem('easysuccor_referral_code');
+    
+    let telegramUrl = TELEGRAM_BOT_LINK;
+    
+    if (refCode) {
+        if (name) {
+            // Use double encoding to ensure safe transmission
+            const safeName = encodeURIComponent(name).replace(/_/g, '%5F');
+            telegramUrl = `${TELEGRAM_BOT_LINK}?start=ref_${refCode}_${safeName}`;
+        } else {
+            telegramUrl = `${TELEGRAM_BOT_LINK}?start=ref_${refCode}`;
+        }
+        localStorage.removeItem('easysuccor_referral_code');
+    } else {
+        if (name) {
+            const safeName = encodeURIComponent(name);
+            telegramUrl = `${TELEGRAM_BOT_LINK}?start=${safeName}`;
+        }
+    }
+    
+    if (name) {
+        localStorage.setItem('easysuccor_visitor_name', name);
+    }
+    
+    // Log for debugging
+    console.log('🔗 Opening Telegram URL:', telegramUrl);
+    
+    // Open Telegram
+    window.location.href = telegramUrl;
+    closeNameModal();
+}
+
+function skipNameAndContinue() {
+    const refCode = localStorage.getItem('easysuccor_referral_code');
+    
+    let telegramUrl = TELEGRAM_BOT_LINK;
+    if (refCode) {
+        telegramUrl = `${TELEGRAM_BOT_LINK}?start=ref_${refCode}`;
+        localStorage.removeItem('easysuccor_referral_code');
+    }
+    
+    console.log('🔗 Opening Telegram URL:', telegramUrl);
+    window.location.href = telegramUrl;
+    closeNameModal();
+}
     // ============ EMAIL MODAL ============
     function openEmailModal() { document.getElementById('emailModal').style.display = 'flex'; }
     function closeEmailModal() { 

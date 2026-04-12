@@ -5976,62 +5976,83 @@ Need help? Type /help anytime.`;
 
 // ============ START COMMAND ============
 // ============ WARM WELCOME - DYNAMIC RESPONSES ============
+// ============ ROBUST START PAYLOAD PARSING ============
 bot.start(async (ctx) => {
     const client = await db.getClient(ctx.from.id);
     const startPayload = ctx.startPayload;
     
-    // Check if this is a referral link
+    console.log('📥 Start payload received:', startPayload);
+    
+    // Check for referral (format: ref_CODE or ref_CODE_Name)
     if (startPayload && startPayload.startsWith('ref_')) {
-        const referralCode = startPayload.replace('ref_', '');
-        await handleReferralStart(ctx, referralCode);
+        const payload = startPayload.substring(4); // Remove 'ref_'
+        
+        // Check if there's an underscore (meaning name is included)
+        const underscoreIndex = payload.indexOf('_');
+        
+        if (underscoreIndex > 0) {
+            const referralCode = payload.substring(0, underscoreIndex);
+            const encodedName = payload.substring(underscoreIndex + 1);
+            const visitorName = decodeURIComponent(encodedName.replace(/%5F/g, '_'));
+            
+            console.log('📥 Referral with name:', { referralCode, visitorName });
+            await handleReferralWithName(ctx, referralCode, visitorName);
+            return;
+        } else {
+            const referralCode = payload;
+            console.log('📥 Referral without name:', { referralCode });
+            await handleReferralStart(ctx, referralCode);
+            return;
+        }
+    }
+    
+    // Name only (no referral)
+    if (startPayload) {
+        const visitorName = decodeURIComponent(startPayload);
+        console.log('📥 Name only payload:', visitorName);
+        
+        const telegramName = ctx.from.first_name || visitorName;
+        await handleNewClient(ctx, telegramName);
         return;
     }
     
-    // Get name from Telegram
+    // No payload - normal start
     const telegramName = ctx.from.first_name || 'Valued Professional';
+    console.log('📥 Normal start:', telegramName);
     
-    // NEW CLIENT - Never interacted before
     if (!client) {
-        const newClient = await db.createClient(
-            ctx.from.id, 
-            ctx.from.username, 
-            telegramName,
-            ctx.from.last_name || ''
-        );
-        
-        // DYNAMIC WELCOME
-        const welcomeMessage = buildFirstTimeWelcome(telegramName);
-        
-        await ctx.reply(welcomeMessage, {
-            parse_mode: 'Markdown',
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: "🎓 Student / Recent Graduate", callback_data: "category_student" }],
-                    [{ text: "💼 Professional (3+ years)", callback_data: "category_professional" }],
-                    [{ text: "🌱 Career Starter / Non-Working", callback_data: "category_nonworking" }],
-                    [{ text: "🔄 Returning Client", callback_data: "category_returning" }]
-                ]
-            }
-        });
-        
-        // ============ SEND PERSISTENT KEYBOARD ============
-        await ctx.reply('💡 *Quick Tip:* Use the keyboard below to quickly start a new service!', {
-            parse_mode: 'Markdown',
-            reply_markup: mainMenuKeyboard
-        });
-        
-        await db.logAdminAction({
-            admin_id: 'system',
-            action: 'warm_welcome',
-            details: `New client ${telegramName} joined`
-        });
-        
+        await handleNewClient(ctx, telegramName);
+    } else {
+        await handleReturningClient(ctx, client);
+    }
+});
+
+async function handleNewClient(ctx, name) {
+    const client = await db.getClient(ctx.from.id);
+    if (client) {
+        await handleReturningClient(ctx, client);
         return;
     }
     
-    // RETURNING CLIENT - Dynamic welcome back
-    const clientName = client.first_name || telegramName;
-    const welcomeBackMessage = buildReturningWelcome(clientName);
+    const newClient = await db.createClient(ctx.from.id, ctx.from.username, name, ctx.from.last_name || '');
+    const welcomeMessage = getTimeBasedFirstTimeWelcome(name);
+    
+    await ctx.reply(welcomeMessage, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "🎓 Student / Recent Graduate", callback_data: "category_student" }],
+                [{ text: "💼 Professional (3+ years)", callback_data: "category_professional" }],
+                [{ text: "🌱 Career Starter / Non-Working", callback_data: "category_nonworking" }],
+                [{ text: "🔄 Returning Client", callback_data: "category_returning" }]
+            ]
+        }
+    });
+}
+
+async function handleReturningClient(ctx, client) {
+    const clientName = client.first_name || 'Friend';
+    const welcomeBackMessage = getTimeBasedReturningWelcome(clientName);
     
     await ctx.reply(welcomeBackMessage, {
         parse_mode: 'Markdown',
@@ -6046,14 +6067,12 @@ bot.start(async (ctx) => {
             ]
         }
     });
-    
+}
     // ============ SEND PERSISTENT KEYBOARD FOR RETURNING CLIENTS ============
     await ctx.reply('💡 *Quick Tip:* Use the keyboard below for quick access!', {
         parse_mode: 'Markdown',
         reply_markup: mainMenuKeyboard
     });
-});
-
 // ============ HEALTH CHECK COMMAND (DeepSeek API status) ============
 bot.command('health', async (ctx) => {
     // Admin only

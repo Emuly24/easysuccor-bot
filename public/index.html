@@ -81,11 +81,19 @@
         }
 
         .logo-image {
-            height: 60px;
-            width: auto;
-            max-width: 200px;
-            object-fit: contain;
+        height: 100px;
+        width: auto;
+        max-width: 300px;
+        object-fit: contain;
+    }
+
+    /* Responsive - slightly smaller on mobile */
+    @media (max-width: 768px) {
+        .logo-image {
+            height: 80px;
+            max-width: 250px;
         }
+    }
 
         .logo-image:hover {
             opacity: 0.9;

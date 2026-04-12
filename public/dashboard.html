@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>EasySuccor | Executive Dashboard</title>
+    <title>EasySuccor | Ultimate Control Room</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <style>
         * {
@@ -20,7 +20,7 @@
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(180deg, #7B4BFF 0%, #9C7BFF 50%, #00C4CC 100%);
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             background-attachment: fixed;
             min-height: 100vh;
             margin: 0;
@@ -33,359 +33,381 @@
             --primary-dark: #7B4BFF;
             --secondary: #00C4CC;
             --accent: #9C7BFF;
-            --gray-light: #f3f4f6;
-            --gray: #5a5a6e;
-            --dark: #1f2937;
+            --bg-dark: #1a1a2e;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-muted: rgba(255, 255, 255, 0.4);
+            --success: #00C4CC;
+            --warning: #FFB800;
+            --danger: #FF4757;
+            --info: #8A4FFF;
+            --hired: #FFD700;
         }
 
         .container {
             position: relative;
             z-index: 1;
-            max-width: 1600px;
+            max-width: 1800px;
             margin: 0 auto;
-            background: rgba(255, 255, 255, 0.98);
-            border-radius: 32px;
-            padding: 24px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.25);
-            backdrop-filter: blur(8px);
         }
         
         /* Header */
         .header {
-            text-align: center;
-            padding: 30px 20px 20px;
-            margin-bottom: 20px;
-            border-bottom: 1px solid rgba(138, 79, 255, 0.15);
-            background: rgba(255, 255, 255, 0.5);
-            border-radius: 20px 20px 0 0;
-        }
-
-        .logo-placeholder {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 10px;
-        }
-
-        .logo-image {
-            height: 60px;
-            width: auto;
-            max-width: 200px;
-            object-fit: contain;
-        }
-        
-        .logo-text {
-            font-size: 32px;
-            font-weight: 700;
-        }
-        
-        .logo-easy {
-            color: #8A4FFF;
-        }
-        
-        .logo-succor {
-            color: #00C4CC;
-        }
-
-        .tagline {
-            color: #5a5a6e;
-            font-size: 16px;
-            margin-top: 8px;
-        }
-        
-        .admin-badge {
-            display: inline-block;
-            background: linear-gradient(135deg, #8A4FFF, #00C4CC);
-            color: white;
-            padding: 8px 20px;
-            border-radius: 30px;
-            font-size: 14px;
-            font-weight: 600;
-            margin-top: 15px;
-            letter-spacing: 0.5px;
-            box-shadow: 0 4px 12px rgba(138, 79, 255, 0.3);
-        }
-
-        /* Dashboard Controls */
-        .dashboard-controls {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-            gap: 15px;
+            padding: 20px 30px;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            margin-bottom: 25px;
+            border: 1px solid var(--border-color);
         }
-
-        .api-key-section {
+        
+        .logo-section {
             display: flex;
             align-items: center;
-            gap: 15px;
-            flex: 2;
-            min-width: 300px;
+            gap: 20px;
         }
-
-        .api-key-section input {
-            flex: 1;
-            padding: 14px 18px;
-            border: 2px solid rgba(138, 79, 255, 0.25);
-            border-radius: 12px;
-            font-size: 14px;
-            background: white;
+        
+        .logo-text {
+            font-size: 24px;
+            font-weight: 700;
         }
-
-        .api-key-section input:focus {
-            outline: none;
-            border-color: #8A4FFF;
-            box-shadow: 0 0 0 4px rgba(138, 79, 255, 0.15);
+        
+        .logo-easy { color: var(--primary); }
+        .logo-succor { color: var(--secondary); }
+        
+        .control-badge {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 12px;
+            font-weight: 600;
+            color: white;
+            letter-spacing: 1px;
         }
-
-        .refresh-section {
+        
+        .header-actions {
             display: flex;
-            gap: 10px;
+            align-items: center;
+            gap: 20px;
         }
-
-        button {
-            padding: 14px 24px;
-            background: linear-gradient(135deg, #8A4FFF, #7B4BFF);
+        
+        .api-key-input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-color);
+            color: white;
+            padding: 12px 18px;
+            border-radius: 12px;
+            width: 280px;
+            font-size: 13px;
+        }
+        
+        .api-key-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .refresh-btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
             color: white;
             border: none;
+            padding: 12px 24px;
             border-radius: 12px;
-            font-size: 14px;
-            font-weight: 700;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: 0 4px 12px rgba(138, 79, 255, 0.3);
         }
-
-        button:hover {
-            background: linear-gradient(135deg, #7B4BFF, #6A3AEE);
+        
+        .refresh-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 18px rgba(138, 79, 255, 0.4);
+            box-shadow: 0 8px 20px rgba(138, 79, 255, 0.3);
         }
-
-        button.secondary {
-            background: linear-gradient(135deg, #00C4CC, #0099AA);
-            box-shadow: 0 4px 12px rgba(0, 196, 204, 0.3);
-        }
-
-        button.secondary:hover {
-            background: linear-gradient(135deg, #0099AA, #007788);
-        }
-
+        
         .last-updated {
-            color: var(--gray);
-            font-size: 13px;
-            margin-left: 15px;
+            color: var(--text-muted);
+            font-size: 12px;
         }
-
+        
+        /* Navigation Tabs - Scrollable */
+        .nav-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 25px;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            padding-bottom: 5px;
+            background: var(--bg-card);
+            padding: 8px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .nav-tabs::-webkit-scrollbar {
+            height: 4px;
+        }
+        
+        .nav-tabs::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 4px;
+        }
+        
+        .nav-tab {
+            padding: 12px 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: 12px;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        
+        .nav-tab:hover {
+            background: rgba(138, 79, 255, 0.1);
+            color: white;
+        }
+        
+        .nav-tab.active {
+            background: var(--primary);
+            color: white;
+        }
+        
         /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 18px;
-            margin-bottom: 30px;
+            gap: 15px;
+            margin-bottom: 25px;
         }
-
+        
         .stat-card {
-            background: linear-gradient(135deg, #8A4FFF, #7B4BFF);
-            color: white;
-            padding: 20px 12px;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
             border-radius: 16px;
-            text-align: center;
-            box-shadow: 0 6px 15px rgba(138, 79, 255, 0.35);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px 15px;
+            transition: all 0.3s;
         }
-
-        .stat-card.teal {
-            background: linear-gradient(135deg, #00C4CC, #0099AA);
-            box-shadow: 0 6px 15px rgba(0, 196, 204, 0.35);
+        
+        .stat-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
         }
-
-        .stat-card.dark {
-            background: linear-gradient(135deg, #5a5a6e, #4a4a5e);
-        }
-
-        .stat-number {
-            font-size: 32px;
+        
+        .stat-value {
+            font-size: 28px;
             font-weight: 800;
+            color: white;
             margin-bottom: 5px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-
+        
         .stat-label {
-            font-size: 13px;
-            opacity: 0.95;
-            font-weight: 500;
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-
-        /* Section Headers */
+        
+        /* Section Cards */
+        .section-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+        
         .section-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin: 30px 0 20px 0;
+            margin-bottom: 20px;
         }
-
-        h2 {
-            color: #8A4FFF;
-            font-size: 20px;
+        
+        .section-title {
+            font-size: 18px;
             font-weight: 700;
-            padding-bottom: 8px;
-            border-bottom: 2px solid rgba(138, 79, 255, 0.3);
+            color: white;
         }
-
-        h3 {
-            color: var(--dark);
-            font-size: 16px;
-            margin: 15px 0 10px 0;
-            font-weight: 600;
+        
+        .section-title span {
+            color: var(--primary);
         }
-
-        /* Category Grid */
-        .category-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 18px;
-            margin: 20px 0;
-        }
-
-        .category-card {
-            background: white;
-            border: 2px solid rgba(138, 79, 255, 0.2);
-            border-radius: 14px;
-            padding: 18px 15px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            transition: all 0.3s ease;
-        }
-
-        .category-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(138, 79, 255, 0.2);
-            border-color: #8A4FFF;
-        }
-
-        .category-title {
-            font-weight: 700;
-            color: #8A4FFF;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-
-        .category-value {
-            font-size: 28px;
-            font-weight: 800;
-            color: var(--dark);
-        }
-
+        
         /* Tables */
         .table-container {
             overflow-x: auto;
-            margin-top: 20px;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            border: 1px solid rgba(138, 79, 255, 0.15);
             max-height: 400px;
             overflow-y: auto;
         }
-
+        
         table {
             width: 100%;
             border-collapse: collapse;
             font-size: 13px;
         }
-
+        
         th {
-            background: linear-gradient(135deg, #8A4FFF, #7B4BFF);
-            color: white;
-            font-weight: 700;
-            padding: 14px 12px;
             text-align: left;
-            white-space: nowrap;
+            padding: 14px 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border-color);
             position: sticky;
             top: 0;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
         }
-
+        
         td {
             padding: 12px;
-            border-bottom: 1px solid rgba(138, 79, 255, 0.1);
+            color: white;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
         }
-
-        tr:hover {
+        
+        tr:hover td {
             background: rgba(138, 79, 255, 0.05);
         }
-
+        
         .badge {
             display: inline-block;
             padding: 4px 10px;
             border-radius: 20px;
             font-size: 11px;
-            font-weight: 700;
-        }
-
-        .badge.success { background: #d4edda; color: #155724; }
-        .badge.warning { background: #fff3cd; color: #856404; }
-        .badge.danger { background: #f8d7da; color: #721c24; }
-        .badge.info { background: rgba(138, 79, 255, 0.15); color: #8A4FFF; }
-
-        .action-link {
-            color: #8A4FFF;
-            text-decoration: none;
             font-weight: 600;
-            cursor: pointer;
-            margin-right: 10px;
         }
-
+        
+        .badge-success { background: rgba(0, 196, 204, 0.15); color: var(--success); }
+        .badge-warning { background: rgba(255, 184, 0, 0.15); color: var(--warning); }
+        .badge-danger { background: rgba(255, 71, 87, 0.15); color: var(--danger); }
+        .badge-info { background: rgba(138, 79, 255, 0.15); color: var(--info); }
+        .badge-hired { background: rgba(255, 215, 0, 0.15); color: var(--hired); }
+        .badge-ghost { background: rgba(255, 255, 255, 0.1); color: var(--text-muted); }
+        
+        .action-link {
+            color: var(--primary);
+            text-decoration: none;
+            margin-right: 12px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
         .action-link:hover {
-            color: #00C4CC;
+            color: var(--secondary);
             text-decoration: underline;
         }
-
-        /* Summary Row */
-        .summary-row {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-            margin: 20px 0;
-        }
-
-        .summary-item {
-            background: white;
-            padding: 12px 18px;
+        
+        /* Document Viewer */
+        .document-viewer {
+            background: #0d1117;
             border-radius: 12px;
-            border: 2px solid rgba(138, 79, 255, 0.2);
-            font-weight: 500;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            padding: 20px;
+            max-height: 500px;
+            overflow-y: auto;
         }
-
-        .summary-item strong {
-            color: #8A4FFF;
+        
+        .document-content {
+            font-family: 'Courier New', monospace;
+            color: #e6edf3;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 13px;
+            line-height: 1.6;
         }
-
-        /* Loading State */
+        
+        /* Status Cards */
+        .status-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .status-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .status-card.hired { border-top: 3px solid var(--hired); }
+        .status-card.active { border-top: 3px solid var(--success); }
+        .status-card.ghost { border-top: 3px solid var(--text-muted); }
+        .status-card.pending { border-top: 3px solid var(--warning); }
+        
+        .status-value {
+            font-size: 36px;
+            font-weight: 800;
+            margin-bottom: 5px;
+        }
+        
+        .status-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        /* Loading */
         .loading {
             text-align: center;
             padding: 60px;
-            color: var(--gray);
-            font-size: 16px;
+            color: var(--text-muted);
         }
-
+        
         .loading-spinner {
-            display: inline-block;
             width: 40px;
             height: 40px;
-            border: 3px solid rgba(138, 79, 255, 0.2);
+            border: 3px solid var(--border-color);
+            border-top-color: var(--primary);
             border-radius: 50%;
-            border-top-color: #8A4FFF;
-            animation: spin 1s ease-in-out infinite;
-            margin-bottom: 15px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
         }
-
+        
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-
+        
+        /* Filter Bar */
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-select {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-color);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+        }
+        
+        .filter-select option {
+            background: var(--bg-dark);
+        }
+        
+        .search-input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-color);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            flex: 1;
+            min-width: 200px;
+        }
+        
         /* Modal */
         .modal {
             display: none;
@@ -394,117 +416,54 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0,0,0,0.8);
             z-index: 1000;
-            overflow: auto;
-            backdrop-filter: blur(6px);
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(8px);
         }
-
+        
         .modal-content {
-            background: white;
-            margin: 30px auto;
-            padding: 24px;
-            width: 90%;
-            max-width: 700px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border-color);
             border-radius: 24px;
-            position: relative;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            padding: 30px;
+            max-width: 900px;
+            width: 90%;
             max-height: 85vh;
             overflow-y: auto;
-            border: 2px solid rgba(138, 79, 255, 0.2);
         }
-
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-title {
+            color: white;
+            font-size: 20px;
+            font-weight: 700;
+        }
+        
         .close-modal {
-            position: absolute;
-            top: 15px;
-            right: 20px;
+            color: var(--text-muted);
             font-size: 28px;
             cursor: pointer;
-            color: #8A4FFF;
-            width: 35px;
-            height: 35px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            background: rgba(138, 79, 255, 0.1);
         }
-
+        
         .close-modal:hover {
-            background: #8A4FFF;
             color: white;
         }
-
-        /* Footer */
-        .footer {
-            text-align: center;
-            padding: 20px 0 10px;
-            margin-top: 30px;
-            color: #5a5a6e;
-            font-size: 12px;
-            border-top: 2px solid rgba(138, 79, 255, 0.2);
-        }
-
-        .footer a {
-            color: #8A4FFF;
-            text-decoration: none;
-            font-weight: 600;
-        }
-
-        .footer a:hover {
-            color: #00C4CC;
-        }
-
-        /* Tabs */
-        .dashboard-tabs {
-            display: flex;
-            margin-bottom: 24px;
-            border-radius: 16px;
-            background: white;
-            padding: 6px;
-            box-shadow: 0 4px 15px rgba(123, 75, 255, 0.15);
-            border: 1px solid rgba(138, 79, 255, 0.2);
-        }
-
-        .dashboard-tab {
-            flex: 1;
-            text-align: center;
-            padding: 12px;
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            color: #5a5a6e;
-        }
-
-        .dashboard-tab.active {
-            background: linear-gradient(135deg, #8A4FFF, #7B4BFF);
-            color: white;
-            box-shadow: 0 4px 12px rgba(138, 79, 255, 0.4);
-        }
-
-        .dashboard-tab:hover:not(.active) {
-            background: rgba(138, 79, 255, 0.1);
-            color: #8A4FFF;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
+        
+        /* Responsive */
         @media (max-width: 768px) {
             body { padding: 10px; }
-            .container { padding: 16px; }
+            .header { flex-direction: column; gap: 15px; }
+            .header-actions { flex-direction: column; width: 100%; }
+            .api-key-input { width: 100%; }
             .stats-grid { grid-template-columns: 1fr 1fr; }
-            .category-grid { grid-template-columns: 1fr 1fr; }
-            .dashboard-controls { flex-direction: column; }
-            .api-key-section { width: 100%; }
-            .logo-text { font-size: 24px; }
         }
     </style>
 </head>
@@ -512,587 +471,863 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <div class="logo-placeholder">
-                <img src="/images/easysuccor-logo.png" alt="EasySuccor" class="logo-image">
+            <div class="logo-section">
+                <span class="logo-text">
+                    <span class="logo-easy">Easy</span><span class="logo-succor">Succor</span>
+                </span>
+                <span class="control-badge">🎛️ ULTIMATE CONTROL ROOM</span>
             </div>
-            <div class="logo-text">
-                <span class="logo-easy">Easy</span><span class="logo-succor">Succor</span>
-            </div>
-            <div class="tagline">Professional CV & Cover Letter Services — Get Noticed, Get Hired</div>
-            <div class="admin-badge">📊 EXECUTIVE DASHBOARD</div>
-        </div>
-
-        <!-- Controls -->
-        <div class="dashboard-controls">
-            <div class="api-key-section">
-                <input type="password" id="apiKey" placeholder="Enter Admin API Key" value="0.i45qbafdnui0.0b656qiu0v3">
-                <button onclick="refreshAllData()">🔄 Refresh All</button>
-            </div>
-            <div class="last-updated" id="lastUpdated">Last updated: Never</div>
-        </div>
-
-        <!-- Tabs -->
-        <div class="dashboard-tabs">
-            <div class="dashboard-tab active" data-tab="overview">📊 Overview</div>
-            <div class="dashboard-tab" data-tab="cv-analytics">📄 CV Analytics</div>
-            <div class="dashboard-tab" data-tab="payments">💳 Payments</div>
-            <div class="dashboard-tab" data-tab="error-reports">🐛 Error Reports</div>
-            <div class="dashboard-tab" data-tab="clients">👥 Clients</div>
-            <div class="dashboard-tab" data-tab="orders">📋 Orders</div>
-        </div>
-
-        <!-- Overview Tab -->
-        <div id="overview" class="tab-content active">
-            <div id="overviewContent">
-                <div class="loading">
-                    <div class="loading-spinner"></div>
-                    <p>Loading dashboard data...</p>
-                </div>
+            <div class="header-actions">
+                <input type="password" id="apiKey" class="api-key-input" placeholder="Admin API Key" value="0.i45qbafdnui0.0b656qiu0v3">
+                <button class="refresh-btn" onclick="refreshAllData()">🔄 Refresh All</button>
+                <span class="last-updated" id="lastUpdated"></span>
             </div>
         </div>
-
-        <!-- CV Analytics Tab -->
-        <div id="cv-analytics" class="tab-content">
-            <div id="cvAnalyticsContent">
-                <div class="loading">
-                    <div class="loading-spinner"></div>
-                    <p>Loading CV analytics...</p>
-                </div>
-            </div>
+        
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <div class="nav-tab active" data-tab="overview">📊 Overview</div>
+            <div class="nav-tab" data-tab="orders">📋 Orders</div>
+            <div class="nav-tab" data-tab="clients">👥 Clients</div>
+            <div class="nav-tab" data-tab="hired">🏆 Hired Clients</div>
+            <div class="nav-tab" data-tab="vacancies">💼 Vacancies</div>
+            <div class="nav-tab" data-tab="documents">📄 Documents</div>
+            <div class="nav-tab" data-tab="updates">✏️ Document Updates</div>
+            <div class="nav-tab" data-tab="payments">💳 Payments</div>
+            <div class="nav-tab" data-tab="referrals">🎁 Top Referrers</div>
+            <div class="nav-tab" data-tab="errors">🐛 Error Reports</div>
+            <div class="nav-tab" data-tab="pricing">💰 Pricing</div>
+            <div class="nav-tab" data-tab="contact">📞 Contact</div>
+            <div class="nav-tab" data-tab="quick">⚡ Quick Actions</div>
         </div>
-
-        <!-- Payments Tab -->
-        <div id="payments" class="tab-content">
-            <div id="paymentsContent">
-                <div class="loading">
-                    <div class="loading-spinner"></div>
-                    <p>Loading payment data...</p>
-                </div>
+        
+        <!-- Tab Content -->
+        <div id="tabContent">
+            <div class="loading">
+                <div class="loading-spinner"></div>
+                <p>Loading ultimate control room...</p>
             </div>
-        </div>
-
-        <!-- Error Reports Tab -->
-        <div id="error-reports" class="tab-content">
-            <div id="errorReportsContent">
-                <div class="loading">
-                    <div class="loading-spinner"></div>
-                    <p>Loading error reports...</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Clients Tab -->
-        <div id="clients" class="tab-content">
-            <div id="clientsContent">
-                <div class="loading">
-                    <div class="loading-spinner"></div>
-                    <p>Loading client data...</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Orders Tab -->
-        <div id="orders" class="tab-content">
-            <div id="ordersContent">
-                <div class="loading">
-                    <div class="loading-spinner"></div>
-                    <p>Loading orders...</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="footer">
-            <p>© 2025 EasySuccor — Professional CV & Cover Letter Services</p>
-            <p>📞 +265 991 295 401 | 📧 easysuccor.bot@gmail.com</p>
-            <p><a href="/admin">← Back to Admin Portal</a></p>
         </div>
     </div>
-
+    
     <!-- Modal -->
-    <div id="detailModal" class="modal">
+    <div id="modal" class="modal">
         <div class="modal-content">
-            <span class="close-modal" onclick="closeModal()">&times;</span>
-            <div id="modalBody">Loading...</div>
+            <div class="modal-header">
+                <span class="modal-title" id="modalTitle">Details</span>
+                <span class="close-modal" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
         </div>
     </div>
 
     <script>
-        // State
-        let currentStats = null;
-        let apiKey = document.getElementById('apiKey').value;
+        // ============ STATE ============
+        let allData = {
+            stats: {},
+            orders: [],
+            clients: [],
+            vacancies: [],
+            hiredClients: [],
+            documents: [],
+            updates: [],
+            payments: {},
+            referrals: [],
+            errors: []
+        };
+        let currentTab = 'overview';
         
-        // Tab switching
-        document.querySelectorAll('.dashboard-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.dashboard-tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                tab.classList.add('active');
-                document.getElementById(tab.dataset.tab).classList.add('active');
-                
-                // Load data for the tab if not already loaded
-                const tabId = tab.dataset.tab;
-                if (tabId === 'overview' && !currentStats) refreshAllData();
-                else if (tabId === 'error-reports') loadErrorReports();
-                else if (tabId === 'clients') loadClients();
-                else if (tabId === 'orders') loadOrders();
-            });
+        // ============ INITIALIZATION ============
+        document.addEventListener('DOMContentLoaded', function() {
+            setupTabs();
+            refreshAllData();
         });
-
+        
+        function setupTabs() {
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentTab = tab.dataset.tab;
+                    loadTabContent(currentTab);
+                });
+            });
+        }
+        
         function getApiKey() {
             return document.getElementById('apiKey').value;
         }
-
+        
         function getHeaders() {
             return { 'x-admin-key': getApiKey() };
         }
-
+        
+        async function apiCall(endpoint) {
+            const response = await fetch(endpoint, { headers: getHeaders() });
+            if (!response.ok) throw new Error(`API Error: ${response.status}`);
+            return response.json();
+        }
+        
+        // ============ REFRESH ALL DATA ============
         async function refreshAllData() {
-            apiKey = getApiKey();
-            if (!apiKey) {
-                alert('Please enter your Admin API Key');
-                return;
-            }
-
-            document.getElementById('overviewContent').innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Loading dashboard data...</p></div>';
-            
-            try {
-                const response = await fetch('/admin/dashboard-summary', { headers: getHeaders() });
-                if (!response.ok) throw new Error('Failed to load dashboard data');
-                const data = await response.json();
-                currentStats = data;
-                
-                const statsResponse = await fetch('/admin/stats', { headers: getHeaders() });
-                if (statsResponse.ok) {
-                    const fullStats = await statsResponse.json();
-                    currentStats = { ...currentStats, ...fullStats };
-                }
-                
-                renderOverview(currentStats);
-                renderCVAnalytics(currentStats);
-                renderPayments(currentStats);
-                
-                document.getElementById('lastUpdated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
-            } catch (error) {
-                document.getElementById('overviewContent').innerHTML = `<div class="loading">❌ Error: ${error.message}</div>`;
-            }
-        }
-
-        function renderOverview(stats) {
-            const s = stats;
-            const cv = s.cv_analytics || {};
-            const payments = s.payment_analytics || {};
-            const errorStats = s.error_analytics || {};
-            
-            let html = `
-                <div class="stats-grid">
-                    <div class="stat-card"><div class="stat-number">${s.total_clients || 0}</div><div class="stat-label">Total Clients</div></div>
-                    <div class="stat-card"><div class="stat-number">${s.total_orders || 0}</div><div class="stat-label">Total Orders</div></div>
-                    <div class="stat-card teal"><div class="stat-number">MK${(s.total_revenue || 0).toLocaleString()}</div><div class="stat-label">Total Revenue</div></div>
-                    <div class="stat-card"><div class="stat-number">${s.pending_payments || 0}</div><div class="stat-label">Pending Payments</div></div>
-                    <div class="stat-card teal"><div class="stat-number">${s.today?.orders || 0}</div><div class="stat-label">Today's Orders</div></div>
-                    <div class="stat-card"><div class="stat-number">${s.active_clients_30d || 0}</div><div class="stat-label">Active Clients (30d)</div></div>
-                </div>
-                
-                <div class="section-header">
-                    <h2>📊 Quick Overview</h2>
-                </div>
-                
-                <div class="summary-row">
-                    <div class="summary-item"><strong>This Week:</strong> ${s.this_week?.orders || 0} orders, MK${(s.this_week?.revenue || 0).toLocaleString()}</div>
-                    <div class="summary-item"><strong>New Clients (Week):</strong> ${s.this_week?.new_clients || 0}</div>
-                    <div class="summary-item"><strong>Avg Rating:</strong> ${s.month?.avg_rating || 'N/A'} ★</div>
-                    <div class="summary-item"><strong>Conversion Rate:</strong> ${s.conversion_rate || 0}%</div>
-                </div>
-                
-                <h2>📄 CV Analytics Summary</h2>
-                <div class="category-grid">
-                    <div class="category-card"><div class="category-title">Total CVs</div><div class="category-value">${cv.total_cvs || 0}</div></div>
-                    <div class="category-card"><div class="category-title">Total Skills</div><div class="category-value">${cv.total_skills || 0}</div></div>
-                    <div class="category-card"><div class="category-title">Avg Skills/CV</div><div class="category-value">${cv.avg_skills_per_cv || 0}</div></div>
-                    <div class="category-card"><div class="category-title">Projects</div><div class="category-value">${cv.total_projects || 0}</div></div>
-                    <div class="category-card"><div class="category-title">Achievements</div><div class="category-value">${cv.total_achievements || 0}</div></div>
-                    <div class="category-card"><div class="category-title">Certifications</div><div class="category-value">${cv.total_certifications || 0}</div></div>
-                </div>
-                
-                <h2>💳 Payment Summary</h2>
-                <div class="summary-row">
-                    <div class="summary-item"><strong>Installments Active:</strong> ${payments.installments?.active || 0}</div>
-                    <div class="summary-item"><strong>Installments Done:</strong> ${payments.installments?.completed || 0}</div>
-                    <div class="summary-item"><strong>Pay Later Active:</strong> ${payments.pay_later?.active || 0}</div>
-                    <div class="summary-item"><strong>Pay Later Overdue:</strong> ${payments.pay_later?.overdue || 0}</div>
-                </div>
-                
-                <h2>🐛 Error Reports</h2>
-                <div class="summary-row">
-                    <div class="summary-item"><strong>Total Reports:</strong> ${errorStats.total_reports || 0}</div>
-                    <div class="summary-item"><strong>Pending:</strong> <span style="color: ${errorStats.pending > 0 ? '#e74c3c' : '#0e9f6e'}">${errorStats.pending || 0}</span></div>
-                    <div class="summary-item"><strong>Resolved:</strong> ${errorStats.resolved || 0}</div>
-                    <div class="summary-item"><strong>Resolution Rate:</strong> ${errorStats.resolution_rate || 0}%</div>
-                </div>
-            `;
-            
-            document.getElementById('overviewContent').innerHTML = html;
-        }
-
-        function renderCVAnalytics(stats) {
-            const cv = stats.cv_analytics || {};
-            
-            let html = `
-                <h2>📊 Full CV Analytics (18+ Categories)</h2>
-                
-                <div class="category-grid">
-                    <div class="category-card"><div class="category-title">📄 Total CVs</div><div class="category-value">${cv.total_cvs || 0}</div></div>
-                    <div class="category-card"><div class="category-title">⚡ Total Skills</div><div class="category-value">${cv.total_skills || 0}</div></div>
-                    <div class="category-card"><div class="category-title">📊 Avg Skills/CV</div><div class="category-value">${cv.avg_skills_per_cv || 0}</div></div>
-                    <div class="category-card"><div class="category-title">📁 Projects</div><div class="category-value">${cv.total_projects || 0}</div></div>
-                    <div class="category-card"><div class="category-title">🏆 Achievements</div><div class="category-value">${cv.total_achievements || 0}</div></div>
-                    <div class="category-card"><div class="category-title">🤝 Volunteer</div><div class="category-value">${cv.total_volunteer || 0}</div></div>
-                    <div class="category-card"><div class="category-title">👑 Leadership</div><div class="category-value">${cv.total_leadership || 0}</div></div>
-                    <div class="category-card"><div class="category-title">📜 Certifications</div><div class="category-value">${cv.total_certifications || 0}</div></div>
-                    <div class="category-card"><div class="category-title">🌐 Languages</div><div class="category-value">${cv.total_languages || 0}</div></div>
-                    <div class="category-card"><div class="category-title">👥 Referees</div><div class="category-value">${cv.total_referees || 0}</div></div>
-                    <div class="category-card"><div class="category-title">🏅 Awards</div><div class="category-value">${cv.total_awards || 0}</div></div>
-                    <div class="category-card"><div class="category-title">📖 Publications</div><div class="category-value">${cv.total_publications || 0}</div></div>
-                    <div class="category-card"><div class="category-title">🎤 Conferences</div><div class="category-value">${cv.total_conferences || 0}</div></div>
-                    <div class="category-card"><div class="category-title">💡 Interests</div><div class="category-value">${cv.total_interests || 0}</div></div>
-                </div>
-                
-                <h2>💌 Cover Letter Analytics</h2>
-                <div class="summary-row">
-                    <div class="summary-item"><strong>Total Cover Letters:</strong> ${stats.cover_letter_analytics?.total_cover_letters || 0}</div>
-                    <div class="summary-item"><strong>With Vacancy Details:</strong> ${stats.cover_letter_analytics?.with_vacancy || 0}</div>
-                </div>
-            `;
-            
-            document.getElementById('cvAnalyticsContent').innerHTML = html;
-        }
-
-        function renderPayments(stats) {
-            const payments = stats.payment_analytics || {};
-            const installments = payments.installments || {};
-            const payLater = payments.pay_later || {};
-            
-            let html = `
-                <h2>💳 Payment Analytics</h2>
-                
-                <div class="stats-grid">
-                    <div class="stat-card"><div class="stat-number">${installments.active || 0}</div><div class="stat-label">Active Installments</div></div>
-                    <div class="stat-card"><div class="stat-number">${installments.completed || 0}</div><div class="stat-label">Completed Installments</div></div>
-                    <div class="stat-card teal"><div class="stat-number">${installments.completion_rate || 0}%</div><div class="stat-label">Completion Rate</div></div>
-                    <div class="stat-card"><div class="stat-number">MK${(installments.total_amount || 0).toLocaleString()}</div><div class="stat-label">Total Amount</div></div>
-                    <div class="stat-card"><div class="stat-number">MK${(installments.collected_amount || 0).toLocaleString()}</div><div class="stat-label">Collected Amount</div></div>
-                </div>
-                
-                <h2>⏳ Pay Later Analytics</h2>
-                <div class="stats-grid">
-                    <div class="stat-card teal"><div class="stat-number">${payLater.active || 0}</div><div class="stat-label">Active Pay Later</div></div>
-                    <div class="stat-card teal"><div class="stat-number">${payLater.completed || 0}</div><div class="stat-label">Completed</div></div>
-                    <div class="stat-card" style="background: ${payLater.overdue > 0 ? 'linear-gradient(135deg, #e74c3c, #c0392b)' : 'linear-gradient(135deg, #00C4CC, #0099AA)'}">
-                        <div class="stat-number">${payLater.overdue || 0}</div><div class="stat-label">Overdue</div>
-                    </div>
-                    <div class="stat-card"><div class="stat-number">${payLater.overdue_rate || 0}%</div><div class="stat-label">Overdue Rate</div></div>
-                    <div class="stat-card"><div class="stat-number">MK${(payLater.total_amount || 0).toLocaleString()}</div><div class="stat-label">Total Amount</div></div>
-                </div>
-                
-                <h2>💳 Payment Methods Distribution</h2>
-                <div class="summary-row" id="paymentMethodsList"></div>
-            `;
-            
-            document.getElementById('paymentsContent').innerHTML = html;
-            
-            // Render payment methods
-            const methods = payments.method_distribution || {};
-            const methodsHtml = Object.entries(methods).map(([method, count]) => 
-                `<div class="summary-item"><strong>${method}:</strong> ${count} orders</div>`
-            ).join('');
-            document.getElementById('paymentMethodsList').innerHTML = methodsHtml || '<div class="summary-item">No payment data available</div>';
-        }
-
-        async function loadErrorReports() {
             const apiKey = getApiKey();
             if (!apiKey) {
-                document.getElementById('errorReportsContent').innerHTML = '<div class="loading">⚠️ Please enter your Admin API Key</div>';
+                alert('Please enter Admin API Key');
                 return;
             }
             
-            document.getElementById('errorReportsContent').innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Loading error reports...</p></div>';
-            
             try {
-                const response = await fetch('/admin/error-reports', { headers: getHeaders() });
-                if (!response.ok) throw new Error('Failed to load error reports');
-                const reports = await response.json();
+                const [
+                    stats, orders, clients, vacancies, hiredClients,
+                    documents, updates, payments, referrals, errors
+                ] = await Promise.all([
+                    apiCall('/admin/full-stats').catch(() => ({})),
+                    apiCall('/admin/orders').catch(() => ({ orders: [] })),
+                    apiCall('/admin/clients').catch(() => ({ clients: [] })),
+                    apiCall('/admin/vacancies').catch(() => []),
+                    apiCall('/admin/hired-clients').catch(() => []),
+                    apiCall('/admin/documents').catch(() => []),
+                    apiCall('/admin/document-updates').catch(() => []),
+                    apiCall('/admin/payment-stats').catch(() => ({})),
+                    apiCall('/admin/top-referrers').catch(() => []),
+                    apiCall('/admin/error-reports').catch(() => [])
+                ]);
                 
-                let html = `
-                    <h2>🐛 Error Reports</h2>
+                allData = {
+                    stats,
+                    orders: orders.orders || [],
+                    clients: clients.clients || [],
+                    vacancies: vacancies || [],
+                    hiredClients: hiredClients || [],
+                    documents: documents || [],
+                    updates: updates || [],
+                    payments,
+                    referrals: referrals || [],
+                    errors: errors || []
+                };
+                
+                document.getElementById('lastUpdated').textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+                loadTabContent(currentTab);
+            } catch (error) {
+                console.error('Refresh error:', error);
+                document.getElementById('tabContent').innerHTML = `<div class="loading">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        // ============ LOAD TAB CONTENT ============
+        function loadTabContent(tab) {
+            const handlers = {
+                overview: renderOverview,
+                orders: renderOrders,
+                clients: renderClients,
+                hired: renderHiredClients,
+                vacancies: renderVacancies,
+                documents: renderDocuments,
+                updates: renderUpdates,
+                payments: renderPayments,
+                referrals: renderReferrals,
+                errors: renderErrors,
+                pricing: renderPricing,
+                contact: renderContact,
+                quick: renderQuickActions
+            };
+            
+            if (handlers[tab]) {
+                handlers[tab]();
+            }
+        }
+        
+        // ============ RENDER FUNCTIONS ============
+        function renderOverview() {
+            const stats = allData.stats || {};
+            const clients = allData.clients || [];
+            const hired = allData.hiredClients || [];
+            
+            // Calculate ghost clients (no activity in 30+ days)
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const ghostClients = clients.filter(c => {
+                return !c.last_active || new Date(c.last_active) < thirtyDaysAgo;
+            });
+            
+            const html = `
+                <div class="status-cards">
+                    <div class="status-card hired">
+                        <div class="status-value" style="color: var(--hired);">${hired.length}</div>
+                        <div class="status-label">🏆 Hired Clients</div>
+                    </div>
+                    <div class="status-card active">
+                        <div class="status-value" style="color: var(--success);">${stats.clients?.active || 0}</div>
+                        <div class="status-label">✅ Active (30d)</div>
+                    </div>
+                    <div class="status-card ghost">
+                        <div class="status-value" style="color: var(--text-muted);">${ghostClients.length}</div>
+                        <div class="status-label">👻 Ghost Clients</div>
+                    </div>
+                    <div class="status-card pending">
+                        <div class="status-value" style="color: var(--warning);">${stats.testimonials?.pending || 0}</div>
+                        <div class="status-label">⏳ Pending Testimonials</div>
+                    </div>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="stat-value">${stats.clients?.total || 0}</div><div class="stat-label">Total Clients</div></div>
+                    <div class="stat-card"><div class="stat-value">${stats.month?.orders || 0}</div><div class="stat-label">Orders (Month)</div></div>
+                    <div class="stat-card"><div class="stat-value">MK${(stats.month?.revenue || 0).toLocaleString()}</div><div class="stat-label">Revenue (Month)</div></div>
+                    <div class="stat-card"><div class="stat-value">${allData.documents.length}</div><div class="stat-label">Documents</div></div>
+                    <div class="stat-card"><div class="stat-value">${allData.vacancies.length}</div><div class="stat-label">Vacancies</div></div>
+                    <div class="stat-card"><div class="stat-value">${allData.updates.length}</div><div class="stat-label">Updates</div></div>
+                </div>
+                
+                <div class="section-card">
+                    <div class="section-header"><span class="section-title">🎯 <span>Quick Stats</span></span></div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                        <div><strong style="color: white;">Conversion:</strong> ${stats.clients?.conversion_rate || 0}%</div>
+                        <div><strong style="color: white;">Retention:</strong> ${stats.clients?.retention_rate || 0}%</div>
+                        <div><strong style="color: white;">Active Installments:</strong> ${allData.payments.installments_active || 0}</div>
+                        <div><strong style="color: white;">Pay Later Overdue:</strong> ${allData.payments.pay_later_overdue || 0}</div>
+                        <div><strong style="color: white;">Pending Errors:</strong> ${allData.errors.filter(e => e.status === 'pending').length}</div>
+                        <div><strong style="color: white;">Top Referrer:</strong> ${allData.referrals[0]?.name || 'N/A'}</div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('tabContent').innerHTML = html;
+        }
+        
+        function renderOrders() {
+            const orders = allData.orders || [];
+            
+            let html = `
+                <div class="section-card">
+                    <div class="section-header">
+                        <span class="section-title">📋 <span>All Orders (${orders.length})</span></span>
+                        <div>
+                            <select class="filter-select" id="orderStatusFilter" onchange="filterOrders()">
+                                <option value="all">All Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="processing">Processing</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                            <input type="text" class="search-input" id="orderSearch" placeholder="Search orders..." oninput="filterOrders()">
+                        </div>
+                    </div>
                     <div class="table-container">
                         <table>
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Client</th>
-                                    <th>Description</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                `;
+                            <thead><tr>
+                                <th>Order ID</th><th>Client</th><th>Service</th><th>Type</th><th>Status</th><th>Payment</th><th>Total</th><th>Created</th><th>Actions</th>
+                            </tr></thead>
+                            <tbody id="ordersTableBody">`;
+            
+            orders.slice(0, 100).forEach(order => {
+                html += `<tr data-status="${order.status}" data-client="${order.client?.name || ''}">
+                    <td><code style="color: var(--text-muted);">${String(order.id || '').slice(-12)}</code></td>
+                    <td>${order.client?.name || '-'}</td>
+                    <td>${order.service || '-'}</td>
+                    <td><span class="badge badge-info">${order.payment_type || 'standard'}</span></td>
+                    <td><span class="badge badge-${order.status === 'delivered' ? 'success' : 'info'}">${order.status || '-'}</span></td>
+                    <td><span class="badge badge-${order.payment_status === 'completed' ? 'success' : 'warning'}">${order.payment_status || '-'}</span></td>
+                    <td>${order.total_charge || '-'}</td>
+                    <td>${new Date(order.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <a class="action-link" onclick="viewOrder('${order.id}')">View</a>
+                        <a class="action-link" onclick="viewDocument('${order.id}')">Document</a>
+                    </td>
+                </tr>`;
+            });
+            
+            html += `</tbody></table></div></div>`;
+            document.getElementById('tabContent').innerHTML = html;
+        }
+        
+        function renderClients() {
+            const clients = allData.clients || [];
+            const hiredIds = new Set(allData.hiredClients.map(h => h.client_id));
+            
+            let html = `
+                <div class="section-card">
+                    <div class="section-header">
+                        <span class="section-title">👥 <span>All Clients (${clients.length})</span></span>
+                        <input type="text" class="search-input" id="clientSearch" placeholder="Search clients..." oninput="filterClients()" style="width: 250px;">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead><tr>
+                                <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Orders</th><th>Spent</th><th>Referrals</th><th>Status</th><th>Last Active</th><th>Actions</th>
+                            </tr></thead>
+                            <tbody id="clientsTableBody">`;
+            
+            clients.slice(0, 100).forEach(client => {
+                const isHired = hiredIds.has(client.id);
+                const isGhost = !client.last_active || new Date(client.last_active) < new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+                const statusBadge = isHired ? '<span class="badge badge-hired">🏆 Hired</span>' :
+                                   isGhost ? '<span class="badge badge-ghost">👻 Ghost</span>' :
+                                   '<span class="badge badge-success">✅ Active</span>';
                 
-                if (reports.length === 0) {
-                    html += `<tr><td colspan="6" style="text-align:center;padding:30px;">✅ No error reports found</td></tr>`;
-                } else {
-                    for (const r of reports) {
-                        html += `<tr>
-                            <td>${r.id}</td>
-                            <td>${r.client_name || 'Unknown'}</td>
-                            <td>${(r.description || '').slice(0, 40)}${r.description?.length > 40 ? '...' : ''}</td>
-                            <td><span class="badge ${r.status === 'pending' ? 'warning' : 'success'}">${r.status}</span></td>
-                            <td>${new Date(r.created_at).toLocaleDateString()}</td>
-                            <td>
-                                <a class="action-link" onclick="viewErrorReport(${r.id})">View</a>
-                                ${r.status === 'pending' ? `<a class="action-link" onclick="resolveErrorReport(${r.id})">Resolve</a>` : ''}
-                            </td>
-                        </tr>`;
+                html += `<tr data-name="${client.name || client.first_name || ''}">
+                    <td>${String(client.id || '').slice(-8)}</td>
+                    <td>${client.name || client.first_name || '-'} ${client.last_name || ''}</td>
+                    <td>${client.email || '-'}</td>
+                    <td>${client.phone || '-'}</td>
+                    <td>${client.total_orders || 0}</td>
+                    <td>MK${(client.total_spent || 0).toLocaleString()}</td>
+                    <td>${client.referral_count || 0}</td>
+                    <td>${statusBadge}</td>
+                    <td>${client.last_active ? new Date(client.last_active).toLocaleDateString() : 'Never'}</td>
+                    <td>
+                        <a class="action-link" onclick="viewClient('${client.id}')">View</a>
+                        <a class="action-link" onclick="contactClient('${client.phone}')">Contact</a>
+                    </td>
+                </tr>`;
+            });
+            
+            html += `</tbody></table></div></div>`;
+            document.getElementById('tabContent').innerHTML = html;
+        }
+        
+        function renderHiredClients() {
+            const hired = allData.hiredClients || [];
+            
+            let html = `
+                <div class="section-card">
+                    <div class="section-header">
+                        <span class="section-title">🏆 <span>Hired Clients (${hired.length})</span></span>
+                    </div>`;
+            
+            if (hired.length === 0) {
+                html += `<p style="color: var(--text-secondary); padding: 20px;">No hired clients reported yet. Clients can report using /hired command.</p>`;
+            } else {
+                html += `<div class="table-container"><table>
+                    <thead><tr>
+                        <th>Client</th><th>Position</th><th>Company</th><th>Story</th><th>Date Hired</th><th>Anonymous</th>
+                    </tr></thead>
+                    <tbody>`;
+                
+                hired.forEach(h => {
+                    html += `<tr>
+                        <td>${h.anonymous ? 'Anonymous' : (h.client_name || 'Unknown')}</td>
+                        <td>${h.position || '-'}</td>
+                        <td>${h.company || '-'}</td>
+                        <td>${(h.story || '').slice(0, 50)}${h.story?.length > 50 ? '...' : ''}</td>
+                        <td>${h.hired_date ? new Date(h.hired_date).toLocaleDateString() : '-'}</td>
+                        <td>${h.anonymous ? '✓' : '✗'}</td>
+                    </tr>`;
+                });
+                
+                html += `</tbody></table></div>`;
+            }
+            
+            html += `</div>`;
+            document.getElementById('tabContent').innerHTML = html;
+        }
+        
+        function renderVacancies() {
+            const vacancies = allData.vacancies || [];
+            
+            let html = `
+                <div class="section-card">
+                    <div class="section-header">
+                        <span class="section-title">💼 <span>Job Vacancies (${vacancies.length})</span></span>
+                    </div>`;
+            
+            if (vacancies.length === 0) {
+                html += `<p style="color: var(--text-secondary); padding: 20px;">No vacancies recorded yet.</p>`;
+            } else {
+                html += `<div class="table-container"><table>
+                    <thead><tr>
+                        <th>Position</th><th>Company</th><th>Location</th><th>Requirements</th><th>Client</th><th>Date</th>
+                    </tr></thead>
+                    <tbody>`;
+                
+                vacancies.forEach(v => {
+                    html += `<tr>
+                        <td>${v.position || '-'}</td>
+                        <td>${v.company || '-'}</td>
+                        <td>${v.location || '-'}</td>
+                        <td>${(v.requirements || []).slice(0, 3).join(', ') || '-'}</td>
+                        <td>${v.client_name || '-'}</td>
+                        <td>${v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}</td>
+                    </tr>`;
+                });
+                
+                html += `</tbody></table></div>`;
+            }
+            
+            html += `</div>`;
+            document.getElementById('tabContent').innerHTML = html;
+        }
+        
+        function renderDocuments() {
+            const documents = allData.documents || [];
+            
+            let html = `
+                <div class="section-card">
+                    <div class="section-header">
+                        <span class="section-title">📄 <span>All Documents (${documents.length})</span></span>
+                        <input type="text" class="search-input" id="docSearch" placeholder="Search documents..." style="width: 250px;">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead><tr>
+                                <th>Order ID</th><th>Client</th><th>Type</th><th>Version</th><th>Format</th><th>Created</th><th>Actions</th>
+                            </tr></thead>
+                            <tbody>`;
+            
+            documents.slice(0, 100).forEach(doc => {
+                html += `<tr>
+                    <td><code>${String(doc.order_id || '').slice(-12)}</code></td>
+                    <td>${doc.client_name || '-'}</td>
+                    <td>${doc.document_type || '-'}</td>
+                    <td>v${doc.version || 1}</td>
+                    <td>${doc.format || 'PDF'}</td>
+                    <td>${new Date(doc.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <a class="action-link" onclick="viewDocument('${doc.order_id}')">View</a>
+                        <a class="action-link" onclick="downloadDocument('${doc.order_id}')">Download</a>
+                    </td>
+                </tr>`;
+            });
+            
+            html += `</tbody></table></div></div>`;
+            document.getElementById('tabContent').innerHTML = html;
+        }
+        
+        function renderUpdates() {
+            const updates = allData.updates || [];
+            
+            let html = `
+                <div class="section-card">
+                    <div class="section-header">
+                        <span class="section-title">✏️ <span>Document Updates History (${updates.length})</span></span>
+                    </div>`;
+            
+            if (updates.length === 0) {
+                html += `<p style="color: var(--text-secondary); padding: 20px;">No updates recorded yet.</p>`;
+            } else {
+                html += `<div class="table-container"><table>
+                    <thead><tr>
+                        <th>Order ID</th><th>Client</th><th>Version</th><th>Changes</th><th>Requested By</th><th>Date</th>
+                    </tr></thead>
+                    <tbody>`;
+                
+                updates.forEach(u => {
+                    html += `<tr>
+                        <td><code>${String(u.order_id || '').slice(-12)}</code></td>
+                        <td>${u.client_name || '-'}</td>
+                        <td>v${u.version_number || 1}</td>
+                        <td>${(u.changes || '').slice(0, 60)}${u.changes?.length > 60 ? '...' : ''}</td>
+                        <td>${u.requested_by || 'Client'}</td>
+                        <td>${new Date(u.created_at).toLocaleDateString()}</td>
+                    </tr>`;
+                });
+                
+                html += `</tbody></table></div>`;
+            }
+            
+            html += `</div>`;
+            document.getElementById('tabContent').innerHTML = html;
+        }
+        
+        function renderPayments() {
+            const payments = allData.payments || {};
+            
+            let html = `
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="stat-value">${payments.total_pending || 0}</div><div class="stat-label">Pending Payments</div></div>
+                    <div class="stat-card"><div class="stat-value">MK${(payments.total_pending_amount || 0).toLocaleString()}</div><div class="stat-label">Pending Amount</div></div>
+                    <div class="stat-card"><div class="stat-value">${payments.installments_active || 0}</div><div class="stat-label">Active Installments</div></div>
+                    <div class="stat-card"><div class="stat-value">${payments.installments_completed || 0}</div><div class="stat-label">Completed Installments</div></div>
+                    <div class="stat-card"><div class="stat-value">${payments.pay_later_active || 0}</div><div class="stat-label">Active Pay Later</div></div>
+                    <div class="stat-card"><div class="stat-value" style="color: var(--danger);">${payments.pay_later_overdue || 0}</div><div class="stat-label">Pay Later Overdue</div></div>
+                </div>
+            `;
+            
+            document.getElementById('tabContent').innerHTML = html;
+            
+            // Load installment details async
+            apiCall('/admin/installments').then(installments => {
+                if (installments.length > 0) {
+                    const tableHtml = `
+                        <div class="section-card">
+                            <div class="section-header"><span class="section-title">💰 <span>Active Installments</span></span></div>
+                            <div class="table-container"><table>
+                                <thead><tr><th>Order ID</th><th>Client</th><th>Progress</th><th>Paid</th><th>Remaining</th><th>Next Due</th></tr></thead>
+                                <tbody>
+                                    ${installments.slice(0, 20).map(inst => {
+                                        const isOverdue = inst.days_overdue > 0;
+                                        return `<tr>
+                                            <td><code>${String(inst.order_id || '').slice(-12)}</code></td>
+                                            <td>${inst.client_name || '-'}</td>
+                                            <td>${inst.current_installment || 1}/2</td>
+                                            <td>MK${(inst.paid_amount || 0).toLocaleString()}</td>
+                                            <td>MK${(inst.remaining_amount || 0).toLocaleString()}</td>
+                                            <td><span class="badge badge-${isOverdue ? 'danger' : 'warning'}">${inst.next_due_date || '-'}</span></td>
+                                        </tr>`;
+                                    }).join('')}
+                                </tbody>
+                            </table></div>
+                        </div>
+                    `;
+                    document.getElementById('tabContent').innerHTML += tableHtml;
+                }
+            });
+        }
+        
+        function renderReferrals() {
+            const referrals = allData.referrals || [];
+            
+            let html = `
+                <div class="section-card">
+                    <div class="section-header">
+                        <span class="section-title">🎁 <span>Top Referrers</span></span>
+                    </div>`;
+            
+            if (referrals.length === 0) {
+                html += `<p style="color: var(--text-secondary); padding: 20px;">No referrals yet.</p>`;
+            } else {
+                html += `<div class="table-container"><table>
+                    <thead><tr>
+                        <th>#</th><th>Client</th><th>Referrals</th><th>Tier</th><th>Total Earned</th><th>Available Credit</th>
+                    </tr></thead>
+                    <tbody>`;
+                
+                referrals.slice(0, 20).forEach((r, i) => {
+                    const tierEmoji = r.tier === 'Diamond' ? '👑' : r.tier === 'Platinum' ? '💎' : r.tier === 'Gold' ? '🥇' : r.tier === 'Silver' ? '🥈' : '🥉';
+                    html += `<tr>
+                        <td>${i + 1}</td>
+                        <td>${r.name || '-'}</td>
+                        <td><strong>${r.total_referrals || 0}</strong> (${r.completed || 0} completed)</td>
+                        <td>${tierEmoji} ${r.tier || 'Bronze'}</td>
+                        <td>MK${(r.total_earned || 0).toLocaleString()}</td>
+                        <td>MK${(r.available_credit || 0).toLocaleString()}</td>
+                    </tr>`;
+                });
+                
+                html += `</tbody></table></div>`;
+            }
+            
+            html += `</div>`;
+            document.getElementById('tabContent').innerHTML = html;
+        }
+        
+        function renderErrors() {
+            const errors = allData.errors || [];
+            
+            let html = `
+                <div class="section-card">
+                    <div class="section-header">
+                        <span class="section-title">🐛 <span>Error Reports (${errors.length})</span></span>
+                        <select class="filter-select" id="errorFilter" onchange="filterErrors()">
+                            <option value="all">All</option>
+                            <option value="pending" selected>Pending</option>
+                            <option value="resolved">Resolved</option>
+                        </select>
+                    </div>
+                    <div class="table-container"><table>
+                        <thead><tr><th>ID</th><th>Client</th><th>Description</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+                        <tbody id="errorsTableBody">`;
+            
+            errors.forEach(e => {
+                html += `<tr data-status="${e.status}">
+                    <td>${e.id}</td>
+                    <td>${e.client_name || 'Unknown'}</td>
+                    <td>${(e.description || '').slice(0, 50)}${e.description?.length > 50 ? '...' : ''}</td>
+                    <td><span class="badge badge-${e.status === 'pending' ? 'warning' : 'success'}">${e.status}</span></td>
+                    <td>${new Date(e.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <a class="action-link" onclick="viewErrorReport(${e.id})">View</a>
+                        ${e.status === 'pending' ? `<a class="action-link" onclick="resolveErrorReport(${e.id})">Resolve</a>` : ''}
+                    </td>
+                </tr>`;
+            });
+            
+            html += `</tbody></table></div></div>`;
+            document.getElementById('tabContent').innerHTML = html;
+        }
+        
+        function renderPricing() {
+            document.getElementById('tabContent').innerHTML = `
+                <div class="section-card">
+                    <div class="section-header"><span class="section-title">💰 <span>Pricing Configuration</span></span></div>
+                    <div id="priceEditor">Loading prices...</div>
+                    <button class="refresh-btn" onclick="savePrices()" style="margin-top: 20px;">💾 Save All Prices</button>
+                </div>
+            `;
+            
+            apiCall('/admin/prices').then(prices => {
+                let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">';
+                for (const [category, services] of Object.entries(prices)) {
+                    html += `<div style="background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px;">
+                        <h4 style="color: white; margin-bottom: 15px;">${category.toUpperCase()}</h4>`;
+                    for (const [service, price] of Object.entries(services)) {
+                        html += `<div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                            <span style="color: var(--text-secondary);">${service.replace(/_/g, ' ')}</span>
+                            <input type="number" id="price_${category}_${service}" value="${price}" style="width: 100px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: white; padding: 6px; border-radius: 6px;">
+                        </div>`;
                     }
+                    html += `</div>`;
                 }
-                
-                html += `</tbody></table></div>`;
-                document.getElementById('errorReportsContent').innerHTML = html;
-            } catch (error) {
-                document.getElementById('errorReportsContent').innerHTML = `<div class="loading">❌ Error: ${error.message}</div>`;
-            }
+                html += '</div>';
+                document.getElementById('priceEditor').innerHTML = html;
+            });
         }
-
-        async function loadClients() {
-            const apiKey = getApiKey();
-            if (!apiKey) {
-                document.getElementById('clientsContent').innerHTML = '<div class="loading">⚠️ Please enter your Admin API Key</div>';
-                return;
-            }
+        
+        function renderContact() {
+            const clients = allData.clients || [];
             
-            document.getElementById('clientsContent').innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Loading clients...</p></div>';
-            
-            try {
-                const response = await fetch('/admin/clients', { headers: getHeaders() });
-                if (!response.ok) throw new Error('Failed to load clients');
-                const data = await response.json();
-                const clients = data.clients || [];
-                
-                let html = `
-                    <h2>👥 Clients (${clients.length} total)</h2>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Phone</th>
-                                    <th>Orders</th>
-                                    <th>Total Spent</th>
-                                    <th>Joined</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                `;
-                
-                for (const c of clients.slice(0, 50)) {
-                    html += `<tr>
-                        <td>${c.id}</td>
-                        <td>${c.name || '-'}</td>
-                        <td>${c.email || '-'}</td>
-                        <td>${c.phone || '-'}</td>
-                        <td>${c.total_orders || 0}</td>
-                        <td>MK${(c.total_spent || 0).toLocaleString()}</td>
-                        <td>${new Date(c.registered_at).toLocaleDateString()}</td>
-                        <td>
-                            <a class="action-link" onclick="viewClient(${c.id})">View</a>
-                        </td>
-                    </tr>`;
-                }
-                
-                html += `</tbody></table></div>`;
-                document.getElementById('clientsContent').innerHTML = html;
-            } catch (error) {
-                document.getElementById('clientsContent').innerHTML = `<div class="loading">❌ Error: ${error.message}</div>`;
-            }
-        }
-
-        async function loadOrders() {
-            const apiKey = getApiKey();
-            if (!apiKey) {
-                document.getElementById('ordersContent').innerHTML = '<div class="loading">⚠️ Please enter your Admin API Key</div>';
-                return;
-            }
-            
-            document.getElementById('ordersContent').innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Loading orders...</p></div>';
-            
-            try {
-                const response = await fetch('/admin/orders', { headers: getHeaders() });
-                if (!response.ok) throw new Error('Failed to load orders');
-                const data = await response.json();
-                const orders = data.orders || [];
-                
-                let html = `
-                    <h2>📋 Orders (${orders.length} total)</h2>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Order ID</th>
-                                    <th>Client</th>
-                                    <th>Service</th>
-                                    <th>Status</th>
-                                    <th>Payment</th>
-                                    <th>Total</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                `;
-                
-                for (const o of orders.slice(0, 50)) {
-                    html += `<tr>
-                        <td><code>${o.id?.slice(-12) || ''}</code></td>
-                        <td>${o.client?.name || '-'}</td>
-                        <td>${o.service || '-'}</td>
-                        <td><span class="badge ${o.status === 'delivered' ? 'success' : 'info'}">${o.status || '-'}</span></td>
-                        <td><span class="badge ${o.payment_status === 'completed' ? 'success' : 'warning'}">${o.payment_status || '-'}</span></td>
-                        <td>${o.total_charge || '-'}</td>
-                        <td>${new Date(o.created_at).toLocaleDateString()}</td>
-                        <td>
-                            <a class="action-link" onclick="viewOrder('${o.id}')">View</a>
-                        </td>
-                    </tr>`;
-                }
-                
-                html += `</tbody></table></div>`;
-                document.getElementById('ordersContent').innerHTML = html;
-            } catch (error) {
-                document.getElementById('ordersContent').innerHTML = `<div class="loading">❌ Error: ${error.message}</div>`;
-            }
-        }
-
-        // Modal functions
-        function closeModal() {
-            document.getElementById('detailModal').style.display = 'none';
-        }
-
-        async function viewErrorReport(reportId) {
-            const modal = document.getElementById('detailModal');
-            const modalBody = document.getElementById('modalBody');
-            modalBody.innerHTML = '<div class="loading">Loading...</div>';
-            modal.style.display = 'block';
-            
-            try {
-                const response = await fetch(`/admin/error-report/${reportId}`, { headers: getHeaders() });
-                const report = await response.json();
-                
-                modalBody.innerHTML = `
-                    <h2>🐛 Error Report #${report.id}</h2>
-                    <div class="summary-row">
-                        <div class="summary-item"><strong>Status:</strong> ${report.status}</div>
-                        <div class="summary-item"><strong>Created:</strong> ${new Date(report.created_at).toLocaleString()}</div>
-                        ${report.resolved_at ? `<div class="summary-item"><strong>Resolved:</strong> ${new Date(report.resolved_at).toLocaleString()}</div>` : ''}
+            document.getElementById('tabContent').innerHTML = `
+                <div class="section-card">
+                    <div class="section-header"><span class="section-title">📞 <span>Contact Clients</span></span></div>
+                    <div style="margin-bottom: 20px;">
+                        <button class="refresh-btn" onclick="broadcastMessage()" style="margin-right: 10px;">📢 Broadcast Message</button>
+                        <button class="refresh-btn" onclick="exportContacts()">📥 Export Contacts</button>
                     </div>
-                    <h3>Description</h3>
-                    <p style="background:var(--gray-light);padding:15px;border-radius:12px;">${report.description || 'No description'}</p>
-                    ${report.resolution_notes ? `<h3>Resolution Notes</h3><p>${report.resolution_notes}</p>` : ''}
-                    ${report.status === 'pending' ? `<button onclick="resolveErrorReport(${report.id})" style="margin-top:20px;">✅ Mark as Resolved</button>` : ''}
-                `;
-            } catch (error) {
-                modalBody.innerHTML = `<div class="loading">❌ Error: ${error.message}</div>`;
-            }
+                    <div class="table-container"><table>
+                        <thead><tr><th>Client</th><th>Phone</th><th>Email</th><th>Telegram</th><th>Actions</th></tr></thead>
+                        <tbody>
+                            ${clients.slice(0, 50).map(c => `
+                                <tr>
+                                    <td>${c.name || c.first_name || '-'} ${c.last_name || ''}</td>
+                                    <td>${c.phone || '-'}</td>
+                                    <td>${c.email || '-'}</td>
+                                    <td>${c.telegram_id ? '✓' : '✗'}</td>
+                                    <td>
+                                        ${c.phone ? `<a class="action-link" href="https://wa.me/${c.phone.replace(/[^0-9]/g, '')}" target="_blank">WhatsApp</a>` : ''}
+                                        ${c.email ? `<a class="action-link" href="mailto:${c.email}">Email</a>` : ''}
+                                        ${c.telegram_id ? `<a class="action-link" href="https://t.me/${c.telegram_id}" target="_blank">Telegram</a>` : ''}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table></div>
+                </div>
+            `;
         }
-
+        
+        function renderQuickActions() {
+            document.getElementById('tabContent').innerHTML = `
+                <div class="section-card">
+                    <div class="section-header"><span class="section-title">⚡ <span>Quick Actions</span></span></div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div class="stat-card" onclick="window.location.href='/admin'" style="cursor: pointer;">
+                            <div style="font-size: 32px; margin-bottom: 10px;">📤</div>
+                            <div class="stat-label">Upload Documents</div>
+                        </div>
+                        <div class="stat-card" onclick="refreshAllData()" style="cursor: pointer;">
+                            <div style="font-size: 32px; margin-bottom: 10px;">🔄</div>
+                            <div class="stat-label">Refresh All Data</div>
+                        </div>
+                        <div class="stat-card" onclick="exportAllData()" style="cursor: pointer;">
+                            <div style="font-size: 32px; margin-bottom: 10px;">📥</div>
+                            <div class="stat-label">Export All Data</div>
+                        </div>
+                        <div class="stat-card" onclick="clearAllData()" style="cursor: pointer;">
+                            <div style="font-size: 32px; margin-bottom: 10px;">⚠️</div>
+                            <div class="stat-label">Clear All Data</div>
+                        </div>
+                        <div class="stat-card" onclick="window.open('https://t.me/EasySuccor_bot', '_blank')" style="cursor: pointer;">
+                            <div style="font-size: 32px; margin-bottom: 10px;">🤖</div>
+                            <div class="stat-label">Open Telegram Bot</div>
+                        </div>
+                        <div class="stat-card" onclick="logout()" style="cursor: pointer;">
+                            <div style="font-size: 32px; margin-bottom: 10px;">🚪</div>
+                            <div class="stat-label">Logout</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // ============ FILTER FUNCTIONS ============
+        function filterOrders() {
+            const statusFilter = document.getElementById('orderStatusFilter')?.value || 'all';
+            const searchTerm = document.getElementById('orderSearch')?.value.toLowerCase() || '';
+            
+            document.querySelectorAll('#ordersTableBody tr').forEach(row => {
+                const status = row.dataset.status;
+                const client = row.dataset.client?.toLowerCase() || '';
+                const matchesStatus = statusFilter === 'all' || status === statusFilter;
+                const matchesSearch = !searchTerm || client.includes(searchTerm);
+                row.style.display = matchesStatus && matchesSearch ? '' : 'none';
+            });
+        }
+        
+        function filterClients() {
+            const searchTerm = document.getElementById('clientSearch')?.value.toLowerCase() || '';
+            
+            document.querySelectorAll('#clientsTableBody tr').forEach(row => {
+                const name = row.dataset.name?.toLowerCase() || '';
+                row.style.display = !searchTerm || name.includes(searchTerm) ? '' : 'none';
+            });
+        }
+        
+        function filterErrors() {
+            const filter = document.getElementById('errorFilter')?.value || 'pending';
+            
+            document.querySelectorAll('#errorsTableBody tr').forEach(row => {
+                const status = row.dataset.status;
+                row.style.display = filter === 'all' || status === filter ? '' : 'none';
+            });
+        }
+        
+        // ============ ACTION FUNCTIONS ============
+        async function viewOrder(orderId) {
+            const data = await apiCall(`/admin/order/${orderId}`);
+            showModal('Order Details', `<pre style="color: white; overflow-x: auto; max-height: 500px;">${JSON.stringify(data, null, 2)}</pre>`);
+        }
+        
+        async function viewDocument(orderId) {
+            const data = await apiCall(`/admin/document/${orderId}`);
+            showModal('Document Viewer', `
+                <div class="document-viewer">
+                    <div class="document-content">${data.content || 'Document content not available'}</div>
+                </div>
+                <p style="margin-top: 15px;">
+                    <a class="action-link" onclick="downloadDocument('${orderId}')">📥 Download</a>
+                </p>
+            `);
+        }
+        
+        function downloadDocument(orderId) {
+            window.open(`/admin/download/${orderId}?key=${getApiKey()}`, '_blank');
+        }
+        
+        async function viewClient(clientId) {
+            const data = await apiCall(`/admin/client/${clientId}`);
+            showModal('Client Details', `
+                <p><strong>Name:</strong> ${data.first_name} ${data.last_name || ''}</p>
+                <p><strong>Email:</strong> ${data.email || '-'}</p>
+                <p><strong>Phone:</strong> ${data.phone || '-'}</p>
+                <p><strong>Total Orders:</strong> ${data.total_orders || 0}</p>
+                <p><strong>Total Spent:</strong> MK${(data.total_spent || 0).toLocaleString()}</p>
+                <p><strong>Referral Code:</strong> ${data.referral_code || '-'}</p>
+                <p><strong>Referrals:</strong> ${data.referral_count || 0}</p>
+            `);
+        }
+        
+        function contactClient(phone) {
+            if (phone) window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}`, '_blank');
+            else alert('No phone number available');
+        }
+        
+        async function viewErrorReport(reportId) {
+            const data = await apiCall(`/admin/error-report/${reportId}`);
+            showModal('Error Report', `
+                <p><strong>Client:</strong> ${data.client_name || 'Unknown'}</p>
+                <p><strong>Description:</strong> ${data.description}</p>
+                <p><strong>Status:</strong> ${data.status}</p>
+                <p><strong>Created:</strong> ${new Date(data.created_at).toLocaleString()}</p>
+                ${data.status === 'pending' ? `<button class="refresh-btn" onclick="resolveErrorReport(${reportId})">✅ Mark Resolved</button>` : ''}
+            `);
+        }
+        
         async function resolveErrorReport(reportId) {
             if (!confirm('Mark this report as resolved?')) return;
+            await fetch(`/admin/resolve-report/${reportId}`, { method: 'POST', headers: getHeaders() });
+            alert('Report resolved');
+            closeModal();
+            refreshAllData();
+        }
+        
+        async function savePrices() {
+            const prices = {};
+            document.querySelectorAll('[id^="price_"]').forEach(input => {
+                const [, category, service] = input.id.split('_');
+                if (!prices[category]) prices[category] = {};
+                prices[category][service] = parseInt(input.value);
+            });
             
-            try {
-                const response = await fetch(`/admin/resolve-report/${reportId}`, {
+            await fetch('/admin/update-prices', {
+                method: 'POST',
+                headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify(prices)
+            });
+            alert('Prices saved!');
+        }
+        
+        function broadcastMessage() {
+            const message = prompt('Enter message to broadcast to all clients:');
+            if (message) {
+                fetch('/admin/broadcast', {
                     method: 'POST',
-                    headers: getHeaders()
-                });
-                const result = await response.json();
-                if (result.success) {
-                    alert('✅ Report resolved!');
-                    closeModal();
-                    loadErrorReports();
-                } else {
-                    alert('❌ Failed to resolve report');
+                    headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                }).then(() => alert('Broadcast sent!'));
+            }
+        }
+        
+        function exportContacts() {
+            const clients = allData.clients || [];
+            const csv = ['Name,Email,Phone,Telegram'];
+            clients.forEach(c => {
+                csv.push(`${c.name || c.first_name || ''},${c.email || ''},${c.phone || ''},${c.telegram_id || ''}`);
+            });
+            downloadFile(csv.join('\n'), 'easysuccor-contacts.csv', 'text/csv');
+        }
+        
+        function exportAllData() {
+            downloadFile(JSON.stringify(allData, null, 2), `easysuccor-export-${new Date().toISOString().split('T')[0]}.json`, 'application/json');
+        }
+        
+        function downloadFile(content, filename, type) {
+            const blob = new Blob([content], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function clearAllData() {
+            if (confirm('⚠️ DANGER: This will delete ALL data! Are you absolutely sure?')) {
+                if (confirm('FINAL WARNING: All clients, orders, and data will be permanently deleted!')) {
+                    fetch('/admin/clear-all', { method: 'DELETE', headers: getHeaders() })
+                        .then(() => { alert('All data cleared'); refreshAllData(); });
                 }
-            } catch (error) {
-                alert('❌ Error: ' + error.message);
             }
         }
-
-        async function viewClient(clientId) {
-            const modal = document.getElementById('detailModal');
-            const modalBody = document.getElementById('modalBody');
-            modalBody.innerHTML = '<div class="loading">Loading...</div>';
-            modal.style.display = 'block';
-            
-            try {
-                const response = await fetch(`/admin/client/${clientId}`, { headers: getHeaders() });
-                const client = await response.json();
-                
-                modalBody.innerHTML = `
-                    <h2>👤 ${client.first_name} ${client.last_name || ''}</h2>
-                    <div class="summary-row">
-                        <div class="summary-item"><strong>Email:</strong> ${client.email || '-'}</div>
-                        <div class="summary-item"><strong>Phone:</strong> ${client.phone || '-'}</div>
-                        <div class="summary-item"><strong>Location:</strong> ${client.location || '-'}</div>
-                        <div class="summary-item"><strong>Joined:</strong> ${new Date(client.created_at).toLocaleDateString()}</div>
-                    </div>
-                    <h3>Orders (${client.total_orders || 0})</h3>
-                    <p>Total Spent: MK${(client.total_spent || 0).toLocaleString()}</p>
-                `;
-            } catch (error) {
-                modalBody.innerHTML = `<div class="loading">❌ Error: ${error.message}</div>`;
-            }
+        
+        function logout() {
+            localStorage.removeItem('easysuccor_admin_token');
+            localStorage.removeItem('easysuccor_admin_expiry');
+            window.location.href = '/';
         }
-
-        async function viewOrder(orderId) {
-            const modal = document.getElementById('detailModal');
-            const modalBody = document.getElementById('modalBody');
-            modalBody.innerHTML = '<div class="loading">Loading...</div>';
-            modal.style.display = 'block';
-            
-            try {
-                const response = await fetch(`/admin/order/${orderId}`, { headers: getHeaders() });
-                const data = await response.json();
-                const order = data.order || {};
-                const cv = data.cv_data || {};
-                
-                modalBody.innerHTML = `
-                    <h2>📋 Order ${orderId}</h2>
-                    <div class="summary-row">
-                        <div class="summary-item"><strong>Service:</strong> ${order.service}</div>
-                        <div class="summary-item"><strong>Status:</strong> ${order.status}</div>
-                        <div class="summary-item"><strong>Payment:</strong> ${order.payment_status}</div>
-                        <div class="summary-item"><strong>Total:</strong> ${order.total_charge}</div>
-                    </div>
-                    <h3>Client</h3>
-                    <p>${data.client?.name || 'Unknown'} | ${data.client?.email || '-'} | ${data.client?.phone || '-'}</p>
-                    <h3>CV Stats</h3>
-                    <div class="category-grid">
-                        <div class="category-card"><div class="category-title">Employment</div><div class="category-value">${data.stats?.employment || 0}</div></div>
-                        <div class="category-card"><div class="category-title">Education</div><div class="category-value">${data.stats?.education || 0}</div></div>
-                        <div class="category-card"><div class="category-title">Skills</div><div class="category-value">${data.stats?.skills || 0}</div></div>
-                        <div class="category-card"><div class="category-title">Projects</div><div class="category-value">${data.stats?.projects || 0}</div></div>
-                    </div>
-                `;
-            } catch (error) {
-                modalBody.innerHTML = `<div class="loading">❌ Error: ${error.message}</div>`;
-            }
+        
+        function showModal(title, body) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').innerHTML = body;
+            document.getElementById('modal').style.display = 'flex';
         }
-
-        // Initialize
-        refreshAllData();
+        
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+        
+        window.onclick = function(event) {
+            if (event.target === document.getElementById('modal')) closeModal();
+        }
+        
+        // Make functions globally available
+        window.refreshAllData = refreshAllData;
+        window.viewOrder = viewOrder;
+        window.viewDocument = viewDocument;
+        window.downloadDocument = downloadDocument;
+        window.viewClient = viewClient;
+        window.contactClient = contactClient;
+        window.viewErrorReport = viewErrorReport;
+        window.resolveErrorReport = resolveErrorReport;
+        window.savePrices = savePrices;
+        window.broadcastMessage = broadcastMessage;
+        window.exportContacts = exportContacts;
+        window.exportAllData = exportAllData;
+        window.clearAllData = clearAllData;
+        window.logout = logout;
+        window.filterOrders = filterOrders;
+        window.filterClients = filterClients;
+        window.filterErrors = filterErrors;
+        window.closeModal = closeModal;
     </script>
 </body>
 </html>

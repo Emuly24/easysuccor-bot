@@ -1565,6 +1565,8 @@ app.get('/admin/error-report/:id', adminAuth, async (req, res) => {
             ...report,
             client_name: client?.first_name || 'Unknown'
         });
+        const template = ADDITIONAL_TEMPLATES.error_report.received(client.first_name || 'Friend', fileId.slice(0, 8));
+await ctx.reply(template, { parse_mode: 'Markdown' });
     } catch (error) {
         console.error('Error report error:', error);
         res.status(500).json({ error: error.message });
@@ -1576,6 +1578,8 @@ app.post('/admin/resolve-report/:id', adminAuth, async (req, res) => {
     try {
         await db.updateErrorReportStatus(req.params.id, 'resolved', req.body.notes || 'Issue resolved');
         res.json({ success: true, message: 'Report resolved' });
+        const template = ADDITIONAL_TEMPLATES.error_report.resolved(client.first_name || 'Friend', report.file_id.slice(0, 8));
+await bot.telegram.sendMessage(client.telegram_id, template, { parse_mode: 'Markdown' });
     } catch (error) {
         console.error('Resolve report error:', error);
         res.status(500).json({ error: error.message });
@@ -3079,6 +3083,45 @@ Select an option:`, {
     await db.updateSession(session.id, 'cover_selecting_vacancy', 'cover', session.data);
 }
 
+// In handleCoverLetterStart or when client provides position
+bot.on('text', async (ctx, next) => {
+    // Check if this is a position being entered
+    const session = await db.getActiveSession(client.id);
+    
+    if (session?.stage === 'cover_collecting_position') {
+        const position = ctx.message.text;
+        
+        // Check vacancy library
+        const matches = await vacancyLibrary.findSimilarVacancies(position);
+        
+        if (matches.length > 0) {
+            await checkVacancyLibrary(ctx, position);
+            return; // Wait for user to choose
+        }
+    }
+    
+    return next();
+});
+
+// Handle vacancy match selection
+bot.action(/vacancy_match_(.+)/, async (ctx) => {
+    const vacancyId = ctx.match[1];
+    const vacancy = await db.getVacancyById(vacancyId);
+    
+    await ctx.answerCbQuery();
+    await ctx.editMessageText(`✅ *Using Existing Vacancy Details*\n\nPosition: ${vacancy.position}\nCompany: ${vacancy.company}\n\nI'll tailor your documents perfectly for this role!`);
+    
+    // Store vacancy in session
+    const client = await getOrCreateClient(ctx);
+    const session = await db.getActiveSession(client.id);
+    session.data.vacancy_data = vacancy;
+    session.data.using_library_vacancy = true;
+    await db.updateSession(session.id, session.stage, session.current_section, session.data);
+    
+    // Continue cover letter flow
+    await askCoverLetterQuestions(ctx, client, session);
+});
+
 async function handleCoverVacancyChoice(ctx, client, session, data) {
     if (data === 'cover_has_vacancy') {
         session.data.cover_has_vacancy = true;
@@ -3315,6 +3358,181 @@ async function handleCoverConfirmation(ctx, client, session, text) {
         session.data.editing_cover = true;
         await db.updateSession(session.id, 'editing_cover', 'cover', session.data);
     }
+}
+
+// ============ VACANCY LIBRARY SYSTEM ============
+class VacancyLibrary {
+    constructor() {
+        this.commonKeywords = {
+            'software engineer': ['developer', 'programming', 'coding', 'software'],
+            'project manager': ['pm', 'project lead', 'scrum master', 'agile'],
+            'data analyst': ['data science', 'analytics', 'sql', 'excel'],
+            'accountant': ['finance', 'bookkeeping', 'audit', 'tax'],
+            'teacher': ['education', 'instructor', 'lecturer', 'tutor'],
+            'nurse': ['healthcare', 'medical', 'clinical', 'patient care'],
+            'driver': ['transport', 'logistics', 'delivery', 'vehicle'],
+            'carpenter': ['woodwork', 'joinery', 'furniture', 'construction']
+        };
+    }
+    
+    // Generate unique hash for vacancy
+    generateVacancyHash(vacancy) {
+        const normalized = `${vacancy.position}|${vacancy.company}|${vacancy.location || ''}`
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '');
+        return require('crypto').createHash('md5').update(normalized).digest('hex');
+    }
+    
+    // Store vacancy in library
+    async storeVacancy(vacancyData, clientId = null) {
+        const hash = this.generateVacancyHash(vacancyData);
+        
+        // Check if already exists
+        const existing = await db.getVacancyByHash(hash);
+        
+        if (existing) {
+            // Increment usage count
+            await db.incrementVacancyUsage(existing.id);
+            return { ...existing, is_new: false };
+        }
+        
+        // Store new vacancy
+        const vacancy = {
+            ...vacancyData,
+            hash,
+            requirements: JSON.stringify(vacancyData.requirements || []),
+            responsibilities: JSON.stringify(vacancyData.responsibilities || []),
+            benefits: JSON.stringify(vacancyData.benefits || [])
+        };
+        
+        const id = await db.createVacancy(vacancy);
+        
+        if (clientId) {
+            await db.recordVacancyMatch(id, clientId);
+        }
+        
+        return { ...vacancy, id, is_new: true };
+    }
+    
+    // Find similar vacancies
+    async findSimilarVacancies(position, company = null) {
+        const allVacancies = await db.getAllVacancies();
+        const matches = [];
+        
+        const searchTerms = position.toLowerCase().split(' ');
+        const categoryKeywords = this.getCategoryKeywords(position);
+        
+        for (const vac of allVacancies) {
+            let score = 0;
+            const vacPosition = vac.position.toLowerCase();
+            const vacCompany = vac.company.toLowerCase();
+            
+            // Exact position match
+            if (vacPosition === position.toLowerCase()) {
+                score += 50;
+            }
+            
+            // Company match
+            if (company && vacCompany === company.toLowerCase()) {
+                score += 30;
+            }
+            
+            // Keyword matches
+            for (const term of searchTerms) {
+                if (vacPosition.includes(term)) score += 10;
+            }
+            
+            // Category keyword matches
+            for (const keyword of categoryKeywords) {
+                if (vacPosition.includes(keyword)) score += 5;
+            }
+            
+            // Location bonus
+            if (position.toLowerCase().includes(vac.location?.toLowerCase() || '')) {
+                score += 15;
+            }
+            
+            if (score >= 40) {
+                matches.push({ ...vac, match_score: score });
+            }
+        }
+        
+        return matches.sort((a, b) => b.match_score - a.match_score).slice(0, 5);
+    }
+    
+    // Get category keywords based on position
+    getCategoryKeywords(position) {
+        const lower = position.toLowerCase();
+        for (const [category, keywords] of Object.entries(this.commonKeywords)) {
+            if (keywords.some(k => lower.includes(k))) {
+                return keywords;
+            }
+        }
+        return [];
+    }
+    
+    // Format vacancy match message
+    formatVacancyMatches(matches, clientPosition) {
+        if (matches.length === 0) return null;
+        
+        let message = `🔍 *I Found Similar Vacancies in Our Library!*\n\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `We already have details for ${matches.length} similar position(s).\n`;
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        
+        matches.slice(0, 3).forEach((match, i) => {
+            const matchPercent = Math.min(100, match.match_score);
+            message += `${i + 1}. *${match.position}* at *${match.company}*\n`;
+            message += `   📍 ${match.location || 'Location not specified'}\n`;
+            message += `   📊 ${matchPercent}% match\n`;
+            if (match.deadline) message += `   ⏰ Deadline: ${match.deadline}\n`;
+            message += `\n`;
+        });
+        
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `Is one of these the position you're applying for?\n\n`;
+        message += `✅ *Yes, use existing details* - I'll tailor your documents perfectly\n`;
+        message += `📝 *No, this is different* - I'll collect new details\n`;
+        
+        return message;
+    }
+}
+
+const vacancyLibrary = new VacancyLibrary();
+
+// ============ INTEGRATE WITH VACANCY COLLECTION ============
+async function handleVacancyCollection(ctx, client, session, vacancyData) {
+    // Store in library
+    const stored = await vacancyLibrary.storeVacancy(vacancyData, client.id);
+    
+    if (!stored.is_new) {
+        await ctx.reply(`📚 *This vacancy is already in our library!*\n\nWe've helped other clients apply to ${vacancyData.position} at ${vacancyData.company} before. This means we know exactly what they're looking for!`);
+    }
+    
+    session.data.vacancy_data = vacancyData;
+    // Continue with normal flow...
+}
+
+// ============ CHECK FOR SIMILAR VACANCIES WHEN CLIENT MENTIONS POSITION ============
+async function checkVacancyLibrary(ctx, position, company = null) {
+    const matches = await vacancyLibrary.findSimilarVacancies(position, company);
+    
+    if (matches.length === 0) return null;
+    
+    const message = vacancyLibrary.formatVacancyMatches(matches, position);
+    
+    await ctx.reply(message, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "✅ Yes, use this", callback_data: `vacancy_match_${matches[0].id}` }],
+                [{ text: "📋 Show more options", callback_data: `vacancy_more_${position}` }],
+                [{ text: "📝 No, different position", callback_data: "vacancy_new" }]
+            ]
+        }
+    });
+    
+    return matches;
 }
 // ============ PORTFOLIO COLLECTION (UPDATED - Supports all social media) ============
 class PortfolioCollector {
@@ -5275,6 +5493,50 @@ Send your file now... 📎`);
     await db.updateSession(session.id, 'awaiting_draft_upload', 'draft', session.data);
 }
 
+// Add this when client enters position in cover letter flow
+async function checkVacancyAndSuggest(ctx, position, client) {
+    const matches = await vacancyLibrary.findSimilarVacancies(position);
+    
+    if (matches.length > 0) {
+        const message = vacancyLibrary.formatVacancyMatches(matches);
+        
+        await ctx.reply(message, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: `✅ Yes - ${matches[0].company}`, callback_data: `vacancy_use_${matches[0].id}` }],
+                    [{ text: "📋 Show more", callback_data: `vacancy_more_${position}` }],
+                    [{ text: "📝 No, different position", callback_data: "vacancy_new" }]
+                ]
+            }
+        });
+        return true;
+    }
+    return false;
+}
+
+// Handle selection
+bot.action(/vacancy_use_(.+)/, async (ctx) => {
+    const vacancyId = ctx.match[1];
+    const vacancy = await db.getVacancyById(vacancyId);
+    const client = await getOrCreateClient(ctx);
+    const session = await db.getActiveSession(client.id);
+    
+    session.data.vacancy_data = vacancy;
+    session.data.using_library_vacancy = true;
+    await db.updateSession(session.id, session.stage, session.current_section, session.data);
+    
+    await ctx.answerCbQuery();
+    await ctx.editMessageText(`✅ Using existing details for *${vacancy.position}* at *${vacancy.company}*.\n\nI'll tailor your documents perfectly for this role!`, { parse_mode: 'Markdown' });
+    
+    await askCoverLetterQuestions(ctx, client, session);
+});
+
+bot.action('vacancy_new', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.editMessageText(`📝 Please enter the position you're applying for:`);
+});
+
 // ============ MAIN MENU HANDLER ============
 async function handleMainMenu(ctx, client, session, text) {
     const serviceMap = {
@@ -5377,6 +5639,42 @@ ${(vacancyData.requirements || []).slice(0, 3).map(r => `• ${r}`).join('\n') |
         session.data.awaiting_vacancy = false;
         await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
     }
+}
+// ============ ADDITIONAL MESSAGE TEMPLATES ============
+const ADDITIONAL_TEMPLATES = {
+    // Error Report Templates (NEW)
+    error_report: {
+        received: (name, reference) => `🐛 *Error Report Received*\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nDear ${name},\n\nThank you for helping us improve EasySuccor! Your error report has been logged.\n\n*Reference:* \`${reference}\`\n\nWe'll investigate and notify you when resolved.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🤝 The EasySuccor Team`,
+        
+        resolved: (name, reference) => `✅ *Error Report Resolved*\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nDear ${name},\n\nGreat news! The issue you reported has been fixed.\n\n*Reference:* \`${reference}\`\n\nThank you for your patience!\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🤝 The EasySuccor Team`
+    },
+    
+    // Follow-up Templates (NEW)
+    followup: {
+        after_7_days: (name) => `👋 *Checking In*\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nDear ${name},\n\nIt's been a week since you received your CV. How's the job search going?\n\nIf you've landed an interview or got hired, we'd love to celebrate! Use /hired to share your success.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🤝 The EasySuccor Team`,
+        
+        after_30_days: (name) => `🌟 *Still Here for You*\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nDear ${name},\n\nIt's been a month since we created your CV. We're always here if you need:\n• CV Updates\n• Cover Letters\n• Referral rewards (/referral)\n\nWishing you continued success!\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🤝 The EasySuccor Team`
+    },
+    
+    // WhatsApp Quick Templates (NEW)
+    whatsapp: {
+        document_ready: (name, orderId) => `Hello ${name}, your document (Order: ${orderId}) is ready! Please check your Telegram chat to download it. - EasySuccor`,
+        payment_reminder: (name, amount, reference) => `Hello ${name}, friendly reminder about your pending payment of ${amount} for EasySuccor. Reference: ${reference}. Thank you!`,
+        order_update: (name, status) => `Hello ${name}, your EasySuccor order status is now: ${status}. Check Telegram for details.`
+    }
+};
+
+// Helper to send WhatsApp template
+function getWhatsAppLink(phone, type, variables) {
+    const template = ADDITIONAL_TEMPLATES.whatsapp?.[type];
+    if (!template) return null;
+    
+    let message = template;
+    for (const [key, value] of Object.entries(variables)) {
+        message = message.replace(new RegExp(`\\$\\{${key}\\}`, 'g'), value);
+    }
+    
+    return `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
 }
 
 // ============ PROCESS VACANCY FILE (UPDATED) ============

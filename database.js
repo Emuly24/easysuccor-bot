@@ -85,6 +85,45 @@ async function createTablesPostgres(pool) {
             last_active TIMESTAMP
         )
     `);
+
+    // In createTablesPostgres function
+await pool.query(`
+    CREATE TABLE IF NOT EXISTS vacancy_library (
+        id SERIAL PRIMARY KEY,
+        position TEXT NOT NULL,
+        company TEXT NOT NULL,
+        location TEXT,
+        department TEXT,
+        job_type TEXT,
+        experience_required TEXT,
+        education_required TEXT,
+        salary_range TEXT,
+        deadline TEXT,
+        requirements TEXT,
+        responsibilities TEXT,
+        benefits TEXT,
+        contact_email TEXT,
+        contact_phone TEXT,
+        application_link TEXT,
+        source TEXT,
+        hash TEXT UNIQUE,
+        usage_count INTEGER DEFAULT 1,
+        success_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+
+await pool.query(`
+    CREATE TABLE IF NOT EXISTS vacancy_matches (
+        id SERIAL PRIMARY KEY,
+        vacancy_id INTEGER REFERENCES vacancy_library(id),
+        client_id INTEGER REFERENCES clients(id),
+        order_id TEXT,
+        matched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        used BOOLEAN DEFAULT TRUE
+    )
+`);
     
     await pool.query(`
         CREATE TABLE IF NOT EXISTS sessions (
@@ -543,6 +582,7 @@ module.exports = {
         }
     },
     
+    
     updateClient: async (clientId, data) => {
         const fields = [];
         const values = [];
@@ -582,6 +622,143 @@ module.exports = {
             return await db.all('SELECT * FROM clients ORDER BY created_at DESC');
         }
     },
+
+    // In database.js module.exports
+getVacancyByHash: async (hash) => {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM vacancy_library WHERE hash = $1', [hash]);
+        return result.rows[0];
+    } else {
+        return await db.get('SELECT * FROM vacancy_library WHERE hash = ?', [hash]);
+    }
+},
+
+createVacancy: async (vacancy) => {
+    if (dbType === 'postgres') {
+        const result = await db.query(`
+            INSERT INTO vacancy_library (position, company, location, department, job_type, 
+                experience_required, education_required, salary_range, deadline, 
+                requirements, responsibilities, benefits, contact_email, contact_phone, 
+                application_link, source, hash)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            RETURNING id
+        `, [vacancy.position, vacancy.company, vacancy.location, vacancy.department, vacancy.job_type,
+            vacancy.experience_required, vacancy.education_required, vacancy.salary_range, vacancy.deadline,
+            vacancy.requirements, vacancy.responsibilities, vacancy.benefits, vacancy.contact_email, 
+            vacancy.contact_phone, vacancy.application_link, vacancy.source, vacancy.hash]);
+        return result.rows[0].id;
+    } else {
+        const result = await db.run(`
+            INSERT INTO vacancy_library (position, company, location, department, job_type,
+                experience_required, education_required, salary_range, deadline,
+                requirements, responsibilities, benefits, contact_email, contact_phone,
+                application_link, source, hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [vacancy.position, vacancy.company, vacancy.location, vacancy.department, vacancy.job_type,
+            vacancy.experience_required, vacancy.education_required, vacancy.salary_range, vacancy.deadline,
+            vacancy.requirements, vacancy.responsibilities, vacancy.benefits, vacancy.contact_email,
+            vacancy.contact_phone, vacancy.application_link, vacancy.source, vacancy.hash]);
+        return result.lastID;
+    }
+},
+
+getAllVacancies: async () => {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM vacancy_library ORDER BY usage_count DESC, created_at DESC');
+        return result.rows;
+    } else {
+        return await db.all('SELECT * FROM vacancy_library ORDER BY usage_count DESC, created_at DESC');
+    }
+},
+
+getVacancyById: async (id) => {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM vacancy_library WHERE id = $1', [id]);
+        return result.rows[0];
+    } else {
+        return await db.get('SELECT * FROM vacancy_library WHERE id = ?', [id]);
+    }
+},
+
+incrementVacancyUsage: async (id) => {
+    if (dbType === 'postgres') {
+        await db.query('UPDATE vacancy_library SET usage_count = usage_count + 1, updated_at = NOW() WHERE id = $1', [id]);
+    } else {
+        await db.run('UPDATE vacancy_library SET usage_count = usage_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    }
+},
+
+recordVacancyMatch: async (vacancyId, clientId, orderId = null) => {
+    if (dbType === 'postgres') {
+        await db.query('INSERT INTO vacancy_matches (vacancy_id, client_id, order_id) VALUES ($1, $2, $3)', 
+            [vacancyId, clientId, orderId]);
+    } else {
+        await db.run('INSERT INTO vacancy_matches (vacancy_id, client_id, order_id) VALUES (?, ?, ?)', 
+            [vacancyId, clientId, orderId]);
+    }
+},
+
+// In database.js module.exports
+getVacancyByHash: async (hash) => {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM vacancy_library WHERE hash = $1', [hash]);
+        return result.rows[0];
+    } else {
+        return await db.get('SELECT * FROM vacancy_library WHERE hash = ?', [hash]);
+    }
+},
+
+createVacancy: async (vacancy) => {
+    if (dbType === 'postgres') {
+        const result = await db.query(`
+            INSERT INTO vacancy_library (position, company, location, requirements, responsibilities, benefits, hash)
+            VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
+        `, [vacancy.position, vacancy.company, vacancy.location, vacancy.requirements, 
+            vacancy.responsibilities, vacancy.benefits, vacancy.hash]);
+        return result.rows[0].id;
+    } else {
+        const result = await db.run(`
+            INSERT INTO vacancy_library (position, company, location, requirements, responsibilities, benefits, hash)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `, [vacancy.position, vacancy.company, vacancy.location, vacancy.requirements,
+            vacancy.responsibilities, vacancy.benefits, vacancy.hash]);
+        return result.lastID;
+    }
+},
+
+getAllVacancies: async () => {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM vacancy_library ORDER BY usage_count DESC');
+        return result.rows;
+    } else {
+        return await db.all('SELECT * FROM vacancy_library ORDER BY usage_count DESC');
+    }
+},
+
+getVacancyById: async (id) => {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM vacancy_library WHERE id = $1', [id]);
+        return result.rows[0];
+    } else {
+        return await db.get('SELECT * FROM vacancy_library WHERE id = ?', [id]);
+    }
+},
+
+incrementVacancyUsage: async (id) => {
+    if (dbType === 'postgres') {
+        await db.query('UPDATE vacancy_library SET usage_count = usage_count + 1 WHERE id = $1', [id]);
+    } else {
+        await db.run('UPDATE vacancy_library SET usage_count = usage_count + 1 WHERE id = ?', [id]);
+    }
+},
+
+recordVacancyMatch: async (vacancyId, clientId) => {
+    if (dbType === 'postgres') {
+        await db.query('INSERT INTO vacancy_matches (vacancy_id, client_id) VALUES ($1, $2)', [vacancyId, clientId]);
+    } else {
+        await db.run('INSERT INTO vacancy_matches (vacancy_id, client_id) VALUES (?, ?)', [vacancyId, clientId]);
+    }
+},
     
     deleteClientData: async (clientId) => {
         if (dbType === 'postgres') {

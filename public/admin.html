@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>EasySuccor Admin Portal</title>
+    <title>EasySuccor | Document Upload Center</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
         }
         
         html, body {
@@ -21,37 +20,29 @@
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-image: url('/images/easysuccor-bg.jpg');
-            background-size: cover;
-            background-position: center;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             background-attachment: fixed;
-            background-repeat: no-repeat;
             min-height: 100vh;
             margin: 0;
             padding: 20px;
             overflow-x: hidden;
         }
         
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.35);
-            pointer-events: none;
-            z-index: 0;
-        }
-        
         :root {
-            --primary: #1a56db;
-            --primary-dark: #1e40af;
-            --secondary: #0e9f6e;
-            --accent: #3f83f8;
-            --gray-light: #f3f4f6;
-            --gray: #6b7280;
-            --dark: #1f2937;
+            --primary: #8A4FFF;
+            --primary-dark: #7B4BFF;
+            --secondary: #00C4CC;
+            --accent: #9C7BFF;
+            --bg-dark: #1a1a2e;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-muted: rgba(255, 255, 255, 0.4);
+            --success: #00C4CC;
+            --warning: #FFB800;
+            --danger: #FF4757;
+            --info: #8A4FFF;
         }
 
         .container {
@@ -59,372 +50,180 @@
             z-index: 1;
             max-width: 1400px;
             margin: 0 auto;
-            background: rgba(255, 255, 255, 0.97);
-            border-radius: 32px;
-            padding: 24px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-            backdrop-filter: blur(8px);
         }
         
         /* Header */
         .header {
-            text-align: center;
-            padding: 30px 20px 20px;
-            margin-bottom: 20px;
-            border-bottom: 1px solid rgba(0,0,0,0.08);
-        }
-
-        .logo-placeholder {
-            display: inline-flex;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 10px;
+            padding: 20px 30px;
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            margin-bottom: 25px;
+            border: 1px solid var(--border-color);
         }
-
-        .logo-image {
-            height: 60px;
-            width: auto;
-            max-width: 200px;
-            object-fit: contain;
-        }
-
-        .logo-image:hover {
-            opacity: 0.9;
-            transition: opacity 0.3s ease;
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
         }
         
         .logo-text {
-            font-size: 32px;
+            font-size: 24px;
             font-weight: 700;
-            color: var(--dark);
-        }
-
-        .logo-text span {
-            color: var(--primary);
-        }
-
-        .tagline {
-            color: var(--gray);
-            font-size: 16px;
-            margin-top: 8px;
         }
         
-        /* Admin Badge */
-        .admin-badge {
-            display: inline-block;
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            color: white;
+        .logo-easy { color: var(--primary); }
+        .logo-succor { color: var(--secondary); }
+        
+        .center-badge {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
             padding: 6px 16px;
             border-radius: 30px;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
-            margin-top: 12px;
-            letter-spacing: 0.5px;
-        }
-
-        h1 {
-            color: var(--dark);
-            font-size: 28px;
-            margin: 0 0 8px 0;
-            text-align: center;
-        }
-        
-        h2 {
-            color: var(--primary);
-            font-size: 18px;
-            margin: 20px 0 15px 0;
-            padding-bottom: 8px;
-            border-bottom: 2px solid rgba(26, 86, 219, 0.2);
-        }
-        
-        h3 {
-            color: var(--dark);
-            font-size: 16px;
-            margin: 15px 0 10px 0;
-        }
-        
-        .subtitle {
-            text-align: center;
-            color: var(--gray);
-            font-size: 14px;
-            margin-bottom: 24px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid rgba(0,0,0,0.06);
-        }
-        
-        .main-tabs {
-            display: flex;
-            margin-bottom: 24px;
-            border-radius: 16px;
-            background: var(--gray-light);
-            padding: 4px;
-        }
-        
-        .main-tab {
-            flex: 1;
-            text-align: center;
-            padding: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            border-radius: 12px;
-            transition: all 0.3s;
-            color: var(--gray);
-        }
-        
-        .main-tab.active {
-            background: var(--primary);
             color: white;
-            box-shadow: 0 2px 8px rgba(26, 86, 219, 0.3);
+            letter-spacing: 1px;
         }
         
-        .main-tab:hover:not(.active) {
-            background: rgba(26, 86, 219, 0.1);
-        }
-        
-        .sub-tabs {
+        .header-actions {
             display: flex;
-            margin-bottom: 20px;
-            border-radius: 12px;
-            background: #e9ecef;
-            padding: 4px;
-        }
-        
-        .sub-tab {
-            flex: 1;
-            text-align: center;
-            padding: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            border-radius: 8px;
-            transition: all 0.3s;
-            color: var(--gray);
-        }
-        
-        .sub-tab.active {
-            background: var(--primary);
-            color: white;
-        }
-        
-        .sub-tab:hover:not(.active) {
-            background: rgba(26, 86, 219, 0.1);
-        }
-        
-        .dashboard-section, .upload-section {
-            display: none;
-        }
-        
-        .dashboard-section.active, .upload-section.active {
-            display: block;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            align-items: center;
             gap: 15px;
+        }
+        
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 10px 16px;
+            border-radius: 10px;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .nav-link:hover {
+            background: rgba(138, 79, 255, 0.1);
+            color: white;
+        }
+        
+        /* Main Content */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 25px;
+        }
+        
+        .upload-section {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 30px;
+        }
+        
+        .history-section {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 25px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-title span {
+            color: var(--primary);
+        }
+        
+        /* Form Styles */
+        .form-group {
             margin-bottom: 25px;
         }
         
-        .stat-card {
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            color: white;
-            padding: 18px 12px;
-            border-radius: 16px;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(26, 86, 219, 0.2);
-        }
-        
-        .stat-card.small {
-            background: linear-gradient(135deg, var(--secondary), #0a7a54);
-        }
-        
-        .stat-number {
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        
-        .stat-label {
-            font-size: 12px;
-            opacity: 0.9;
-        }
-        
-        .category-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 15px 0;
-        }
-        
-        .category-card {
-            background: white;
-            border: 1px solid rgba(0,0,0,0.08);
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-            transition: all 0.3s ease;
-        }
-        
-        .category-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(0,0,0,0.08);
-            border-color: var(--primary);
-        }
-        
-        .category-title {
-            font-weight: 600;
-            color: var(--primary);
-            margin-bottom: 8px;
-        }
-        
-        .category-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--dark);
-        }
-        
-        .table-container {
-            overflow-x: auto;
-            margin-top: 20px;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-        
-        th, td {
-            padding: 10px 8px;
-            text-align: left;
-            border-bottom: 1px solid rgba(0,0,0,0.06);
-        }
-        
-        th {
-            background: var(--primary);
-            color: white;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-        
-        tr:hover {
-            background: var(--gray-light);
-        }
-        
-        .view-link {
-            color: var(--primary);
-            text-decoration: none;
-            cursor: pointer;
-            font-weight: 500;
-        }
-        
-        .view-link:hover {
-            text-decoration: underline;
-        }
-        
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        
-        .badge.success { background: #d4edda; color: #155724; }
-        .badge.warning { background: #fff3cd; color: #856404; }
-        .badge.danger { background: #f8d7da; color: #721c24; }
-        .badge.info { background: #e7f3ff; color: var(--primary); }
-        
-        .payment-methods {
-            background: linear-gradient(135deg, var(--gray-light), white);
-            padding: 15px 20px;
-            border-radius: 16px;
-            margin: 15px 0;
-            font-size: 13px;
-            border: 1px solid rgba(0,0,0,0.06);
-        }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            z-index: 1000;
-            overflow: auto;
-            backdrop-filter: blur(4px);
-        }
-        
-        .modal-content {
-            background: white;
-            margin: 30px auto;
-            padding: 24px;
-            width: 90%;
-            max-width: 900px;
-            border-radius: 24px;
-            position: relative;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-            max-height: 85vh;
-            overflow-y: auto;
-        }
-        
-        .close-modal {
-            position: absolute;
-            top: 15px;
-            right: 20px;
-            font-size: 28px;
-            cursor: pointer;
-            color: var(--gray);
-            transition: color 0.3s;
-        }
-        
-        .close-modal:hover {
-            color: var(--dark);
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        label {
+        .form-label {
             display: block;
+            color: var(--text-secondary);
+            font-size: 13px;
             font-weight: 600;
-            margin-bottom: 8px;
-            color: var(--dark);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
-        input[type="file"], input[type="text"], input[type="password"], select {
+        .form-input, .form-select {
             width: 100%;
-            padding: 12px;
-            border: 1px solid rgba(0,0,0,0.1);
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-color);
+            color: white;
+            padding: 14px 18px;
             border-radius: 12px;
             font-size: 14px;
             font-family: 'Inter', sans-serif;
-            transition: border-color 0.3s;
+            transition: all 0.3s;
         }
         
-        input:focus {
+        .form-input:focus, .form-select:focus {
             outline: none;
             border-color: var(--primary);
+            background: rgba(255,255,255,0.08);
         }
         
-        input[type="file"] {
-            border: 2px dashed rgba(26, 86, 219, 0.3);
-            background: var(--gray-light);
+        .form-select option {
+            background: var(--bg-dark);
+            color: white;
         }
         
+        /* File Upload Area */
+        .file-upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+        
+        .file-upload-area:hover {
+            border-color: var(--primary);
+            background: rgba(138, 79, 255, 0.05);
+        }
+        
+        .file-upload-area.dragover {
+            border-color: var(--secondary);
+            background: rgba(0, 196, 204, 0.05);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .upload-text {
+            color: white;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .upload-hint {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        
+        /* File List */
         .file-list {
-            background: var(--gray-light);
-            padding: 12px;
-            border-radius: 12px;
-            margin-top: 10px;
+            margin-top: 20px;
             max-height: 200px;
             overflow-y: auto;
         }
@@ -433,767 +232,825 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px;
-            margin: 5px 0;
-            background: white;
-            border-radius: 8px;
-            font-size: 13px;
+            padding: 12px 15px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            margin-bottom: 8px;
         }
         
-        .remove-file {
-            color: #e74c3c;
-            cursor: pointer;
-            padding: 4px 8px;
-            transition: transform 0.2s;
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
         
-        .remove-file:hover {
-            transform: scale(1.1);
+        .file-icon {
+            font-size: 20px;
         }
         
-        button {
-            padding: 12px 20px;
-            background: var(--primary);
+        .file-name {
             color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin-right: 8px;
-            font-family: 'Inter', sans-serif;
-        }
-        
-        button:hover {
-            background: var(--primary-dark);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 10px rgba(26, 86, 219, 0.3);
-        }
-        
-        .clear-btn {
-            background: #e74c3c;
-        }
-        
-        .clear-btn:hover {
-            background: #c0392b;
-            box-shadow: 0 4px 10px rgba(231, 76, 60, 0.3);
-        }
-        
-        .batch-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        
-        .result {
-            margin-top: 20px;
-            padding: 16px;
-            border-radius: 12px;
-            display: none;
-        }
-        
-        .result.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-            display: block;
-        }
-        
-        .result.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-            display: block;
-        }
-        
-        .info {
-            background: linear-gradient(135deg, #e7f3ff, #d4e8ff);
-            padding: 14px 18px;
-            border-radius: 16px;
-            margin-bottom: 20px;
             font-size: 13px;
-            color: var(--primary-dark);
-            border-left: 4px solid var(--primary);
         }
         
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: var(--gray);
+        .file-size {
+            color: var(--text-muted);
+            font-size: 11px;
+            margin-left: 10px;
         }
         
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
+        .file-remove {
+            color: var(--danger);
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .file-remove:hover {
+            background: rgba(255, 71, 87, 0.1);
+        }
+        
+        /* Review Options */
+        .review-options {
+            background: rgba(138, 79, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .review-title {
+            color: var(--text-primary);
+            font-weight: 600;
             margin-bottom: 15px;
-            flex-wrap: wrap;
-            gap: 15px;
         }
         
-        .section-header .form-group {
-            flex: 1;
-            margin-bottom: 0;
-        }
-        
-        .summary-row {
+        .radio-group {
             display: flex;
             gap: 20px;
             flex-wrap: wrap;
-            margin: 15px 0;
         }
         
-        .summary-item {
-            background: var(--gray-light);
-            padding: 10px 15px;
-            border-radius: 10px;
+        .radio-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
         }
         
-        .category-section {
-            margin: 20px 0;
-            padding: 15px;
-            background: var(--gray-light);
+        .radio-label input[type="radio"] {
+            accent-color: var(--primary);
+            width: 18px;
+            height: 18px;
+        }
+        
+        /* Buttons */
+        .btn {
+            padding: 14px 28px;
             border-radius: 12px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            font-family: 'Inter', sans-serif;
         }
         
-        /* Footer */
-        .footer {
-            text-align: center;
-            padding: 20px 0 10px;
-            margin-top: 30px;
-            color: var(--gray);
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            width: 100%;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(138, 79, 255, 0.3);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.05);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: transparent;
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+        
+        .btn-danger:hover {
+            background: var(--danger);
+            color: white;
+        }
+        
+        /* Upload History */
+        .history-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .history-item {
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .history-name {
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .history-time {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+        
+        .history-details {
+            display: flex;
+            gap: 15px;
             font-size: 12px;
-            border-top: 1px solid rgba(0,0,0,0.06);
+            color: var(--text-secondary);
         }
         
-        .footer a {
+        .history-type {
             color: var(--primary);
-            text-decoration: none;
         }
         
-        .footer a:hover {
-            text-decoration: underline;
+        .history-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        
+        .status-success { background: rgba(0, 196, 204, 0.15); color: var(--success); }
+        .status-processing { background: rgba(255, 184, 0, 0.15); color: var(--warning); }
+        .status-error { background: rgba(255, 71, 87, 0.15); color: var(--danger); }
+        
+        /* Progress Bar */
+        .progress-container {
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            width: 0%;
+            transition: width 0.3s;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .progress-text {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-top: 10px;
+            text-align: center;
+        }
+        
+        /* Results */
+        .results-container {
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .result-item {
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        .result-success {
+            background: rgba(0, 196, 204, 0.1);
+            color: var(--success);
+            border-left: 3px solid var(--success);
+        }
+        
+        .result-error {
+            background: rgba(255, 71, 87, 0.1);
+            color: var(--danger);
+            border-left: 3px solid var(--danger);
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+        
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+        
+        /* API Key Section */
+        .api-section {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .api-input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .api-input {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-color);
+            color: white;
+            padding: 14px 18px;
+            border-radius: 12px;
+            font-size: 14px;
+        }
+        
+        /* Stats Cards */
+        .stats-mini {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-mini {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-mini-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: white;
+        }
+        
+        .stat-mini-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        
+        /* Responsive */
+        @media (max-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
         }
         
         @media (max-width: 768px) {
             body { padding: 10px; }
-            .container { padding: 16px; }
-            th, td { padding: 6px; font-size: 11px; }
-            .stats-grid { grid-template-columns: 1fr 1fr; }
-            .category-grid { grid-template-columns: 1fr 1fr; }
-            .logo-text { font-size: 24px; }
-            .header { padding: 20px 10px 15px; }
+            .header { flex-direction: column; gap: 15px; }
+            .upload-section { padding: 20px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Header with Logo -->
+        <!-- Header -->
         <div class="header">
-            <div class="logo-placeholder">
-                <img src="/images/easysuccor-logo.png" alt="EasySuccor" class="logo-image">
+            <div class="logo-section">
+                <span class="logo-text">
+                    <span class="logo-easy">Easy</span><span class="logo-succor">Succor</span>
+                </span>
+                <span class="center-badge">📄 DOCUMENT UPLOAD CENTER</span>
             </div>
-            <div class="logo-text">Easy<span>Succor</span></div>
-            <div class="tagline">Professional CV & Cover Letter Services — Get Noticed, Get Hired</div>
-            <div class="admin-badge">🔐 ADMIN PORTAL</div>
+            <div class="header-actions">
+                <a href="/dashboard" class="nav-link">📊 Dashboard</a>
+                <a href="/" class="nav-link">🏠 Home</a>
+            </div>
         </div>
         
-        <div class="subtitle">18+ Categories • Installments • Pay Later • MO626 • Analytics</div>
-        
-        <!-- Main Tabs -->
-        <div class="main-tabs">
-            <div class="main-tab active" data-main="upload">📤 Upload Documents</div>
-            <div class="main-tab" data-main="dashboard">📊 Dashboard</div>
-            <div class="main-tab" data-main="payments">💳 Payments</div>
+        <!-- API Key Section -->
+        <div class="api-section">
+            <div class="form-label">🔑 Admin API Key</div>
+            <div class="api-input-group">
+                <input type="password" id="apiKey" class="api-input" placeholder="Enter your admin API key" value="0.i45qbafdnui0.0b656qiu0v3">
+                <button class="btn btn-secondary" onclick="verifyApiKey()">Verify</button>
+            </div>
         </div>
         
-        <!-- Upload Section -->
-        <div id="uploadSection" class="upload-section active">
-            <div class="sub-tabs">
-                <div class="sub-tab active" data-sub="cv">📄 CV Documents</div>
-                <div class="sub-tab" data-sub="cover">💌 Cover Letters</div>
+        <!-- Main Content -->
+        <div class="main-grid">
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <div class="section-title">
+                    <span>📤</span> Upload Documents
+                </div>
+                
+                <!-- Document Type Selection -->
+                <div class="form-group">
+                    <label class="form-label">📋 Document Type</label>
+                    <select id="documentType" class="form-select" onchange="onDocumentTypeChange()">
+                        <option value="">-- Select Document Type --</option>
+                        <option value="legacy_cv">📄 Legacy CV (Existing/Pre-bot)</option>
+                        <option value="legacy_cover">💌 Legacy Cover Letter</option>
+                        <option value="reviewed_cv">✅ Reviewed CV</option>
+                        <option value="reviewed_cover">✅ Reviewed Cover Letter</option>
+                        <option value="final_cv">🎯 Final CV (Ready for Delivery)</option>
+                        <option value="final_cover">🎯 Final Cover Letter</option>
+                        <option value="template">📐 Template/Format Document</option>
+                    </select>
+                </div>
+                
+                <!-- Review Options (shown only for reviewed documents) -->
+                <div id="reviewOptions" class="review-options" style="display: none;">
+                    <div class="review-title">🔄 Review Details</div>
+                    <div class="form-group">
+                        <label class="form-label">Review Number</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="reviewNumber" value="1" checked> First Review
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="reviewNumber" value="2"> Second Review
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="reviewNumber" value="3"> Third Review
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="reviewNumber" value="final"> Final Review
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Revision Notes (Optional)</label>
+                        <textarea id="revisionNotes" class="form-input" rows="3" placeholder="What changes were made in this review?"></textarea>
+                    </div>
+                </div>
+                
+                <!-- Client Information -->
+                <div class="form-group">
+                    <label class="form-label">👤 Client Information</label>
+                    <input type="text" id="clientName" class="form-input" placeholder="Client Full Name (Optional - auto-extract if blank)">
+                </div>
+                
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label class="form-label">📧 Email</label>
+                        <input type="email" id="clientEmail" class="form-input" placeholder="Optional">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">📞 Phone</label>
+                        <input type="tel" id="clientPhone" class="form-input" placeholder="Optional">
+                    </div>
+                </div>
+                
+                <!-- File Upload Area -->
+                <div class="form-group">
+                    <label class="form-label">📎 Select Files</label>
+                    <div id="dropZone" class="file-upload-area" onclick="document.getElementById('fileInput').click()">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-text">Click to browse or drag & drop files here</div>
+                        <div class="upload-hint">PDF, DOCX, DOC, JPG, PNG (Max 20MB each)</div>
+                    </div>
+                    <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.jpg,.jpeg,.png" multiple style="display: none;">
+                </div>
+                
+                <!-- Selected Files List -->
+                <div id="fileList" class="file-list" style="display: none;"></div>
+                
+                <!-- Progress Bar -->
+                <div id="progressContainer" class="progress-container">
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill"></div>
+                    </div>
+                    <div id="progressText" class="progress-text">Uploading...</div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: 15px; margin-top: 25px;">
+                    <button id="uploadBtn" class="btn btn-primary" onclick="uploadFiles()" disabled>📤 Upload Files</button>
+                    <button class="btn btn-secondary" onclick="clearAll()">🗑️ Clear All</button>
+                </div>
+                
+                <!-- Results -->
+                <div id="resultsContainer" class="results-container"></div>
             </div>
             
-            <div class="info" id="uploadInfo">
-                🔄 Upload legacy CVs or cover letters. Supports 18+ category extraction.
-            </div>
-            
-            <!-- Payment Methods Reference -->
-            <div class="payment-methods">
-                <strong>💳 Payment Methods:</strong> Airtel: 0991295401 | TNM: 0886928639 | MO626 Bank: 1005653618
-            </div>
-            
-            <!-- CV Upload Form -->
-            <div id="cvUploadForm" class="upload-form">
-                <div class="form-group">
-                    <label>🔑 Admin API Key</label>
-                    <input type="password" id="apiKey" placeholder="Enter your admin API key" value="0.i45qbafdnui0.0b656qiu0v3">
+            <!-- History Section -->
+            <div class="history-section">
+                <div class="section-title">
+                    <span>📋</span> Recent Uploads
                 </div>
-                <div class="form-group">
-                    <label>📎 Select Files (PDF, DOCX, Images)</label>
-                    <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.jpg,.jpeg,.png" multiple>
-                    <div id="fileList" class="file-list" style="display: none;"></div>
+                
+                <div class="stats-mini">
+                    <div class="stat-mini">
+                        <div class="stat-mini-value" id="todayUploads">0</div>
+                        <div class="stat-mini-label">Today</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value" id="weekUploads">0</div>
+                        <div class="stat-mini-label">This Week</div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>👤 Client Name (Optional - leave blank to auto-extract)</label>
-                    <input type="text" id="clientName" placeholder="Leave blank to auto-extract">
+                
+                <div id="historyList" class="history-list">
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>No recent uploads</p>
+                    </div>
                 </div>
-                <div class="batch-actions">
-                    <button type="button" id="clearBtn" class="clear-btn">Clear All</button>
-                </div>
-                <button type="button" id="uploadBtn">📤 Upload Files</button>
+                
+                <button class="btn btn-secondary" onclick="loadUploadHistory()" style="width: 100%; margin-top: 15px;">
+                    🔄 Refresh History
+                </button>
             </div>
-            
-            <!-- Cover Letter Upload Form -->
-            <div id="coverUploadForm" class="upload-form" style="display: none;">
-                <div class="form-group">
-                    <label>🔑 Admin API Key</label>
-                    <input type="password" id="coverApiKey" placeholder="Enter your admin API key" value="0.i45qbafdnui0.0b656qiu0v3">
-                </div>
-                <div class="form-group">
-                    <label>📎 Select Cover Letter / Vacancy Files</label>
-                    <input type="file" id="coverFileInput" accept=".pdf,.docx,.doc,.jpg,.jpeg,.png" multiple>
-                    <div id="coverFileList" class="file-list" style="display: none;"></div>
-                </div>
-                <div class="form-group">
-                    <label>👤 Client Name (Optional)</label>
-                    <input type="text" id="coverClientName" placeholder="Leave blank to auto-extract">
-                </div>
-                <div class="batch-actions">
-                    <button type="button" id="clearCoverBtn" class="clear-btn">Clear All</button>
-                </div>
-                <button type="button" id="uploadCoverBtn">📤 Upload Files</button>
-            </div>
-            
-            <div id="uploadResult"></div>
-        </div>
-        
-        <!-- Dashboard Section -->
-        <div id="dashboardSection" class="dashboard-section">
-            <div class="info">
-                📊 Real-time analytics with 18+ categories, CV data, and business metrics.
-            </div>
-            <div class="section-header">
-                <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                    <label>🔑 Admin API Key</label>
-                    <input type="password" id="dashboardApiKey" placeholder="Enter your admin API key" value="0.i45qbafdnui0.0b656qiu0v3">
-                </div>
-                <button id="refreshDashboardBtn" style="height: 44px;">🔄 Refresh Data</button>
-            </div>
-            <div id="dashboardContent">
-                <div class="loading">Enter API key and click Refresh to load data</div>
-            </div>
-        </div>
-        
-        <!-- Payments Section -->
-        <div id="paymentsSection" class="dashboard-section">
-            <div class="info">
-                💳 Payment tracking - Installments, Pay Later, and Pending Payments
-            </div>
-            <div class="section-header">
-                <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                    <label>🔑 Admin API Key</label>
-                    <input type="password" id="paymentsApiKey" placeholder="Enter your admin API key" value="0.i45qbafdnui0.0b656qiu0v3">
-                </div>
-                <button id="refreshPaymentsBtn" style="height: 44px;">🔄 Refresh Payments</button>
-            </div>
-            <div id="paymentsContent">
-                <div class="loading">Enter API key and click Refresh to load payment data</div>
-            </div>
-        </div>
-        
-        <!-- Modal for CV Data -->
-        <div id="cvModal" class="modal">
-            <div class="modal-content">
-                <span class="close-modal">&times;</span>
-                <div id="modalBody">Loading...</div>
-            </div>
-        </div>
-        
-        <!-- Footer -->
-        <div class="footer">
-            <p>© 2025 EasySuccor — Professional CV & Cover Letter Services</p>
-            <p>📞 +265 991 295 401 | 📧 easysuccor.bot@gmail.com</p>
-            <p>Telegram: <a href="https://t.me/EasySuccor_bot" target="_blank">@EasySuccor_bot</a></p>
         </div>
     </div>
-
+    
     <script>
-        // State
-        let currentUploadType = 'cv';
+        // ============ STATE ============
         let selectedFiles = [];
-        let selectedCoverFiles = [];
+        let uploadHistory = [];
         
-        // ========== TAB SWITCHING ==========
-        document.querySelectorAll('.main-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                const section = tab.dataset.main;
-                document.getElementById('uploadSection').classList.remove('active');
-                document.getElementById('dashboardSection').classList.remove('active');
-                document.getElementById('paymentsSection').classList.remove('active');
-                
-                if (section === 'upload') {
-                    document.getElementById('uploadSection').classList.add('active');
-                } else if (section === 'dashboard') {
-                    document.getElementById('dashboardSection').classList.add('active');
-                } else if (section === 'payments') {
-                    document.getElementById('paymentsSection').classList.add('active');
-                }
+        // ============ INITIALIZATION ============
+        document.addEventListener('DOMContentLoaded', function() {
+            setupDragDrop();
+            loadUploadHistory();
+            checkApiKeyStored();
+        });
+        
+        function getApiKey() {
+            return document.getElementById('apiKey').value;
+        }
+        
+        function checkApiKeyStored() {
+            const storedKey = localStorage.getItem('easysuccor_admin_token');
+            if (storedKey) {
+                document.getElementById('apiKey').value = storedKey;
+            }
+        }
+        
+        function verifyApiKey() {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                alert('Please enter API Key');
+                return;
+            }
+            localStorage.setItem('easysuccor_admin_token', apiKey);
+            alert('✅ API Key verified!');
+            loadUploadHistory();
+        }
+        
+        // ============ DRAG & DROP ============
+        function setupDragDrop() {
+            const dropZone = document.getElementById('dropZone');
+            
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
             });
-        });
-        
-        document.querySelectorAll('.sub-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                currentUploadType = tab.dataset.sub;
-                if (currentUploadType === 'cv') {
-                    document.getElementById('cvUploadForm').style.display = 'block';
-                    document.getElementById('coverUploadForm').style.display = 'none';
-                    document.getElementById('uploadInfo').innerHTML = '📎 Upload CV files. 18+ categories will be auto-extracted.';
-                } else {
-                    document.getElementById('cvUploadForm').style.display = 'none';
-                    document.getElementById('coverUploadForm').style.display = 'block';
-                    document.getElementById('uploadInfo').innerHTML = '📎 Upload cover letters. Vacancy details will be extracted.';
-                }
+            
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('dragover');
             });
-        });
+            
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files);
+            });
+            
+            document.getElementById('fileInput').addEventListener('change', (e) => {
+                handleFiles(e.target.files);
+            });
+        }
         
-        // File selection handlers
-        document.getElementById('fileInput').addEventListener('change', (e) => {
-            selectedFiles = Array.from(e.target.files);
-            updateFileList('fileList', selectedFiles);
-        });
+        function handleFiles(files) {
+            selectedFiles = [...selectedFiles, ...Array.from(files)];
+            updateFileList();
+            updateUploadButton();
+        }
         
-        document.getElementById('coverFileInput').addEventListener('change', (e) => {
-            selectedCoverFiles = Array.from(e.target.files);
-            updateFileList('coverFileList', selectedCoverFiles);
-        });
-        
-        function updateFileList(containerId, files) {
-            const container = document.getElementById(containerId);
-            if (files.length === 0) {
+        function updateFileList() {
+            const container = document.getElementById('fileList');
+            
+            if (selectedFiles.length === 0) {
                 container.style.display = 'none';
                 return;
             }
+            
             container.style.display = 'block';
-            container.innerHTML = files.map((file, index) => `
+            container.innerHTML = selectedFiles.map((file, index) => `
                 <div class="file-item">
-                    <span>📄 ${file.name}</span>
-                    <span class="remove-file" onclick="removeFile('${containerId}', ${index})">✖</span>
+                    <div class="file-info">
+                        <span class="file-icon">${getFileIcon(file.name)}</span>
+                        <span class="file-name">${file.name}</span>
+                        <span class="file-size">${formatFileSize(file.size)}</span>
+                    </div>
+                    <span class="file-remove" onclick="removeFile(${index})">✖</span>
                 </div>
             `).join('');
         }
         
-        window.removeFile = (containerId, index) => {
-            if (containerId === 'fileList') {
-                selectedFiles.splice(index, 1);
-                updateFileList('fileList', selectedFiles);
-                const dt = new DataTransfer();
-                selectedFiles.forEach(f => dt.items.add(f));
-                document.getElementById('fileInput').files = dt.files;
-            } else {
-                selectedCoverFiles.splice(index, 1);
-                updateFileList('coverFileList', selectedCoverFiles);
-                const dt = new DataTransfer();
-                selectedCoverFiles.forEach(f => dt.items.add(f));
-                document.getElementById('coverFileInput').files = dt.files;
-            }
-        };
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const icons = { pdf: '📄', docx: '📝', doc: '📝', jpg: '🖼️', jpeg: '🖼️', png: '🖼️' };
+            return icons[ext] || '📎';
+        }
         
-        document.getElementById('clearBtn').onclick = () => {
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+        
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            updateFileList();
+            updateUploadButton();
+            
+            const dt = new DataTransfer();
+            selectedFiles.forEach(f => dt.items.add(f));
+            document.getElementById('fileInput').files = dt.files;
+        }
+        
+        function clearAll() {
             selectedFiles = [];
             document.getElementById('fileInput').value = '';
             document.getElementById('fileList').style.display = 'none';
+            document.getElementById('documentType').value = '';
             document.getElementById('clientName').value = '';
-        };
-        
-        document.getElementById('clearCoverBtn').onclick = () => {
-            selectedCoverFiles = [];
-            document.getElementById('coverFileInput').value = '';
-            document.getElementById('coverFileList').style.display = 'none';
-            document.getElementById('coverClientName').value = '';
-        };
-        
-        const getServerUrl = () => window.location.origin;
-        
-        function showResult(message, type, containerId = 'uploadResult') {
-            const resultDiv = document.getElementById(containerId);
-            resultDiv.className = `result ${type}`;
-            resultDiv.innerHTML = message;
-            resultDiv.style.display = 'block';
-            if (type === 'success') setTimeout(() => resultDiv.style.display = 'none', 8000);
+            document.getElementById('clientEmail').value = '';
+            document.getElementById('clientPhone').value = '';
+            document.getElementById('revisionNotes').value = '';
+            document.getElementById('reviewOptions').style.display = 'none';
+            document.getElementById('resultsContainer').style.display = 'none';
+            updateUploadButton();
         }
         
-        // Upload handlers
-        document.getElementById('uploadBtn').onclick = async () => {
-            const apiKey = document.getElementById('apiKey').value;
-            const manualName = document.getElementById('clientName').value;
-            if (!apiKey) return showResult('Please enter your Admin API Key', 'error');
-            if (selectedFiles.length === 0) return showResult('Please select at least one file', 'error');
+        function onDocumentTypeChange() {
+            const docType = document.getElementById('documentType').value;
+            const reviewOptions = document.getElementById('reviewOptions');
+            
+            if (docType === 'reviewed_cv' || docType === 'reviewed_cover') {
+                reviewOptions.style.display = 'block';
+            } else {
+                reviewOptions.style.display = 'none';
+            }
+            
+            updateUploadButton();
+        }
+        
+        function updateUploadButton() {
+            const docType = document.getElementById('documentType').value;
+            const hasFiles = selectedFiles.length > 0;
+            const hasApiKey = getApiKey().length > 0;
+            
+            document.getElementById('uploadBtn').disabled = !docType || !hasFiles || !hasApiKey;
+        }
+        
+        // ============ UPLOAD ============
+        async function uploadFiles() {
+            const apiKey = getApiKey();
+            const docType = document.getElementById('documentType').value;
+            
+            if (!apiKey || !docType || selectedFiles.length === 0) {
+                alert('Please fill all required fields');
+                return;
+            }
             
             const uploadBtn = document.getElementById('uploadBtn');
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = '⏳ Uploading...';
-            showResult(`Uploading ${selectedFiles.length} file(s)...`, 'info');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            const resultsContainer = document.getElementById('resultsContainer');
             
-            let successCount = 0, failCount = 0, results = [];
-            for (const file of selectedFiles) {
+            uploadBtn.disabled = true;
+            progressContainer.style.display = 'block';
+            resultsContainer.style.display = 'none';
+            
+            const results = [];
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const progress = Math.round((i / selectedFiles.length) * 100);
+                progressFill.style.width = progress + '%';
+                progressText.textContent = `Processing ${i + 1} of ${selectedFiles.length}: ${file.name}`;
+                
                 const formData = new FormData();
-                formData.append('cv_file', file);
-                if (manualName) formData.append('client_name', manualName);
+                formData.append('file', file);
+                formData.append('document_type', docType);
+                formData.append('client_name', document.getElementById('clientName').value);
+                formData.append('client_email', document.getElementById('clientEmail').value);
+                formData.append('client_phone', document.getElementById('clientPhone').value);
+                
+                if (docType === 'reviewed_cv' || docType === 'reviewed_cover') {
+                    const reviewNumber = document.querySelector('input[name="reviewNumber"]:checked')?.value || '1';
+                    formData.append('review_number', reviewNumber);
+                    formData.append('revision_notes', document.getElementById('revisionNotes').value);
+                }
+                
+                // Determine endpoint based on document type
+                let endpoint = '/admin/upload-document';
+                if (docType.includes('cv')) {
+                    endpoint = '/admin/upload-cv';
+                } else if (docType.includes('cover')) {
+                    endpoint = '/admin/upload-cover';
+                }
+                
                 try {
-                    const response = await fetch(`${getServerUrl()}/admin/upload-cv`, {
+                    const response = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'x-admin-key': apiKey },
                         body: formData
                     });
+                    
                     const result = await response.json();
-                    if (response.ok) { 
-                        successCount++; 
-                        const cats = result.categories_extracted || 0;
-                        results.push(`✅ ${file.name}: ${cats} categories extracted`); 
-                    } else { 
-                        failCount++; 
-                        results.push(`❌ ${file.name}: ${result.error || 'Failed'}`); 
+                    
+                    if (response.ok) {
+                        successCount++;
+                        results.push({
+                            file: file.name,
+                            success: true,
+                            message: result.message || 'Upload successful',
+                            categories: result.categories_extracted || 0
+                        });
+                    } else {
+                        failCount++;
+                        results.push({
+                            file: file.name,
+                            success: false,
+                            error: result.error || 'Upload failed'
+                        });
                     }
-                } catch (error) { 
-                    failCount++; 
-                    results.push(`❌ ${file.name}: ${error.message}`); 
-                }
-            }
-            
-            const summary = `<strong>📊 Upload Complete</strong><br>✅ Success: ${successCount}<br>❌ Failed: ${failCount}<br><br>${results.join('<br>')}`;
-            showResult(summary, successCount > 0 ? 'success' : 'error');
-            uploadBtn.disabled = false;
-            uploadBtn.textContent = '📤 Upload Files';
-            if (successCount > 0) document.getElementById('clearBtn').click();
-        };
-        
-        document.getElementById('uploadCoverBtn').onclick = async () => {
-            const apiKey = document.getElementById('coverApiKey').value;
-            const manualName = document.getElementById('coverClientName').value;
-            if (!apiKey) return showResult('Please enter your Admin API Key', 'error');
-            if (selectedCoverFiles.length === 0) return showResult('Please select at least one file', 'error');
-            
-            const uploadBtn = document.getElementById('uploadCoverBtn');
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = '⏳ Uploading...';
-            showResult(`Uploading ${selectedCoverFiles.length} file(s)...`, 'info');
-            
-            let successCount = 0, failCount = 0, results = [];
-            for (const file of selectedCoverFiles) {
-                const formData = new FormData();
-                formData.append('cover_file', file);
-                if (manualName) formData.append('client_name', manualName);
-                try {
-                    const response = await fetch(`${getServerUrl()}/admin/upload-cover`, {
-                        method: 'POST',
-                        headers: { 'x-admin-key': apiKey },
-                        body: formData
+                } catch (error) {
+                    failCount++;
+                    results.push({
+                        file: file.name,
+                        success: false,
+                        error: error.message
                     });
-                    const result = await response.json();
-                    if (response.ok) { 
-                        successCount++; 
-                        results.push(`✅ ${file.name}: ${result.message || 'Success'}`); 
-                    } else { 
-                        failCount++; 
-                        results.push(`❌ ${file.name}: ${result.error || 'Failed'}`); 
-                    }
-                } catch (error) { 
-                    failCount++; 
-                    results.push(`❌ ${file.name}: ${error.message}`); 
                 }
             }
             
-            const summary = `<strong>📊 Upload Complete</strong><br>✅ Success: ${successCount}<br>❌ Failed: ${failCount}<br><br>${results.join('<br>')}`;
-            showResult(summary, successCount > 0 ? 'success' : 'error');
+            progressFill.style.width = '100%';
+            progressText.textContent = `Complete! ${successCount} succeeded, ${failCount} failed`;
+            
+            // Show results
+            resultsContainer.style.display = 'block';
+            resultsContainer.innerHTML = results.map(r => `
+                <div class="result-item ${r.success ? 'result-success' : 'result-error'}">
+                    ${r.success ? '✅' : '❌'} ${r.file}
+                    ${r.success ? `<br><small>${r.categories} categories extracted</small>` : `<br><small>${r.error}</small>`}
+                </div>
+            `).join('');
+            
             uploadBtn.disabled = false;
-            uploadBtn.textContent = '📤 Upload Files';
-            if (successCount > 0) document.getElementById('clearCoverBtn').click();
-        };
- // Dashboard functions
-async function loadDashboard() {
-    const apiKey = document.getElementById('dashboardApiKey').value;
-    if (!apiKey) {
-        document.getElementById('dashboardContent').innerHTML = '<div class="loading">⚠️ Please enter your Admin API Key</div>';
-        return;
-    }
-    document.getElementById('dashboardContent').innerHTML = '<div class="loading">🔄 Loading dashboard data...</div>';
-    
-    try {
-        const statsRes = await fetch(`${getServerUrl()}/admin/full-stats`, { 
-            headers: { 'x-admin-key': apiKey } 
-        });
-        const stats = await statsRes.json();
-        if (!statsRes.ok) throw new Error(stats.error || 'Failed to load stats');
+            
+            if (successCount > 0) {
+                clearAll();
+                loadUploadHistory();
+            }
+            
+            setTimeout(() => {
+                progressContainer.style.display = 'none';
+            }, 3000);
+        }
         
-        const ordersRes = await fetch(`${getServerUrl()}/admin/orders?limit=50`, { 
-            headers: { 'x-admin-key': apiKey } 
-        });
-        const ordersData = await ordersRes.json();
-        
-        const clientsRes = await fetch(`${getServerUrl()}/admin/clients?limit=50`, { 
-            headers: { 'x-admin-key': apiKey } 
-        });
-        const clientsData = await clientsRes.json();
-        
-        // Extract arrays from response
-        const orders = ordersData.orders || ordersData || [];
-        const clients = clientsData.clients || clientsData || [];
-        
-        renderDashboard(stats, orders, clients);
-    } catch (error) {
-        document.getElementById('dashboardContent').innerHTML = `<div class="loading error">❌ Error: ${error.message}</div>`;
-    }
-}
-
-function renderDashboard(stats, orders, clients) {
-    // SAFETY CHECK - Ensure orders and clients are arrays
-    if (!orders || !Array.isArray(orders)) {
-        console.error('❌ Orders is not an array:', orders);
-        orders = [];
-    }
-    if (!clients || !Array.isArray(clients)) {
-        console.error('❌ Clients is not an array:', clients);
-        clients = [];
-    }
-    
-    const cv = stats.cv_analytics || {};
-    const payments = stats.payment_analytics || {};
-    const month = stats.month || {};
-    
-    let html = `
-        <div class="stats-grid">
-            <div class="stat-card"><div class="stat-number">${stats.clients?.total || 0}</div><div class="stat-label">Total Clients</div></div>
-            <div class="stat-card"><div class="stat-number">${stats.month?.orders || 0}</div><div class="stat-label">Orders (Month)</div></div>
-            <div class="stat-card"><div class="stat-number">${stats.clients?.active || 0}</div><div class="stat-label">Active (30d)</div></div>
-            <div class="stat-card"><div class="stat-number">MK${(stats.month?.revenue || 0).toLocaleString()}</div><div class="stat-label">Revenue (Month)</div></div>
-            <div class="stat-card small"><div class="stat-number">${stats.month?.avg_rating || 0}★</div><div class="stat-label">Avg Rating</div></div>
-        </div>
-        
-        <h2>📊 18+ Categories Analytics</h2>
-        <div class="category-grid">
-            <div class="category-card"><div class="category-title">📄 Total CVs</div><div class="category-value">${cv.total_cvs || 0}</div></div>
-            <div class="category-card"><div class="category-title">⚡ Total Skills</div><div class="category-value">${cv.total_skills || 0}</div></div>
-            <div class="category-card"><div class="category-title">📊 Avg Skills/CV</div><div class="category-value">${cv.avg_skills_per_cv || 0}</div></div>
-            <div class="category-card"><div class="category-title">📁 Projects</div><div class="category-value">${cv.total_projects || 0}</div></div>
-            <div class="category-card"><div class="category-title">🏆 Achievements</div><div class="category-value">${cv.total_achievements || 0}</div></div>
-            <div class="category-card"><div class="category-title">🤝 Volunteer</div><div class="category-value">${cv.total_volunteer || 0}</div></div>
-            <div class="category-card"><div class="category-title">👑 Leadership</div><div class="category-value">${cv.total_leadership || 0}</div></div>
-            <div class="category-card"><div class="category-title">📜 Certifications</div><div class="category-value">${cv.total_certifications || 0}</div></div>
-            <div class="category-card"><div class="category-title">🌐 Languages</div><div class="category-value">${cv.total_languages || 0}</div></div>
-            <div class="category-card"><div class="category-title">👥 Referees</div><div class="category-value">${cv.total_referees || 0}</div></div>
-        </div>
-        
-        <h2>💳 Payment Analytics</h2>
-        <div class="summary-row">
-            <div class="summary-item"><strong>Installments Active:</strong> ${payments.installments?.active || 0}</div>
-            <div class="summary-item"><strong>Installments Done:</strong> ${payments.installments?.completed || 0}</div>
-            <div class="summary-item"><strong>Pay Later Active:</strong> ${payments.pay_later?.active || 0}</div>
-            <div class="summary-item"><strong>Pay Later Overdue:</strong> ${payments.pay_later?.overdue || 0}</div>
-        </div>
-        
-        <h2>📋 Recent Orders</h2>
-        <div class="table-container"><table><thead><tr>
-            <th>Order ID</th><th>Service</th><th>Payment Type</th><th>Status</th><th>Payment</th><th>CV Data</th><th>Total</th><th>Date</th><th>Action</th>
-        </tr></thead><tbody>`;
-    
-    // Now safe to use .slice()
-    for (const order of orders.slice(0, 30)) {
-        const paymentType = order.payment_type || 'standard';
-        const cvDataStatus = order.cv_data ? '✅' : '❌';
-        
-        // Handle order ID - convert to string first
-        const orderId = String(order.id || '');
-        const shortId = orderId.slice(-8) || orderId;
-        
-        html += `<tr>
-            <td><code>${shortId}</code></td>
-            <td>${order.service || '-'}</td>
-            <td><span class="badge info">${paymentType}</span></td>
-            <td>${order.status || '-'}</td>
-            <td>${order.payment_status || '-'}</td>
-            <td>${cvDataStatus}</td>
-            <td>${order.total_charge || '-'}</td>
-            <td>${new Date(order.created_at).toLocaleDateString()}</td>
-            <td><a class="view-link" onclick="viewOrder('${order.id}')">View</a></td>
-        </tr>`;
-    }
-    
-    html += `</tbody></table></div>
-        
-        <h2>👥 Recent Clients</h2>
-        <div class="table-container"><table><thead><tr>
-            <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Orders</th><th>Referrals</th><th>Joined</th>
-        </tr></thead><tbody>`;
-        
-    for (const client of clients.slice(0, 30)) {
-        // Handle client ID - convert to string first
-        const clientId = String(client.id || '');
-        const shortClientId = clientId.slice(-6) || clientId;
-        
-        html += `<tr>
-            <td>${shortClientId}</td>
-            <td>${client.first_name || ''} ${client.last_name || ''}</td>
-            <td>${client.email || '-'}</td>
-            <td>${client.phone || '-'}</td>
-            <td>${client.total_orders || 0}</td>
-            <td>${client.referral_count || 0}</td>
-            <td>${new Date(client.created_at).toLocaleDateString()}</td>
-        </tr>`;
-    }
-    
-    html += `</tbody></table></div>`;
-    
-    document.getElementById('dashboardContent').innerHTML = html;
-}
-        
-        window.viewOrder = async (orderId) => {
-            const apiKey = document.getElementById('dashboardApiKey').value || document.getElementById('paymentsApiKey').value;
-            const modal = document.getElementById('cvModal');
-            const modalBody = document.getElementById('modalBody');
-            modalBody.innerHTML = 'Loading...';
-            modal.style.display = 'block';
+        // ============ UPLOAD HISTORY ============
+        async function loadUploadHistory() {
+            const apiKey = getApiKey();
+            if (!apiKey) return;
             
             try {
-                const res = await fetch(`${getServerUrl()}/admin/order/${orderId}`, { 
-                    headers: { 'x-admin-key': apiKey } 
+                const response = await fetch('/admin/recent-uploads', {
+                    headers: { 'x-admin-key': apiKey }
                 });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error);
                 
-                const cv = data.cv_data || {};
-                const personal = cv.personal || {};
-                const skills = cv.skills || {};
-                const paymentType = data.payment_type || 'standard';
-                
-                let html = `
-                    <h2>📋 Order Details</h2>
-                    <div class="summary-row">
-                        <div class="summary-item"><strong>Order ID:</strong> ${orderId}</div>
-                        <div class="summary-item"><strong>Service:</strong> ${data.service || '-'}</div>
-                        <div class="summary-item"><strong>Status:</strong> ${data.status || '-'}</div>
-                        <div class="summary-item"><strong>Payment:</strong> ${data.payment_status || '-'}</div>
-                        <div class="summary-item"><strong>Payment Type:</strong> <span class="badge info">${paymentType}</span></div>
-                        <div class="summary-item"><strong>Total:</strong> ${data.total_charge || '-'}</div>
-                    </div>
-                    
-                    <h3>👤 Personal Info</h3>
-                    <div class="summary-row">
-                        <div class="summary-item">Name: ${personal.full_name || '-'}</div>
-                        <div class="summary-item">Email: ${personal.email || '-'}</div>
-                        <div class="summary-item">Phone: ${personal.primary_phone || '-'}</div>
-                        <div class="summary-item">Location: ${personal.location || '-'}</div>
-                        <div class="summary-item">Nationality: ${personal.nationality || '-'}</div>
-                    </div>
-                    
-                    ${cv.professional_summary ? `<h3>📝 Professional Summary</h3><p>${cv.professional_summary}</p>` : ''}
-                    
-                    <h3>💼 Work Experience (${(cv.employment || []).length} positions)</h3>`;
-                    
-                for (const job of (cv.employment || []).slice(0, 5)) {
-                    html += `<div class="category-card" style="margin-bottom:10px">
-                        <strong>${job.title || '-'}</strong> at ${job.company || '-'} (${job.duration || '-'})
-                        ${job.responsibilities ? '<br>📋 ' + job.responsibilities.slice(0, 3).join('; ') : ''}
-                        ${job.achievements ? '<br>🏆 ' + job.achievements.slice(0, 3).join('; ') : ''}
-                    </div>`;
+                if (response.ok) {
+                    const data = await response.json();
+                    uploadHistory = data.uploads || [];
+                    renderHistory();
+                    updateStats();
                 }
-                
-                html += `<h3>🎓 Education (${(cv.education || []).length} entries)</h3>`;
-                for (const edu of (cv.education || []).slice(0, 5)) {
-                    html += `<div class="category-card">${edu.level || ''} in ${edu.field || ''} from ${edu.institution || ''} (${edu.year || ''})</div>`;
-                }
-                
-                html += `<h3>⚡ Skills</h3>`;
-                html += `<div class="summary-row">`;
-                html += `<div class="summary-item">Technical: ${(skills.technical || []).join(', ') || '-'}</div>`;
-                html += `<div class="summary-item">Soft: ${(skills.soft || []).join(', ') || '-'}</div>`;
-                html += `<div class="summary-item">Tools: ${(skills.tools || []).join(', ') || '-'}</div>`;
-                html += `</div>`;
-                
-                // 18+ Categories
-                html += `<h3>📂 18+ Categories</h3>`;
-                html += `<div class="category-grid">`;
-                
-                const categories = [
-                    { name: 'Certifications', key: 'certifications' },
-                    { name: 'Languages', key: 'languages' },
-                    { name: 'Projects', key: 'projects' },
-                    { name: 'Achievements', key: 'achievements' },
-                    { name: 'Volunteer', key: 'volunteer' },
-                    { name: 'Leadership', key: 'leadership' },
-                    { name: 'Awards', key: 'awards' },
-                    { name: 'Publications', key: 'publications' },
-                    { name: 'Conferences', key: 'conferences' },
-                    { name: 'Referees', key: 'referees' }
-                ];
-                
-                for (const cat of categories) {
-                    const data = cv[cat.key] || [];
-                    html += `<div class="category-card">
-                        <div class="category-title">${cat.name}</div>
-                        <div class="category-value">${data.length}</div>
-                        ${data.length > 0 ? '<small>' + data.slice(0, 2).map(d => 
-                            typeof d === 'string' ? d : (d.name || d.title || d.role || JSON.stringify(d).slice(0, 30))
-                        ).join('<br>') + '</small>' : '<small>-</small>'}
-                    </div>`;
-                }
-                html += `</div>`;
-                
-                // Payment details
-                if (data.installment_data) {
-                    const inst = data.installment_data;
-                    html += `<h3>💰 Installment Details</h3>`;
-                    html += `<div class="summary-row">`;
-                    html += `<div class="summary-item">Progress: ${inst.current_installment || 1}/2</div>`;
-                    html += `<div class="summary-item">Paid: MK${(inst.paid_amount || 0).toLocaleString()}</div>`;
-                    html += `<div class="summary-item">Remaining: MK${(inst.remaining_amount || 0).toLocaleString()}</div>`;
-                    html += `</div>`;
-                }
-                
-                if (data.pay_later_data) {
-                    const pl = data.pay_later_data;
-                    html += `<h3>⏳ Pay Later Details</h3>`;
-                    html += `<div class="summary-row">`;
-                    html += `<div class="summary-item">Amount: MK${(pl.amount || 0).toLocaleString()}</div>`;
-                    html += `<div class="summary-item">Due: ${pl.due_date || '-'}</div>`;
-                    html += `<div class="summary-item">Status: ${pl.status || '-'}</div>`;
-                    html += `</div>`;
-                }
-                
-                html += `<details style="margin-top:20px"><summary>📜 Raw JSON</summary><pre style="background:var(--gray-light);padding:10px;border-radius:8px;overflow-x:auto">${JSON.stringify(cv, null, 2)}</pre></details>`;
-                
-                modalBody.innerHTML = html;
             } catch (error) {
-                modalBody.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Failed to load history:', error);
             }
-        };
+        }
         
-        // Event listeners
-        document.getElementById('refreshDashboardBtn').onclick = () => loadDashboard();
-        document.getElementById('refreshPaymentsBtn').onclick = () => loadPayments();
-        
-        document.querySelector('.close-modal').onclick = () => {
-            document.getElementById('cvModal').style.display = 'none';
-        };
-        
-        window.onclick = (event) => {
-            if (event.target === document.getElementById('cvModal')) {
-                document.getElementById('cvModal').style.display = 'none';
+        function renderHistory() {
+            const container = document.getElementById('historyList');
+            
+            if (uploadHistory.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>No recent uploads</p>
+                    </div>
+                `;
+                return;
             }
-        };
+            
+            container.innerHTML = uploadHistory.slice(0, 20).map(item => `
+                <div class="history-item">
+                    <div class="history-header">
+                        <span class="history-name">${item.filename || 'Unknown'}</span>
+                        <span class="history-time">${formatTime(item.created_at)}</span>
+                    </div>
+                    <div class="history-details">
+                        <span class="history-type">${getDocumentTypeLabel(item.document_type)}</span>
+                        <span>Client: ${item.client_name || 'Auto-extracted'}</span>
+                        <span class="history-status ${item.status === 'success' ? 'status-success' : 'status-error'}">
+                            ${item.status === 'success' ? '✓ Success' : '✗ Failed'}
+                        </span>
+                    </div>
+                    ${item.categories_extracted ? `<div class="history-details" style="margin-top: 5px;">📊 ${item.categories_extracted} categories extracted</div>` : ''}
+                </div>
+            `).join('');
+        }
         
-        // Initialize payments tab click
-        document.querySelector('[data-main="payments"]').addEventListener('click', () => {
-            const apiKey = document.getElementById('paymentsApiKey').value;
-            if (apiKey && document.getElementById('paymentsContent').innerHTML.includes('Enter API key')) {
-                loadPayments();
-            }
-        });
+        function updateStats() {
+            const today = new Date().toISOString().split('T')[0];
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            
+            const todayCount = uploadHistory.filter(i => i.created_at?.startsWith(today)).length;
+            const weekCount = uploadHistory.filter(i => new Date(i.created_at) >= weekAgo).length;
+            
+            document.getElementById('todayUploads').textContent = todayCount;
+            document.getElementById('weekUploads').textContent = weekCount;
+        }
+        
+        function getDocumentTypeLabel(type) {
+            const labels = {
+                'legacy_cv': '📄 Legacy CV',
+                'legacy_cover': '💌 Legacy Cover',
+                'reviewed_cv': '✅ Reviewed CV',
+                'reviewed_cover': '✅ Reviewed Cover',
+                'final_cv': '🎯 Final CV',
+                'final_cover': '🎯 Final Cover',
+                'template': '📐 Template'
+            };
+            return labels[type] || type;
+        }
+        
+        function formatTime(timestamp) {
+            if (!timestamp) return 'Just now';
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return 'Just now';
+            if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+            if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+            return date.toLocaleDateString();
+        }
+        
+        // Make functions available globally
+        window.onDocumentTypeChange = onDocumentTypeChange;
+        window.removeFile = removeFile;
+        window.clearAll = clearAll;
+        window.uploadFiles = uploadFiles;
+        window.verifyApiKey = verifyApiKey;
+        window.loadUploadHistory = loadUploadHistory;
     </script>
 </body>
 </html>

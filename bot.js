@@ -6367,7 +6367,10 @@ bot.command('referral', async (ctx) => {
 📋 *YOUR REFERRAL LINK*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-\`${shareLink}\`
+*Your code:* \`${refInfo.referral_code}\`
+
+🔗 *Share this link:*
+${shareLink}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 *YOUR STATISTICS*
@@ -6376,7 +6379,7 @@ bot.command('referral', async (ctx) => {
 • Tier: ${getReferralTier(refInfo.completed_referrals)}
 • Total referrals: ${refInfo.total_referrals}
 • Completed: ${refInfo.completed_referrals}
-• Pending reward: MK${refInfo.pending_reward.toLocaleString()}
+• Pending reward: MK${(refInfo.pending_reward || 0).toLocaleString()}
 • Available credit: MK${(refInfo.available_credit || 0).toLocaleString()}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -6384,16 +6387,15 @@ bot.command('referral', async (ctx) => {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1️⃣ Share your unique link with friends
-2️⃣ Friend visits our landing page
-3️⃣ They click "Start on Telegram" and get 10% off
-4️⃣ You earn MK2,000 credit when they complete an order
-5️⃣ Earn from THEIR referrals too (3 levels!)
+2️⃣ Friend visits our landing page and sees 10% off
+3️⃣ They click "Start on Telegram"
+4️⃣ You earn MK2,000 when they complete their first order
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📤 *SHARE NOW*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Copy the link above and share on WhatsApp, Facebook, or anywhere!
+Tap the link above to copy and share on WhatsApp, Facebook, or anywhere!
 
 Every referral brings you closer to a free CV! 🎉`);
 });

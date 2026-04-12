@@ -1006,8 +1006,13 @@ function renderDashboard(stats, orders, clients) {
     for (const order of orders.slice(0, 30)) {
         const paymentType = order.payment_type || 'standard';
         const cvDataStatus = order.cv_data ? '✅' : '❌';
+        
+        // Handle order ID - convert to string first
+        const orderId = String(order.id || '');
+        const shortId = orderId.slice(-8) || orderId;
+        
         html += `<tr>
-            <td><code>${order.id?.slice(-8) || ''}</code></td>
+            <td><code>${shortId}</code></td>
             <td>${order.service || '-'}</td>
             <td><span class="badge info">${paymentType}</span></td>
             <td>${order.status || '-'}</td>
@@ -1027,8 +1032,12 @@ function renderDashboard(stats, orders, clients) {
         </tr></thead><tbody>`;
         
     for (const client of clients.slice(0, 30)) {
+        // Handle client ID - convert to string first
+        const clientId = String(client.id || '');
+        const shortClientId = clientId.slice(-6) || clientId;
+        
         html += `<tr>
-            <td>${client.id?.slice(-6) || ''}</td>
+            <td>${shortClientId}</td>
             <td>${client.first_name || ''} ${client.last_name || ''}</td>
             <td>${client.email || '-'}</td>
             <td>${client.phone || '-'}</td>
@@ -1042,96 +1051,6 @@ function renderDashboard(stats, orders, clients) {
     
     document.getElementById('dashboardContent').innerHTML = html;
 }
-
-// Payments dashboard
-        async function loadPayments() {
-            const apiKey = document.getElementById('paymentsApiKey').value;
-            if (!apiKey) {
-                document.getElementById('paymentsContent').innerHTML = '<div class="loading">⚠️ Please enter your Admin API Key</div>';
-                return;
-            }
-            document.getElementById('paymentsContent').innerHTML = '<div class="loading">🔄 Loading payment data...</div>';
-            
-            try {
-                const statsRes = await fetch(`${getServerUrl()}/admin/payment-stats`, { 
-                    headers: { 'x-admin-key': apiKey } 
-                });
-                const stats = await statsRes.json();
-                if (!statsRes.ok) throw new Error(stats.error || 'Failed to load payment stats');
-                
-                const installmentsRes = await fetch(`${getServerUrl()}/admin/installments`, { 
-                    headers: { 'x-admin-key': apiKey } 
-                });
-                const installments = await installmentsRes.json();
-                
-                const payLaterRes = await fetch(`${getServerUrl()}/admin/pay-later`, { 
-                    headers: { 'x-admin-key': apiKey } 
-                });
-                const payLater = await payLaterRes.json();
-                
-                renderPayments(stats, installments, payLater);
-            } catch (error) {
-                document.getElementById('paymentsContent').innerHTML = `<div class="loading error">❌ Error: ${error.message}</div>`;
-            }
-        }
-        
-        function renderPayments(stats, installments, payLater) {
-            let html = `
-                <div class="payment-methods">
-                    <strong>💳 Payment Methods:</strong> Airtel: 0991295401 | TNM: 0886928639 | MO626 Bank: 1005653618
-                </div>
-                
-                <div class="stats-grid">
-                    <div class="stat-card"><div class="stat-number">${stats.total_pending || 0}</div><div class="stat-label">Pending Payments</div></div>
-                    <div class="stat-card"><div class="stat-number">${stats.installments_active || 0}</div><div class="stat-label">Active Installments</div></div>
-                    <div class="stat-card"><div class="stat-number">${stats.pay_later_active || 0}</div><div class="stat-label">Active Pay Later</div></div>
-                    <div class="stat-card small"><div class="stat-number">${stats.pay_later_overdue || 0}</div><div class="stat-label">Pay Later Overdue</div></div>
-                    <div class="stat-card small"><div class="stat-number">MK${(stats.total_pending_amount || 0).toLocaleString()}</div><div class="stat-label">Pending Amount</div></div>
-                </div>
-                
-                <h2>💰 Active Installments</h2>
-                <div class="table-container"><table><thead><tr>
-                    <th>Order ID</th><th>Client</th><th>Progress</th><th>Paid</th><th>Remaining</th><th>Next Due</th><th>Status</th>
-                </tr></thead><tbody>`;
-                
-            for (const inst of (installments || []).slice(0, 20)) {
-                const progress = inst.current_installment || 1;
-                const dueDate = inst.next_due_date ? new Date(inst.next_due_date).toLocaleDateString() : '-';
-                const isOverdue = inst.days_overdue > 0;
-                html += `<tr>
-                    <td><code>${inst.order_id?.slice(-8) || ''}</code></td>
-                    <td>${inst.client_name || '-'}</td>
-                    <td>${progress}/2</td>
-                    <td>MK${(inst.paid_amount || 0).toLocaleString()}</td>
-                    <td>MK${(inst.remaining_amount || 0).toLocaleString()}</td>
-                    <td><span class="badge ${isOverdue ? 'danger' : 'warning'}">${dueDate}</span></td>
-                    <td><span class="badge ${inst.status === 'active' ? 'info' : 'success'}">${inst.status || '-'}</span></td>
-                </tr>`;
-            }
-            html += `</tbody></table></div>
-                
-                <h2>⏳ Active Pay Later</h2>
-                <div class="table-container"><table><thead><tr>
-                    <th>Order ID</th><th>Client</th><th>Amount</th><th>Due Date</th><th>Days Left</th><th>Status</th>
-                </tr></thead><tbody>`;
-                
-            for (const pl of (payLater || []).slice(0, 20)) {
-                const dueDate = pl.due_date ? new Date(pl.due_date).toLocaleDateString() : '-';
-                const daysLeft = pl.days_until_due || 0;
-                const isOverdue = daysLeft < 0;
-                html += `<tr>
-                    <td><code>${pl.order_id?.slice(-8) || ''}</code></td>
-                    <td>${pl.client_name || '-'}</td>
-                    <td>MK${(pl.amount || 0).toLocaleString()}</td>
-                    <td>${dueDate}</td>
-                    <td><span class="badge ${isOverdue ? 'danger' : (daysLeft <= 3 ? 'warning' : 'success')}">${daysLeft} days</span></td>
-                    <td><span class="badge ${pl.status === 'pending' ? 'warning' : 'success'}">${pl.status || '-'}</span></td>
-                </tr>`;
-            }
-            html += `</tbody></table></div>`;
-            
-            document.getElementById('paymentsContent').innerHTML = html;
-        }
         
         window.viewOrder = async (orderId) => {
             const apiKey = document.getElementById('dashboardApiKey').value || document.getElementById('paymentsApiKey').value;

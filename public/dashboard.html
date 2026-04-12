@@ -465,6 +465,23 @@
             .api-key-input { width: 100%; }
             .stats-grid { grid-template-columns: 1fr 1fr; }
         }
+        .export-option {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.export-option:hover {
+    background: rgba(138, 79, 255, 0.1);
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
     </style>
 </head>
 <body>
@@ -478,10 +495,11 @@
                 <span class="control-badge">🎛️ ULTIMATE CONTROL ROOM</span>
             </div>
             <div class="header-actions">
-                <input type="password" id="apiKey" class="api-key-input" placeholder="Admin API Key" value="0.i45qbafdnui0.0b656qiu0v3">
-                <button class="refresh-btn" onclick="refreshAllData()">🔄 Refresh All</button>
-                <span class="last-updated" id="lastUpdated"></span>
-            </div>
+    <input type="password" id="apiKey" class="api-key-input" placeholder="Admin API Key" value="0.i45qbafdnui0.0b656qiu0v3">
+    <button class="refresh-btn" onclick="openExportModal()">📥 Export</button>
+    <button class="refresh-btn" onclick="refreshAllData()">🔄 Refresh</button>
+    <span class="last-updated" id="lastUpdated"></span>
+</div>
         </div>
         
         <!-- Navigation Tabs -->
@@ -519,6 +537,90 @@
             </div>
             <div class="modal-body" id="modalBody"></div>
         </div>
+        <!-- Export Modal -->
+<div id="exportModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="modal-title">📥 Export Data</span>
+            <span class="close-modal" onclick="closeExportModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div style="display: grid; gap: 15px;">
+                <div class="export-option" onclick="exportData('all', 'json')">
+                    <span style="font-size: 24px;">📦</span>
+                    <div>
+                        <strong style="color: white;">Complete Backup</strong>
+                        <p style="color: var(--text-secondary); font-size: 13px;">All data in JSON format</p>
+                    </div>
+                </div>
+                
+                <div class="export-option" onclick="exportData('clients', 'csv')">
+                    <span style="font-size: 24px;">👥</span>
+                    <div>
+                        <strong style="color: white;">Clients List</strong>
+                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    </div>
+                </div>
+                
+                <div class="export-option" onclick="exportData('orders', 'csv')">
+                    <span style="font-size: 24px;">📋</span>
+                    <div>
+                        <strong style="color: white;">Orders Report</strong>
+                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    </div>
+                </div>
+                
+                <div class="export-option" onclick="exportData('vacancies', 'csv')">
+                    <span style="font-size: 24px;">💼</span>
+                    <div>
+                        <strong style="color: white;">Vacancies Library</strong>
+                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    </div>
+                </div>
+                
+                <div class="export-option" onclick="exportData('hired', 'csv')">
+                    <span style="font-size: 24px;">🏆</span>
+                    <div>
+                        <strong style="color: white;">Hired Clients</strong>
+                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    </div>
+                </div>
+                
+                <div class="export-option" onclick="exportData('referrals', 'csv')">
+                    <span style="font-size: 24px;">🎁</span>
+                    <div>
+                        <strong style="color: white;">Referral Report</strong>
+                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    </div>
+                </div>
+                
+                <div class="export-option" onclick="exportData('payments', 'csv')">
+                    <span style="font-size: 24px;">💳</span>
+                    <div>
+                        <strong style="color: white;">Payment Report</strong>
+                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    </div>
+                </div>
+                
+                <div class="export-option" onclick="exportData('errors', 'csv')">
+                    <span style="font-size: 24px;">🐛</span>
+                    <div>
+                        <strong style="color: white;">Error Reports</strong>
+                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    </div>
+                </div>
+                
+                <div class="export-option" onclick="exportData('documents', 'pdf')">
+                    <span style="font-size: 24px;">📄</span>
+                    <div>
+                        <strong style="color: white;">All Documents (ZIP)</strong>
+                        <p style="color: var(--text-secondary); font-size: 13px;">Download all generated CVs and cover letters</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
     </div>
 
     <script>
@@ -1229,7 +1331,304 @@
             closeModal();
             refreshAllData();
         }
+        // ============ EXPORT FUNCTIONS ============
+function openExportModal() {
+    document.getElementById('exportModal').style.display = 'flex';
+}
+
+function closeExportModal() {
+    document.getElementById('exportModal').style.display = 'none';
+}
+
+async function exportData(type, format) {
+    closeExportModal();
+    
+    const apiKey = getApiKey();
+    if (!apiKey) {
+        alert('Please enter Admin API Key');
+        return;
+    }
+    
+    const timestamp = new Date().toISOString().split('T')[0];
+    
+    switch(type) {
+        case 'all':
+            await exportAllDataJSON(timestamp);
+            break;
+        case 'clients':
+            await exportClientsCSV(timestamp);
+            break;
+        case 'orders':
+            await exportOrdersCSV(timestamp);
+            break;
+        case 'vacancies':
+            await exportVacanciesCSV(timestamp);
+            break;
+        case 'hired':
+            await exportHiredCSV(timestamp);
+            break;
+        case 'referrals':
+            await exportReferralsCSV(timestamp);
+            break;
+        case 'payments':
+            await exportPaymentsCSV(timestamp);
+            break;
+        case 'errors':
+            await exportErrorsCSV(timestamp);
+            break;
+        case 'documents':
+            await exportDocumentsZip(timestamp);
+            break;
+    }
+}
+
+// Complete Backup (JSON)
+function exportAllDataJSON(timestamp) {
+    const data = {
+        exported_at: new Date().toISOString(),
+        stats: allData.stats,
+        clients: allData.clients,
+        orders: allData.orders,
+        vacancies: allData.vacancies,
+        hiredClients: allData.hiredClients,
+        documents: allData.documents,
+        updates: allData.updates,
+        payments: allData.payments,
+        referrals: allData.referrals,
+        errors: allData.errors
+    };
+    
+    downloadFile(
+        JSON.stringify(data, null, 2),
+        `easysuccor-backup-${timestamp}.json`,
+        'application/json'
+    );
+}
+
+// Clients CSV
+function exportClientsCSV(timestamp) {
+    const clients = allData.clients || [];
+    const headers = ['ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Location', 'Total Orders', 'Total Spent', 'Referrals', 'Status', 'Joined', 'Last Active'];
+    
+    const rows = clients.map(c => [
+        c.id || '',
+        c.first_name || '',
+        c.last_name || '',
+        c.email || '',
+        c.phone || '',
+        c.location || '',
+        c.total_orders || 0,
+        c.total_spent || 0,
+        c.referral_count || 0,
+        getClientStatus(c),
+        c.created_at ? new Date(c.created_at).toLocaleDateString() : '',
+        c.last_active ? new Date(c.last_active).toLocaleDateString() : ''
+    ]);
+    
+    exportCSV(headers, rows, `easysuccor-clients-${timestamp}.csv`);
+}
+
+// Orders CSV
+function exportOrdersCSV(timestamp) {
+    const orders = allData.orders || [];
+    const headers = ['Order ID', 'Client Name', 'Client Email', 'Client Phone', 'Service', 'Category', 'Payment Type', 'Status', 'Payment Status', 'Total', 'Created', 'Delivered'];
+    
+    const rows = orders.map(o => [
+        o.id || '',
+        o.client?.name || '',
+        o.client?.email || '',
+        o.client?.phone || '',
+        o.service || '',
+        o.category || '',
+        o.payment_type || 'standard',
+        o.status || '',
+        o.payment_status || '',
+        o.total_charge || '',
+        o.created_at ? new Date(o.created_at).toLocaleString() : '',
+        o.delivered_at ? new Date(o.delivered_at).toLocaleString() : ''
+    ]);
+    
+    exportCSV(headers, rows, `easysuccor-orders-${timestamp}.csv`);
+}
+
+// Vacancies CSV
+function exportVacanciesCSV(timestamp) {
+    const vacancies = allData.vacancies || [];
+    const headers = ['ID', 'Position', 'Company', 'Location', 'Job Type', 'Experience Required', 'Deadline', 'Usage Count', 'Created'];
+    
+    const rows = vacancies.map(v => [
+        v.id || '',
+        v.position || '',
+        v.company || '',
+        v.location || '',
+        v.job_type || '',
+        v.experience_required || '',
+        v.deadline || '',
+        v.usage_count || 0,
+        v.created_at ? new Date(v.created_at).toLocaleDateString() : ''
+    ]);
+    
+    exportCSV(headers, rows, `easysuccor-vacancies-${timestamp}.csv`);
+}
+
+// Hired Clients CSV
+function exportHiredCSV(timestamp) {
+    const hired = allData.hiredClients || [];
+    const headers = ['Client Name', 'Position Hired', 'Company', 'Story', 'Anonymous', 'Date Hired'];
+    
+    const rows = hired.map(h => [
+        h.anonymous ? 'Anonymous' : (h.client_name || ''),
+        h.position || '',
+        h.company || '',
+        h.story || '',
+        h.anonymous ? 'Yes' : 'No',
+        h.hired_date ? new Date(h.hired_date).toLocaleDateString() : ''
+    ]);
+    
+    exportCSV(headers, rows, `easysuccor-hired-${timestamp}.csv`);
+}
+
+// Referrals CSV
+function exportReferralsCSV(timestamp) {
+    const referrals = allData.referrals || [];
+    const headers = ['Rank', 'Client Name', 'Total Referrals', 'Completed', 'Tier', 'Total Earned', 'Available Credit'];
+    
+    const rows = referrals.map((r, i) => [
+        i + 1,
+        r.name || '',
+        r.total_referrals || 0,
+        r.completed || 0,
+        r.tier || 'Bronze',
+        r.total_earned || 0,
+        r.available_credit || 0
+    ]);
+    
+    exportCSV(headers, rows, `easysuccor-referrals-${timestamp}.csv`);
+}
+
+// Payments CSV
+async function exportPaymentsCSV(timestamp) {
+    try {
+        const [stats, installments, payLater] = await Promise.all([
+            apiCall('/admin/payment-stats'),
+            apiCall('/admin/installments'),
+            apiCall('/admin/pay-later')
+        ]);
         
+        // Summary section
+        let csv = 'PAYMENT SUMMARY\n';
+        csv += `Total Pending,${stats.total_pending || 0}\n`;
+        csv += `Pending Amount,${stats.total_pending_amount || 0}\n`;
+        csv += `Active Installments,${stats.installments_active || 0}\n`;
+        csv += `Completed Installments,${stats.installments_completed || 0}\n`;
+        csv += `Active Pay Later,${stats.pay_later_active || 0}\n`;
+        csv += `Overdue Pay Later,${stats.pay_later_overdue || 0}\n\n`;
+        
+        // Installments section
+        csv += 'INSTALLMENTS\n';
+        csv += 'Order ID,Client,Progress,Paid,Remaining,Next Due,Status\n';
+        installments.forEach(i => {
+            csv += `"${i.order_id || ''}","${i.client_name || ''}",${i.current_installment || 1}/2,${i.paid_amount || 0},${i.remaining_amount || 0},"${i.next_due_date || ''}","${i.status || ''}"\n`;
+        });
+        
+        csv += '\nPAY LATER\n';
+        csv += 'Order ID,Client,Amount,Due Date,Days Left,Status\n';
+        payLater.forEach(p => {
+            csv += `"${p.order_id || ''}","${p.client_name || ''}",${p.amount || 0},"${p.due_date || ''}",${p.days_until_due || 0},"${p.status || ''}"\n`;
+        });
+        
+        downloadFile(csv, `easysuccor-payments-${timestamp}.csv`, 'text/csv');
+    } catch (error) {
+        alert('Error exporting payments: ' + error.message);
+    }
+}
+
+// Errors CSV
+function exportErrorsCSV(timestamp) {
+    const errors = allData.errors || [];
+    const headers = ['ID', 'Client', 'Description', 'Status', 'Resolution', 'Created', 'Resolved'];
+    
+    const rows = errors.map(e => [
+        e.id || '',
+        e.client_name || 'Unknown',
+        e.description || '',
+        e.status || '',
+        e.resolution_notes || '',
+        e.created_at ? new Date(e.created_at).toLocaleString() : '',
+        e.resolved_at ? new Date(e.resolved_at).toLocaleString() : ''
+    ]);
+    
+    exportCSV(headers, rows, `easysuccor-errors-${timestamp}.csv`);
+}
+
+// Documents ZIP
+async function exportDocumentsZip(timestamp) {
+    const apiKey = getApiKey();
+    
+    // Show loading
+    alert('Preparing document download... This may take a moment.');
+    
+    try {
+        const response = await fetch('/admin/download-all-documents', {
+            headers: { 'x-admin-key': apiKey }
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `easysuccor-documents-${timestamp}.zip`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } else {
+            alert('Failed to download documents. Please try again.');
+        }
+    } catch (error) {
+        alert('Error downloading documents: ' + error.message);
+    }
+}
+
+// Helper Functions
+function getClientStatus(client) {
+    const hiredIds = new Set((allData.hiredClients || []).map(h => h.client_id));
+    if (hiredIds.has(client.id)) return 'Hired';
+    
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    if (!client.last_active || new Date(client.last_active) < thirtyDaysAgo) return 'Ghost';
+    
+    return 'Active';
+}
+
+function exportCSV(headers, rows, filename) {
+    let csv = headers.join(',') + '\n';
+    
+    rows.forEach(row => {
+        const escapedRow = row.map(cell => {
+            if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"'))) {
+                return `"${cell.replace(/"/g, '""')}"`;
+            }
+            return cell;
+        }).join(',');
+        csv += escapedRow + '\n';
+    });
+    
+    downloadFile(csv, filename, 'text/csv;charset=utf-8;');
+}
+
+function downloadFile(content, filename, type) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
         async function savePrices() {
             const prices = {};
             document.querySelectorAll('[id^="price_"]').forEach(input => {
@@ -1328,6 +1727,9 @@
         window.filterClients = filterClients;
         window.filterErrors = filterErrors;
         window.closeModal = closeModal;
-    </script>
+        window.openExportModal = openExportModal;
+        window.closeExportModal = closeExportModal;
+        window.exportData = exportData;
+            </script>
 </body>
 </html>

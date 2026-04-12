@@ -10,6 +10,7 @@
     "admin": "node admin-dashboard.js"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
     "axios": "^1.15.0",
     "docx": "^8.5.0",
     "dotenv": "^16.6.1",

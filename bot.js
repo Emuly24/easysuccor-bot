@@ -5973,85 +5973,147 @@ Need help? Type /help anytime.`;
 
     await sendMarkdown(ctx, message);
 }
+// ============ DOWNLOAD ALL DOCUMENTS AS ZIP ============
+const archiver = require('archiver');
+
+app.get('/admin/download-all-documents', adminAuth, async (req, res) => {
+    try {
+        const documents = await db.getAllDocuments();
+        
+        if (!documents || documents.length === 0) {
+            return res.status(404).json({ error: 'No documents found' });
+        }
+        
+        const timestamp = new Date().toISOString().split('T')[0];
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename=easysuccor-documents-${timestamp}.zip`);
+        
+        const archive = archiver('zip', { zlib: { level: 9 } });
+        archive.pipe(res);
+        
+        // Add each document to the zip
+        for (const doc of documents) {
+            const clientName = doc.client_name || 'unknown';
+            const docType = doc.document_type || 'document';
+            const version = doc.version || '1';
+            const orderId = String(doc.order_id || '').slice(-8);
+            
+            let filename = `${clientName}_${docType}_v${version}_${orderId}`;
+            
+            if (doc.format === 'pdf') {
+                filename += '.pdf';
+            } else if (doc.format === 'docx') {
+                filename += '.docx';
+            } else {
+                filename += '.txt';
+            }
+            
+            // Get document content
+            const content = doc.content || doc.file_path ? 
+                await fs.readFile(doc.file_path) : 
+                Buffer.from(JSON.stringify(doc, null, 2));
+            
+            archive.append(content, { name: filename });
+        }
+        
+        // Add manifest file
+        const manifest = {
+            export_date: new Date().toISOString(),
+            total_documents: documents.length,
+            documents: documents.map(d => ({
+                order_id: d.order_id,
+                client: d.client_name,
+                type: d.document_type,
+                version: d.version,
+                created: d.created_at
+            }))
+        };
+        
+        archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
+        
+        await archive.finalize();
+        
+    } catch (error) {
+        console.error('Document export error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // ============ START COMMAND ============
 // ============ WARM WELCOME - DYNAMIC RESPONSES ============
-// ============ ROBUST START PAYLOAD PARSING ============
 bot.start(async (ctx) => {
     const client = await db.getClient(ctx.from.id);
     const startPayload = ctx.startPayload;
     
-    console.log('📥 Start payload received:', startPayload);
+    console.log('📥 Start command received from:', ctx.from.first_name, ctx.from.id);
     
-    // Check for referral (format: ref_CODE or ref_CODE_Name)
+    // Check if this is a referral link (format: ref_CODE or ref_CODE_Name)
     if (startPayload && startPayload.startsWith('ref_')) {
-        const payload = startPayload.substring(4); // Remove 'ref_'
+        const parts = startPayload.split('_');
         
-        // Check if there's an underscore (meaning name is included)
-        const underscoreIndex = payload.indexOf('_');
-        
-        if (underscoreIndex > 0) {
-            const referralCode = payload.substring(0, underscoreIndex);
-            const encodedName = payload.substring(underscoreIndex + 1);
-            const visitorName = decodeURIComponent(encodedName.replace(/%5F/g, '_'));
-            
-            console.log('📥 Referral with name:', { referralCode, visitorName });
+        if (parts.length >= 3) {
+            // Format: ref_CODE_Name
+            const referralCode = parts[1];
+            const visitorName = decodeURIComponent(parts.slice(2).join('_'));
             await handleReferralWithName(ctx, referralCode, visitorName);
             return;
         } else {
-            const referralCode = payload;
-            console.log('📥 Referral without name:', { referralCode });
+            // Format: ref_CODE
+            const referralCode = startPayload.replace('ref_', '');
             await handleReferralStart(ctx, referralCode);
             return;
         }
     }
     
-    // Name only (no referral)
-    if (startPayload) {
-        const visitorName = decodeURIComponent(startPayload);
-        console.log('📥 Name only payload:', visitorName);
-        
-        const telegramName = ctx.from.first_name || visitorName;
-        await handleNewClient(ctx, telegramName);
-        return;
+    // Get name from Telegram (or from payload if provided)
+    let telegramName = ctx.from.first_name || 'Valued Professional';
+    if (startPayload && !startPayload.startsWith('ref_')) {
+        telegramName = decodeURIComponent(startPayload);
     }
     
-    // No payload - normal start
-    const telegramName = ctx.from.first_name || 'Valued Professional';
-    console.log('📥 Normal start:', telegramName);
-    
+    // NEW CLIENT - Never interacted before
     if (!client) {
-        await handleNewClient(ctx, telegramName);
-    } else {
-        await handleReturningClient(ctx, client);
-    }
-});
-
-async function handleNewClient(ctx, name) {
-    const client = await db.getClient(ctx.from.id);
-    if (client) {
-        await handleReturningClient(ctx, client);
+        const newClient = await db.createClient(
+            ctx.from.id, 
+            ctx.from.username, 
+            telegramName,
+            ctx.from.last_name || ''
+        );
+        
+        // Generate dynamic welcome message
+        const welcomeMessage = getTimeBasedFirstTimeWelcome(telegramName);
+        
+        await ctx.reply(welcomeMessage, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "🎓 Student / Recent Graduate", callback_data: "category_student" }],
+                    [{ text: "💼 Professional (3+ years)", callback_data: "category_professional" }],
+                    [{ text: "🌱 Career Starter / Non-Working", callback_data: "category_nonworking" }],
+                    [{ text: "🔄 Returning Client", callback_data: "category_returning" }]
+                ]
+            }
+        });
+        
+        // Send persistent keyboard tip
+        await ctx.reply('💡 *Quick Tip:* Use the keyboard below for quick access!', {
+            parse_mode: 'Markdown',
+            reply_markup: mainMenuKeyboard
+        });
+        
+        // Log admin action
+        await db.logAdminAction({
+            admin_id: 'system',
+            action: 'warm_welcome',
+            details: `New client ${telegramName} joined`
+        });
+        
+        console.log('✅ New client welcome completed for:', telegramName);
         return;
     }
     
-    const newClient = await db.createClient(ctx.from.id, ctx.from.username, name, ctx.from.last_name || '');
-    const welcomeMessage = getTimeBasedFirstTimeWelcome(name);
-    
-    await ctx.reply(welcomeMessage, {
-        parse_mode: 'Markdown',
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: "🎓 Student / Recent Graduate", callback_data: "category_student" }],
-                [{ text: "💼 Professional (3+ years)", callback_data: "category_professional" }],
-                [{ text: "🌱 Career Starter / Non-Working", callback_data: "category_nonworking" }],
-                [{ text: "🔄 Returning Client", callback_data: "category_returning" }]
-            ]
-        }
-    });
-}
-
-async function handleReturningClient(ctx, client) {
-    const clientName = client.first_name || 'Friend';
+    // RETURNING CLIENT - Dynamic welcome back
+    const clientName = client.first_name || telegramName;
     const welcomeBackMessage = getTimeBasedReturningWelcome(clientName);
     
     await ctx.reply(welcomeBackMessage, {
@@ -6067,12 +6129,16 @@ async function handleReturningClient(ctx, client) {
             ]
         }
     });
-}
-    // ============ SEND PERSISTENT KEYBOARD FOR RETURNING CLIENTS ============
+    
+    // Send persistent keyboard tip for returning clients
     await ctx.reply('💡 *Quick Tip:* Use the keyboard below for quick access!', {
         parse_mode: 'Markdown',
         reply_markup: mainMenuKeyboard
     });
+    
+    console.log('✅ Returning client welcome completed for:', clientName);
+});
+
 // ============ HEALTH CHECK COMMAND (DeepSeek API status) ============
 bot.command('health', async (ctx) => {
     // Admin only

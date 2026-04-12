@@ -1345,6 +1345,262 @@ app.get('/api/deepseek-status', async (req, res) => {
         });
     }
 });
+// ============ DASHBOARD API ENDPOINTS ============
+
+// Get full statistics for dashboard
+app.get('/admin/full-stats', adminAuth, async (req, res) => {
+    try {
+        const orders = await db.getAllOrders();
+        const clients = await db.getAllClients();
+        const testimonials = await db.getAllTestimonials();
+        const errorReports = await db.getErrorReports ? await db.getErrorReports(null, 1000) : [];
+        
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        
+        // Calculate stats
+        const completedOrders = orders.filter(o => o.payment_status === 'completed');
+        const pendingOrders = orders.filter(o => o.payment_status === 'pending');
+        const activeClients = clients.filter(c => c.last_active && new Date(c.last_active) >= thirtyDaysAgo);
+        
+        const totalRevenue = completedOrders.reduce((sum, o) => {
+            return sum + parseInt(String(o.total_charge).replace(/[^0-9]/g, '') || 0);
+        }, 0);
+        
+        const monthlyOrders = orders.filter(o => new Date(o.created_at) >= firstDayOfMonth);
+        const monthlyRevenue = monthlyOrders.filter(o => o.payment_status === 'completed')
+            .reduce((sum, o) => sum + parseInt(String(o.total_charge).replace(/[^0-9]/g, '') || 0), 0);
+        
+        // CV Analytics
+        const cvOrders = orders.filter(o => o.service?.includes('cv') || o.service === 'legacy_cv');
+        let totalSkills = 0, totalProjects = 0, totalAchievements = 0, totalVolunteer = 0;
+        let totalLeadership = 0, totalCertifications = 0, totalLanguages = 0, totalReferees = 0;
+        
+        for (const order of cvOrders) {
+            const cv = order.cv_data || {};
+            totalSkills += (cv.skills?.technical?.length || 0) + (cv.skills?.soft?.length || 0) + (cv.skills?.tools?.length || 0);
+            totalProjects += cv.projects?.length || 0;
+            totalAchievements += cv.achievements?.length || 0;
+            totalVolunteer += cv.volunteer?.length || 0;
+            totalLeadership += cv.leadership?.length || 0;
+            totalCertifications += cv.certifications?.length || 0;
+            totalLanguages += cv.languages?.length || 0;
+            totalReferees += cv.referees?.length || 0;
+        }
+        
+        // Payment Analytics
+        const installments = await db.getAllInstallmentPlans ? await db.getAllInstallmentPlans() : [];
+        const payLater = await db.getAllPayLaterPlans ? await db.getAllPayLaterPlans() : [];
+        
+        res.json({
+            timestamp: new Date().toISOString(),
+            clients: {
+                total: clients.length,
+                active: activeClients.length
+            },
+            month: {
+                orders: monthlyOrders.length,
+                revenue: monthlyRevenue,
+                new_clients: clients.filter(c => new Date(c.created_at) >= firstDayOfMonth).length,
+                returning_clients: clients.filter(c => c.total_orders > 1).length,
+                avg_rating: testimonials.length > 0 ? 
+                    (testimonials.reduce((sum, t) => sum + (t.rating || 0), 0) / testimonials.length).toFixed(1) : 0,
+                most_requested: 'N/A',
+                most_requested_count: 0,
+                highest_revenue_service: 'N/A'
+            },
+            cv_analytics: {
+                total_cvs: cvOrders.length,
+                total_skills: totalSkills,
+                avg_skills_per_cv: cvOrders.length > 0 ? Math.round(totalSkills / cvOrders.length) : 0,
+                total_projects: totalProjects,
+                total_achievements: totalAchievements,
+                total_volunteer: totalVolunteer,
+                total_leadership: totalLeadership,
+                total_certifications: totalCertifications,
+                total_languages: totalLanguages,
+                total_referees: totalReferees
+            },
+            payment_analytics: {
+                installments: {
+                    active: installments.filter(i => i.status === 'active').length,
+                    completed: installments.filter(i => i.status === 'completed').length
+                },
+                pay_later: {
+                    active: payLater.filter(p => p.status === 'pending').length,
+                    overdue: payLater.filter(p => p.status === 'pending' && new Date(p.due_date) < new Date()).length
+                }
+            },
+            error_analytics: {
+                total_reports: errorReports.length,
+                pending: errorReports.filter(r => r.status === 'pending').length,
+                resolved: errorReports.filter(r => r.status === 'resolved').length,
+                resolution_rate: errorReports.length > 0 ? 
+                    ((errorReports.filter(r => r.status === 'resolved').length / errorReports.length) * 100).toFixed(1) : 0
+            },
+            testimonials: {
+                total: testimonials.length,
+                approved: testimonials.filter(t => t.approved).length,
+                pending: testimonials.filter(t => !t.approved).length,
+                average_rating: testimonials.length > 0 ?
+                    (testimonials.reduce((sum, t) => sum + (t.rating || 0), 0) / testimonials.length).toFixed(1) : 0
+            }
+        });
+    } catch (error) {
+        console.error('Full stats error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get payment stats
+app.get('/admin/payment-stats', adminAuth, async (req, res) => {
+    try {
+        const orders = await db.getAllOrders();
+        const installments = await db.getAllInstallmentPlans ? await db.getAllInstallmentPlans() : [];
+        const payLater = await db.getAllPayLaterPlans ? await db.getAllPayLaterPlans() : [];
+        
+        const pendingOrders = orders.filter(o => o.payment_status === 'pending');
+        const pendingAmount = pendingOrders.reduce((sum, o) => {
+            return sum + parseInt(String(o.total_charge).replace(/[^0-9]/g, '') || 0);
+        }, 0);
+        
+        res.json({
+            total_pending: pendingOrders.length,
+            total_pending_amount: pendingAmount,
+            installments_active: installments.filter(i => i.status === 'active').length,
+            pay_later_active: payLater.filter(p => p.status === 'pending').length,
+            pay_later_overdue: payLater.filter(p => p.status === 'pending' && new Date(p.due_date) < new Date()).length
+        });
+    } catch (error) {
+        console.error('Payment stats error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get installments list
+app.get('/admin/installments', adminAuth, async (req, res) => {
+    try {
+        const installments = await db.getAllInstallmentPlans ? await db.getAllInstallmentPlans() : [];
+        
+        const formatted = installments.map(inst => ({
+            order_id: inst.orderId,
+            client_name: inst.clientName,
+            current_installment: inst.current_installment,
+            paid_amount: inst.paid_amount,
+            remaining_amount: inst.remaining_amount,
+            next_due_date: inst.installments?.[inst.current_installment - 1]?.due_date,
+            status: inst.status,
+            days_overdue: inst.next_due_date ? 
+                Math.floor((new Date() - new Date(inst.next_due_date)) / (1000 * 60 * 60 * 24)) : 0
+        }));
+        
+        res.json(formatted);
+    } catch (error) {
+        console.error('Installments error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get pay later list
+app.get('/admin/pay-later', adminAuth, async (req, res) => {
+    try {
+        const payLater = await db.getAllPayLaterPlans ? await db.getAllPayLaterPlans() : [];
+        
+        const formatted = payLater.map(pl => ({
+            order_id: pl.orderId,
+            client_name: pl.clientName,
+            amount: pl.amount,
+            due_date: pl.due_date,
+            days_until_due: pl.due_date ? 
+                Math.ceil((new Date(pl.due_date) - new Date()) / (1000 * 60 * 60 * 24)) : 0,
+            status: pl.status
+        }));
+        
+        res.json(formatted);
+    } catch (error) {
+        console.error('Pay later error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get error reports list
+app.get('/admin/error-reports', adminAuth, async (req, res) => {
+    try {
+        const reports = await db.getErrorReports ? await db.getErrorReports(null, 100) : [];
+        
+        const formatted = await Promise.all(reports.map(async (r) => {
+            const client = await db.getClientById(r.client_id);
+            return {
+                id: r.id,
+                client_name: client?.first_name || 'Unknown',
+                description: r.description,
+                status: r.status,
+                created_at: r.created_at,
+                resolved_at: r.resolved_at,
+                file_id: r.file_id
+            };
+        }));
+        
+        res.json(formatted);
+    } catch (error) {
+        console.error('Error reports error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get single error report
+app.get('/admin/error-report/:id', adminAuth, async (req, res) => {
+    try {
+        const report = await db.getErrorReportById ? await db.getErrorReportById(req.params.id) : null;
+        if (!report) {
+            return res.status(404).json({ error: 'Report not found' });
+        }
+        
+        const client = await db.getClientById(report.client_id);
+        res.json({
+            ...report,
+            client_name: client?.first_name || 'Unknown'
+        });
+    } catch (error) {
+        console.error('Error report error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Resolve error report
+app.post('/admin/resolve-report/:id', adminAuth, async (req, res) => {
+    try {
+        await db.updateErrorReportStatus(req.params.id, 'resolved', req.body.notes || 'Issue resolved');
+        res.json({ success: true, message: 'Report resolved' });
+    } catch (error) {
+        console.error('Resolve report error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get single client
+app.get('/admin/client/:id', adminAuth, async (req, res) => {
+    try {
+        const client = await db.getClientById(req.params.id);
+        if (!client) {
+            return res.status(404).json({ error: 'Client not found' });
+        }
+        
+        const orders = await db.getClientOrders(client.id);
+        const totalSpent = orders.filter(o => o.payment_status === 'completed')
+            .reduce((sum, o) => sum + parseInt(String(o.total_charge).replace(/[^0-9]/g, '') || 0), 0);
+        
+        res.json({
+            ...client,
+            total_orders: orders.length,
+            total_spent: totalSpent
+        });
+    } catch (error) {
+        console.error('Client error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // ============ START EXPRESS SERVER (ONLY ONCE!) ============
 
@@ -5367,6 +5623,12 @@ bot.start(async (ctx) => {
             }
         });
         
+        // ============ SEND PERSISTENT KEYBOARD ============
+        await ctx.reply('💡 *Quick Tip:* Use the keyboard below to quickly start a new service!', {
+            parse_mode: 'Markdown',
+            reply_markup: mainMenuKeyboard
+        });
+        
         await db.logAdminAction({
             admin_id: 'system',
             action: 'warm_welcome',
@@ -5385,11 +5647,19 @@ bot.start(async (ctx) => {
         reply_markup: {
             inline_keyboard: [
                 [{ text: "📄 New CV", callback_data: "service_new_cv" }],
-                [{ text: "✏️ Update Existing CV", callback_data: "prefill_update" }],
+                [{ text: "📝 Editable CV", callback_data: "service_editable_cv" }],
                 [{ text: "💌 Cover Letter", callback_data: "service_cover_letter" }],
+                [{ text: "📎 Editable Cover Letter", callback_data: "service_editable_cover" }],
+                [{ text: "✏️ Update Existing CV", callback_data: "prefill_update" }],
                 [{ text: "🏢 Client Portal", callback_data: "portal_main" }]
             ]
         }
+    });
+    
+    // ============ SEND PERSISTENT KEYBOARD FOR RETURNING CLIENTS ============
+    await ctx.reply('💡 *Quick Tip:* Use the keyboard below for quick access!', {
+        parse_mode: 'Markdown',
+        reply_markup: mainMenuKeyboard
     });
 });
 
@@ -6228,6 +6498,59 @@ bot.command('reset', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     await db.endSession(client.id);
     await sendMarkdown(ctx, `🔄 *Session reset.* Type /start to begin fresh.`);
+});
+// ============ HANDLE PERSISTENT KEYBOARD BUTTONS ============
+bot.hears('📄 New CV', async (ctx) => {
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    session.data.service = 'new cv';
+    await handleServiceSelection(ctx, client, session, 'service_new');
+});
+
+bot.hears('📝 Editable CV', async (ctx) => {
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    session.data.service = 'editable cv';
+    await handleServiceSelection(ctx, client, session, 'service_editable');
+});
+
+bot.hears('💌 Cover Letter', async (ctx) => {
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    session.data.service = 'cover letter';
+    await handleServiceSelection(ctx, client, session, 'service_cover');
+});
+
+bot.hears('📎 Editable Cover Letter', async (ctx) => {
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    session.data.service = 'editable cover letter';
+    await handleServiceSelection(ctx, client, session, 'service_editable_cover');
+});
+
+bot.hears('✏️ Update CV', async (ctx) => {
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleIntelligentUpdate(ctx, client, session);
+});
+
+bot.hears('📎 Upload Draft', async (ctx) => {
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleBuildMethod(ctx, client, session, 'build_draft');
+});
+
+bot.hears('ℹ️ About', async (ctx) => {
+    await ctx.reply(`📄 *EasySuccor - Professional CVs*\n\nContact: +265 991 295 401\nWhatsApp: +265 881 193 707\n\n*Services:*\n• New CV - MK6,000 - MK10,000\n• Editable CV - MK8,000 - MK12,000\n• Cover Letter - MK5,000 - MK6,000\n• Editable Cover Letter - MK8,000\n• CV Update - MK3,000 - MK6,000`, { parse_mode: 'Markdown' });
+});
+
+bot.hears('📞 Contact', async (ctx) => {
+    await ctx.reply(`📞 *Contact*\n\nAirtel: 0991295401\nTNM: 0886928639\nWhatsApp: +265 881 193 707`, { parse_mode: 'Markdown' });
+});
+
+bot.hears('🏠 Portal', async (ctx) => {
+    const client = await getOrCreateClient(ctx);
+    await showClientPortal(ctx, client);
 });
 
 bot.help(async (ctx) => {

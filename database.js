@@ -991,6 +991,14 @@ module.exports = {
             );
         }
     },
+    getAllTestimonials: async () => {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM testimonials ORDER BY created_at DESC');
+        return result.rows;
+    } else {
+        return await db.all('SELECT * FROM testimonials ORDER BY created_at DESC');
+    }
+},
     
     // Installment functions
     getAllInstallmentPlans: async () => {

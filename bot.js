@@ -51,7 +51,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// ============ LANDING PAGE ROUTES ============
+// ============ Home Page ROUTES ============
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -1698,7 +1698,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n${'='.repeat(60)}`);
     console.log(`✅ EasySuccor Express Server Started`);
     console.log(`${'='.repeat(60)}`);
-    console.log(`🌐 Landing page:    http://0.0.0.0:${PORT}/`);
+    console.log(`🌐 Home Page:    http://0.0.0.0:${PORT}/`);
     console.log(`🔐 Admin panel:     http://0.0.0.0:${PORT}/admin`);
     console.log(`❤️  Health check:    http://0.0.0.0:${PORT}/health`);
     console.log(`🤖 DeepSeek status: http://0.0.0.0:${PORT}/api/deepseek-status`);
@@ -5812,14 +5812,14 @@ ${healthStatus.deepseek_response ? `📝 *Test:* ${healthStatus.deepseek_respons
     await ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
-// ============ SERVE INDEX.HTML (Landing Page) ============
+// ============ SERVE INDEX.HTML (Home Page) ============
 // This is already handled by express.static('public')
 // But add a command to get the URL
 bot.command('website', async (ctx) => {
-    const webhookUrl = process.env.WEBHOOK_URL || 'https://easysuccor-bot.onrender.com';
-    await sendMarkdown(ctx, `🌐 *EasySuccor Landing Page*
+    const webhookUrl = process.env.WEBHOOK_URL || 'https://easysuccor-bot-production.up.railway.app';
+    await sendMarkdown(ctx, `🌐 *EasySuccor Home Page*
 
-Visit our professional landing page:
+Visit our professional Home Page:
 ${webhookUrl}
 
 *What you'll find there:*
@@ -6352,10 +6352,14 @@ bot.command('view_version', async (ctx) => {
     await sendMarkdown(ctx, message);
 });
 
+// ============ UPDATED REFERRAL COMMAND - LINKS TO LANDING PAGE ============
 bot.command('referral', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const refInfo = await db.getReferralInfo(client.id);
-    const shareLink = `https://t.me/${ctx.botInfo.username}?start=ref_${refInfo.referral_code}`;
+    
+    // Link to landing page with referral code
+    const websiteUrl = process.env.WEBSITE_URL || 'https://easysuccor-bot-production.up.railway.app';
+    const shareLink = `${websiteUrl}?ref=${refInfo.referral_code}`;
     
     await sendMarkdown(ctx, `🎁 *REFERRAL PROGRAM*
 
@@ -6369,28 +6373,39 @@ bot.command('referral', async (ctx) => {
 📊 *YOUR STATISTICS*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+• Tier: ${getReferralTier(refInfo.completed_referrals)}
 • Total referrals: ${refInfo.total_referrals}
 • Completed: ${refInfo.completed_referrals}
 • Pending reward: MK${refInfo.pending_reward.toLocaleString()}
+• Available credit: MK${(refInfo.available_credit || 0).toLocaleString()}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💡 *HOW IT WORKS*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1️⃣ Share your unique link with friends
-2️⃣ Friend gets 10% off their first order
-3️⃣ You earn MK2,000 credit when they complete an order
-4️⃣ Use your credit on your next order!
+2️⃣ Friend visits our landing page
+3️⃣ They click "Start on Telegram" and get 10% off
+4️⃣ You earn MK2,000 credit when they complete an order
+5️⃣ Earn from THEIR referrals too (3 levels!)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📤 *SHARE NOW*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Tap and hold the link above to copy, then share on WhatsApp, Telegram, or Facebook!
+Copy the link above and share on WhatsApp, Facebook, or anywhere!
 
 Every referral brings you closer to a free CV! 🎉`);
 });
 
+// Helper function for referral tier
+function getReferralTier(count) {
+    if (count >= 50) return '👑 Diamond';
+    if (count >= 25) return '💎 Platinum';
+    if (count >= 10) return '🥇 Gold';
+    if (count >= 5) return '🥈 Silver';
+    return '🥉 Bronze';
+}
 bot.command('pay', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const session = await db.getActiveSession(client.id);
@@ -6879,7 +6894,7 @@ try {
     { command: 'referral', description: '🎁 Refer friends, earn credit' },
     { command: 'feedback', description: '⭐ Leave feedback' },
     { command: 'testimonials', description: '🌟 Read success stories' },
-    { command: 'website', description: '🌐 Visit our landing page' },
+    { command: 'website', description: '🌐 Visit our Home Page' },
     { command: 'report', description: '🐛 Report an issue' },
     { command: 'thankyou', description: '🙏 We appreciate you' },
     { command: 'hired', description: '🎉 Report you got hired!' },
@@ -6911,7 +6926,7 @@ async function refreshBotCommands() {
         { command: 'referral', description: '🎁 Refer friends, earn credit' },
         { command: 'feedback', description: '⭐ Leave feedback' },
         { command: 'testimonials', description: '🌟 Read success stories' },
-        { command: 'website', description: '🌐 Visit our landing page' },
+        { command: 'website', description: '🌐 Visit our Home Page' },
         { command: 'report', description: '🐛 Report an issue' },
         { command: 'thankyou', description: '🙏 We appreciate you' },
         { command: 'help', description: '🆘 Get help' },
@@ -6975,7 +6990,7 @@ async function refreshBotCommands() {
     console.log('║  ✅ Clickable buttons for all user choices                     ║');
     console.log('║  ✅ MO626 payment method added                                 ║');
     console.log('║  ✅ Health check endpoint: /health                             ║');
-    console.log('║  ✅ Landing page: / (index.html)                               ║');
+    console.log('║  ✅ Home Page: / (index.html)                               ║');
     console.log('║  ✅ Admin panel: /admin.html                                   ║');
     console.log('║  ✅ 18+ CV categories fully supported                          ║');
     console.log('║  ✅ Admin full control (delete, clear, price update)           ║');

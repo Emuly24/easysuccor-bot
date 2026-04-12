@@ -915,119 +915,135 @@
             uploadBtn.textContent = '📤 Upload Files';
             if (successCount > 0) document.getElementById('clearCoverBtn').click();
         };
+ // Dashboard functions
+async function loadDashboard() {
+    const apiKey = document.getElementById('dashboardApiKey').value;
+    if (!apiKey) {
+        document.getElementById('dashboardContent').innerHTML = '<div class="loading">⚠️ Please enter your Admin API Key</div>';
+        return;
+    }
+    document.getElementById('dashboardContent').innerHTML = '<div class="loading">🔄 Loading dashboard data...</div>';
+    
+    try {
+        const statsRes = await fetch(`${getServerUrl()}/admin/full-stats`, { 
+            headers: { 'x-admin-key': apiKey } 
+        });
+        const stats = await statsRes.json();
+        if (!statsRes.ok) throw new Error(stats.error || 'Failed to load stats');
         
-        // Dashboard functions
-        async function loadDashboard() {
-            const apiKey = document.getElementById('dashboardApiKey').value;
-            if (!apiKey) {
-                document.getElementById('dashboardContent').innerHTML = '<div class="loading">⚠️ Please enter your Admin API Key</div>';
-                return;
-            }
-            document.getElementById('dashboardContent').innerHTML = '<div class="loading">🔄 Loading dashboard data...</div>';
-            
-            try {
-                const statsRes = await fetch(`${getServerUrl()}/admin/full-stats`, { 
-                    headers: { 'x-admin-key': apiKey } 
-                });
-                const stats = await statsRes.json();
-                if (!statsRes.ok) throw new Error(stats.error || 'Failed to load stats');
-                
-                const ordersRes = await fetch(`${getServerUrl()}/admin/orders?limit=50`, { 
-                    headers: { 'x-admin-key': apiKey } 
-                });
-                const orders = await ordersRes.json();
-                
-                const clientsRes = await fetch(`${getServerUrl()}/admin/clients?limit=50`, { 
-                    headers: { 'x-admin-key': apiKey } 
-                });
-                const clients = await clientsRes.json();
-                
-                renderDashboard(stats, orders, clients);
-            } catch (error) {
-                document.getElementById('dashboardContent').innerHTML = `<div class="loading error">❌ Error: ${error.message}</div>`;
-            }
-        }
+        const ordersRes = await fetch(`${getServerUrl()}/admin/orders?limit=50`, { 
+            headers: { 'x-admin-key': apiKey } 
+        });
+        const ordersData = await ordersRes.json();
         
-        function renderDashboard(stats, orders, clients) {
-            const cv = stats.cv_analytics || {};
-            const payments = stats.payment_analytics || {};
-            const month = stats.month || {};
-            
-            let html = `
-                <div class="stats-grid">
-                    <div class="stat-card"><div class="stat-number">${stats.clients?.total || 0}</div><div class="stat-label">Total Clients</div></div>
-                    <div class="stat-card"><div class="stat-number">${stats.month?.orders || 0}</div><div class="stat-label">Orders (Month)</div></div>
-                    <div class="stat-card"><div class="stat-number">${stats.clients?.active || 0}</div><div class="stat-label">Active (30d)</div></div>
-                    <div class="stat-card"><div class="stat-number">MK${(stats.month?.revenue || 0).toLocaleString()}</div><div class="stat-label">Revenue (Month)</div></div>
-                    <div class="stat-card small"><div class="stat-number">${stats.month?.avg_rating || 0}★</div><div class="stat-label">Avg Rating</div></div>
-                </div>
-                
-                <h2>📊 18+ Categories Analytics</h2>
-                <div class="category-grid">
-                    <div class="category-card"><div class="category-title">📄 Total CVs</div><div class="category-value">${cv.total_cvs || 0}</div></div>
-                    <div class="category-card"><div class="category-title">⚡ Total Skills</div><div class="category-value">${cv.total_skills || 0}</div></div>
-                    <div class="category-card"><div class="category-title">📊 Avg Skills/CV</div><div class="category-value">${cv.avg_skills_per_cv || 0}</div></div>
-                    <div class="category-card"><div class="category-title">📁 Projects</div><div class="category-value">${cv.total_projects || 0}</div></div>
-                    <div class="category-card"><div class="category-title">🏆 Achievements</div><div class="category-value">${cv.total_achievements || 0}</div></div>
-                    <div class="category-card"><div class="category-title">🤝 Volunteer</div><div class="category-value">${cv.total_volunteer || 0}</div></div>
-                    <div class="category-card"><div class="category-title">👑 Leadership</div><div class="category-value">${cv.total_leadership || 0}</div></div>
-                    <div class="category-card"><div class="category-title">📜 Certifications</div><div class="category-value">${cv.total_certifications || 0}</div></div>
-                    <div class="category-card"><div class="category-title">🌐 Languages</div><div class="category-value">${cv.total_languages || 0}</div></div>
-                    <div class="category-card"><div class="category-title">👥 Referees</div><div class="category-value">${cv.total_referees || 0}</div></div>
-                </div>
-                
-                <h2>💳 Payment Analytics</h2>
-                <div class="summary-row">
-                    <div class="summary-item"><strong>Installments Active:</strong> ${payments.installments?.active || 0}</div>
-                    <div class="summary-item"><strong>Installments Done:</strong> ${payments.installments?.completed || 0}</div>
-                    <div class="summary-item"><strong>Pay Later Active:</strong> ${payments.pay_later?.active || 0}</div>
-                    <div class="summary-item"><strong>Pay Later Overdue:</strong> ${payments.pay_later?.overdue || 0}</div>
-                </div>
-                
-                <h2>📋 Recent Orders</h2>
-                <div class="table-container"><table><thead><tr>
-                    <th>Order ID</th><th>Service</th><th>Payment Type</th><th>Status</th><th>Payment</th><th>CV Data</th><th>Total</th><th>Date</th><th>Action</th>
-                </tr></thead><tbody>`;
-                
-            for (const order of orders.slice(0, 30)) {
-                const paymentType = order.payment_type || 'standard';
-                const cvDataStatus = order.cv_data ? '✅' : '❌';
-                html += `<tr>
-                    <td><code>${order.id?.slice(-8) || ''}</code></td>
-                    <td>${order.service || '-'}</td>
-                    <td><span class="badge info">${paymentType}</span></td>
-                    <td>${order.status || '-'}</td>
-                    <td>${order.payment_status || '-'}</td>
-                    <td>${cvDataStatus}</td>
-                    <td>${order.total_charge || '-'}</td>
-                    <td>${new Date(order.created_at).toLocaleDateString()}</td>
-                    <td><a class="view-link" onclick="viewOrder('${order.id}')">View</a></td>
-                </tr>`;
-            }
-            html += `</tbody></table></div>
-                
-                <h2>👥 Recent Clients</h2>
-                <div class="table-container"><table><thead><tr>
-                    <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Orders</th><th>Referrals</th><th>Joined</th>
-                </tr></thead><tbody>`;
-                
-            for (const client of clients.slice(0, 30)) {
-                html += `<tr>
-                    <td>${client.id?.slice(-6) || ''}</td>
-                    <td>${client.first_name || ''} ${client.last_name || ''}</td>
-                    <td>${client.email || '-'}</td>
-                    <td>${client.phone || '-'}</td>
-                    <td>${client.total_orders || 0}</td>
-                    <td>${client.referral_count || 0}</td>
-                    <td>${new Date(client.created_at).toLocaleDateString()}</td>
-                </tr>`;
-            }
-            html += `</tbody></table></div>`;
-            
-            document.getElementById('dashboardContent').innerHTML = html;
-        }
+        const clientsRes = await fetch(`${getServerUrl()}/admin/clients?limit=50`, { 
+            headers: { 'x-admin-key': apiKey } 
+        });
+        const clientsData = await clientsRes.json();
         
-        // Payments dashboard
+        // Extract arrays from response
+        const orders = ordersData.orders || ordersData || [];
+        const clients = clientsData.clients || clientsData || [];
+        
+        renderDashboard(stats, orders, clients);
+    } catch (error) {
+        document.getElementById('dashboardContent').innerHTML = `<div class="loading error">❌ Error: ${error.message}</div>`;
+    }
+}
+
+function renderDashboard(stats, orders, clients) {
+    // SAFETY CHECK - Ensure orders and clients are arrays
+    if (!orders || !Array.isArray(orders)) {
+        console.error('❌ Orders is not an array:', orders);
+        orders = [];
+    }
+    if (!clients || !Array.isArray(clients)) {
+        console.error('❌ Clients is not an array:', clients);
+        clients = [];
+    }
+    
+    const cv = stats.cv_analytics || {};
+    const payments = stats.payment_analytics || {};
+    const month = stats.month || {};
+    
+    let html = `
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-number">${stats.clients?.total || 0}</div><div class="stat-label">Total Clients</div></div>
+            <div class="stat-card"><div class="stat-number">${stats.month?.orders || 0}</div><div class="stat-label">Orders (Month)</div></div>
+            <div class="stat-card"><div class="stat-number">${stats.clients?.active || 0}</div><div class="stat-label">Active (30d)</div></div>
+            <div class="stat-card"><div class="stat-number">MK${(stats.month?.revenue || 0).toLocaleString()}</div><div class="stat-label">Revenue (Month)</div></div>
+            <div class="stat-card small"><div class="stat-number">${stats.month?.avg_rating || 0}★</div><div class="stat-label">Avg Rating</div></div>
+        </div>
+        
+        <h2>📊 18+ Categories Analytics</h2>
+        <div class="category-grid">
+            <div class="category-card"><div class="category-title">📄 Total CVs</div><div class="category-value">${cv.total_cvs || 0}</div></div>
+            <div class="category-card"><div class="category-title">⚡ Total Skills</div><div class="category-value">${cv.total_skills || 0}</div></div>
+            <div class="category-card"><div class="category-title">📊 Avg Skills/CV</div><div class="category-value">${cv.avg_skills_per_cv || 0}</div></div>
+            <div class="category-card"><div class="category-title">📁 Projects</div><div class="category-value">${cv.total_projects || 0}</div></div>
+            <div class="category-card"><div class="category-title">🏆 Achievements</div><div class="category-value">${cv.total_achievements || 0}</div></div>
+            <div class="category-card"><div class="category-title">🤝 Volunteer</div><div class="category-value">${cv.total_volunteer || 0}</div></div>
+            <div class="category-card"><div class="category-title">👑 Leadership</div><div class="category-value">${cv.total_leadership || 0}</div></div>
+            <div class="category-card"><div class="category-title">📜 Certifications</div><div class="category-value">${cv.total_certifications || 0}</div></div>
+            <div class="category-card"><div class="category-title">🌐 Languages</div><div class="category-value">${cv.total_languages || 0}</div></div>
+            <div class="category-card"><div class="category-title">👥 Referees</div><div class="category-value">${cv.total_referees || 0}</div></div>
+        </div>
+        
+        <h2>💳 Payment Analytics</h2>
+        <div class="summary-row">
+            <div class="summary-item"><strong>Installments Active:</strong> ${payments.installments?.active || 0}</div>
+            <div class="summary-item"><strong>Installments Done:</strong> ${payments.installments?.completed || 0}</div>
+            <div class="summary-item"><strong>Pay Later Active:</strong> ${payments.pay_later?.active || 0}</div>
+            <div class="summary-item"><strong>Pay Later Overdue:</strong> ${payments.pay_later?.overdue || 0}</div>
+        </div>
+        
+        <h2>📋 Recent Orders</h2>
+        <div class="table-container"><table><thead><tr>
+            <th>Order ID</th><th>Service</th><th>Payment Type</th><th>Status</th><th>Payment</th><th>CV Data</th><th>Total</th><th>Date</th><th>Action</th>
+        </tr></thead><tbody>`;
+    
+    // Now safe to use .slice()
+    for (const order of orders.slice(0, 30)) {
+        const paymentType = order.payment_type || 'standard';
+        const cvDataStatus = order.cv_data ? '✅' : '❌';
+        html += `<tr>
+            <td><code>${order.id?.slice(-8) || ''}</code></td>
+            <td>${order.service || '-'}</td>
+            <td><span class="badge info">${paymentType}</span></td>
+            <td>${order.status || '-'}</td>
+            <td>${order.payment_status || '-'}</td>
+            <td>${cvDataStatus}</td>
+            <td>${order.total_charge || '-'}</td>
+            <td>${new Date(order.created_at).toLocaleDateString()}</td>
+            <td><a class="view-link" onclick="viewOrder('${order.id}')">View</a></td>
+        </tr>`;
+    }
+    
+    html += `</tbody></table></div>
+        
+        <h2>👥 Recent Clients</h2>
+        <div class="table-container"><table><thead><tr>
+            <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Orders</th><th>Referrals</th><th>Joined</th>
+        </tr></thead><tbody>`;
+        
+    for (const client of clients.slice(0, 30)) {
+        html += `<tr>
+            <td>${client.id?.slice(-6) || ''}</td>
+            <td>${client.first_name || ''} ${client.last_name || ''}</td>
+            <td>${client.email || '-'}</td>
+            <td>${client.phone || '-'}</td>
+            <td>${client.total_orders || 0}</td>
+            <td>${client.referral_count || 0}</td>
+            <td>${new Date(client.created_at).toLocaleDateString()}</td>
+        </tr>`;
+    }
+    
+    html += `</tbody></table></div>`;
+    
+    document.getElementById('dashboardContent').innerHTML = html;
+}
+
+// Payments dashboard
         async function loadPayments() {
             const apiKey = document.getElementById('paymentsApiKey').value;
             if (!apiKey) {

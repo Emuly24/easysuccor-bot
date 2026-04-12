@@ -6691,7 +6691,7 @@ Email: ${process.env.EMAIL_USER}
 🌐 *WEBSITE*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${process.env.WEBHOOK_URL || 'https://easysuccor-bot.onrender.com'}
+${process.env.WEBHOOK_URL || 'https://easysuccor-bot-production.up.railway.app'}
 
 We're here to help! 💙`);
 });

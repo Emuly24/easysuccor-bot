@@ -612,49 +612,51 @@
         }
 
         .faq-item {
-            border-bottom: 1px solid rgba(138, 79, 255, 0.2);
-            margin-bottom: 10px;
-        }
+    border-bottom: 1px solid rgba(138, 79, 255, 0.2);
+    margin-bottom: 10px;
+}
 
-        .faq-question {
-            padding: 18px 15px;
-            font-weight: 700;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: #1f2937;
-            transition: all 0.3s ease;
-            border-radius: 12px;
-        }
+.faq-question {
+    padding: 18px 15px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #1f2937;
+    transition: all 0.3s ease;
+    border-radius: 12px;
+}
 
-        .faq-question:hover {
-            background: rgba(138, 79, 255, 0.1);
-        }
+.faq-question:hover {
+    background: rgba(138, 79, 255, 0.1);
+}
 
-        .faq-answer {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.4s ease-out, padding 0.3s ease;
-            padding: 0 15px;
-            color: #4a4a6e;
-            line-height: 1.7;
-        }
+.faq-answer {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease-out, padding 0.3s ease;
+    padding: 0 15px;
+    color: #4a4a6e;
+    line-height: 1.7;
+}
 
-        .faq-item .faq-answer {
-            max-height: 500px;
-            padding: 0 15px 20px 15px;
-        }
+/* ONLY when the parent has .open class */
+.faq-item.open .faq-answer {
+    max-height: 500px;
+    padding: 0 15px 20px 15px;
+}
 
-        .faq-icon {
-            font-size: 18px;
-            transition: transform 0.3s ease;
-            color: #8A4FFF;
-        }
+.faq-icon {
+    font-size: 18px;
+    transition: transform 0.3s ease;
+    color: #8A4FFF;
+}
 
-        .faq-item .faq-icon {
-            transform: rotate(180deg);
-        }
+/* ONLY when the parent has .open class */
+.faq-item.open .faq-icon {
+    transform: rotate(180deg);
+}
 
         .features-grid {
             display: grid;
@@ -1594,16 +1596,16 @@
 </div>
 
    <!-- Hire Reporting Banner - Subtle but Visible -->
-<div style="background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; margin: 30px 0; box-shadow: 0 8px 25px rgba(0, 196, 204, 0.2); border: 2px solid #00C4CC;">
+<div style="background: rgb(255, 255, 255); backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; margin: 30px 0; box-shadow: 0 8px 25px rgba(0, 196, 204, 0.2); border: 2px solid #00C4CC;">
     <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
         <div style="font-size: 56px;">🎉</div>
         <div style="flex: 1;">
-            <h3 style="color: #00C4CC; margin-bottom: 10px; font-size: 22px; font-weight: 700;">Got Hired? Let Us Celebrate With You!</h3>
+            <h3 style="color: #eeebf1; margin-bottom: 10px; font-size: 22px; font-weight: 700;">Got Hired? Let Us Celebrate With You!</h3>
             <p style="color: #4a4a6e; margin-bottom: 15px; font-size: 15px; line-height: 1.6;">Your success story inspires others. If you landed a job using our CV or cover letter, let us know!</p>
             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
-                <span style="background: rgba(0, 196, 204, 0.15); padding: 8px 16px; border-radius: 30px; font-size: 13px; font-weight: 600; color: #00C4CC; border: 1px solid rgba(0, 196, 204, 0.3);">🏆 Step 1: Land the job</span>
-                <span style="background: #8A4FFF; padding: 8px 16px; border-radius: 30px; font-size: 13px; font-weight: 700; color: white; box-shadow: 0 2px 8px rgba(138, 79, 255, 0.3);">💬 Step 2: Type /hired</span>
-                <span style="background: rgba(0, 196, 204, 0.15); padding: 8px 16px; border-radius: 30px; font-size: 13px; font-weight: 600; color: #00C4CC; border: 1px solid rgba(0, 196, 204, 0.3);">🌟 Step 3: Inspire others</span>
+                <span style="background: rgba(158, 234, 236, 0.15); padding: 8px 16px; border-radius: 30px; font-size: 13px; font-weight: 600; color: #00C4CC; border: 1px solid rgba(0, 196, 204, 0.3);">🏆 Step 1: Land the job</span>
+                <span style="background: #636364; padding: 8px 16px; border-radius: 30px; font-size: 13px; font-weight: 700; color: white; box-shadow: 0 2px 8px rgba(138, 79, 255, 0.3);">💬 Step 2: Type /hired</span>
+                <span style="background: rgba(0, 233, 241, 0.15); padding: 8px 16px; border-radius: 30px; font-size: 13px; font-weight: 600; color: #00C4CC; border: 1px solid rgba(0, 196, 204, 0.3);">🌟 Step 3: Inspire others</span>
             </div>
             <p style="color: #5a5a6e; font-size: 14px;">
                 Use <code style="background: rgba(138, 79, 255, 0.15); padding: 4px 10px; border-radius: 8px; font-weight: 700; color: #8A4FFF;">/hired</code> in the Telegram bot to share your achievement!

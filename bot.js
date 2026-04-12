@@ -59,6 +59,9 @@ app.get('/', (req, res) => {
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
 
 // ============ API STATUS ROUTE ============
 app.get('/api/status', (req, res) => {
@@ -6357,23 +6360,22 @@ bot.command('referral', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const refInfo = await db.getReferralInfo(client.id);
     
-    // Link to landing page with referral code
     const websiteUrl = process.env.WEBSITE_URL || 'https://easysuccor-bot-production.up.railway.app';
     const shareLink = `${websiteUrl}?ref=${refInfo.referral_code}`;
     
-    await sendMarkdown(ctx, `🎁 *REFERRAL PROGRAM*
+    const message = `🎁 <b>REFERRAL PROGRAM</b>
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 *YOUR REFERRAL LINK*
+📋 <b>YOUR REFERRAL LINK</b>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-*Your code:* \`${refInfo.referral_code}\`
+<b>Your code:</b> <code>${refInfo.referral_code}</code>
 
-🔗 *Share this link:*
-${shareLink}
+🔗 <b>Share this link:</b>
+<a href="${shareLink}">${shareLink}</a>
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 *YOUR STATISTICS*
+📊 <b>YOUR STATISTICS</b>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 • Tier: ${getReferralTier(refInfo.completed_referrals)}
@@ -6383,21 +6385,14 @@ ${shareLink}
 • Available credit: MK${(refInfo.available_credit || 0).toLocaleString()}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💡 *HOW IT WORKS*
+📤 <b>SHARE NOW</b>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1️⃣ Share your unique link with friends
-2️⃣ Friend visits our landing page and sees 10% off
-3️⃣ They click "Start on Telegram"
-4️⃣ You earn MK2,000 when they complete their first order
+Tap the link above to copy and share!
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📤 *SHARE NOW*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Every referral brings you closer to a free CV! 🎉`;
 
-Tap the link above to copy and share on WhatsApp, Facebook, or anywhere!
-
-Every referral brings you closer to a free CV! 🎉`);
+    await ctx.replyWithHTML(message);
 });
 
 // Helper function for referral tier

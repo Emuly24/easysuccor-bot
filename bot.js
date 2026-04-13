@@ -7233,13 +7233,18 @@ async function startBot() {
         process.exit(1);
     }
     
-    // ============ LOAD TESTIMONIALS CACHE ============
+// ============ LOAD TESTIMONIALS CACHE ============
+async function loadTestimonialsCache() {
     try {
-        await loadTestimonialsCache();
-        console.log('✅ Testimonials cache loaded');
-    } catch (testError) {
-        console.log('⚠️ Could not load testimonials:', testError.message);
+        const testimonials = await db.getAllTestimonials();
+        const approved = testimonials.filter(t => t.approved);
+        console.log(`✅ Loaded ${approved.length} approved testimonials`);
+        return approved;
+    } catch (error) {
+        console.log('⚠️ Could not load testimonials:', error.message);
+        return [];
     }
+}
     
     // ============ VERIFY DEEPSEEK API CONNECTION ============
     console.log('🔍 Verifying DeepSeek API connection...');

@@ -12,12 +12,12 @@ const axios = require('axios');
 const express = require('express');  // ← ONLY ONCE!
 const multer = require('multer');
 const db = require('./database');
+const InstallmentTracker = require('./installment-tracker');
+const ReferralTracker = require('./referral-tracker');
 const payment = require('./payment');
 const notificationService = require('./notification-service');
 const documentGenerator = require('./document-generator');
 const aiAnalyzer = require('./ai-analyzer');
-const InstallmentTracker = require('./installment-tracker');
-const ReferralTracker = require('./referral-tracker');
 const intelligentUpdate = require('./intelligent-update');
 
 dotenv.config();
@@ -671,10 +671,6 @@ app.get('/admin/imports-summary', adminAuth, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
-// ============ INITIALIZE TRACKERS ============
-const installmentTracker = new InstallmentTracker(bot);
-const referralTracker = new ReferralTracker(bot);
 
 // ============ CLIENT MANAGEMENT ENDPOINTS ============
 
@@ -1662,6 +1658,10 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 // ============ TELEGRAM BOT ============
 const bot = new Telegraf(process.env.BOT_TOKEN);
+
+// ============ INITIALIZE TRACKERS  ============
+const installmentTracker = new InstallmentTracker(bot);
+const referralTracker = new ReferralTracker(bot);
 
 // ============ HELPER FOR MARKDOWN ============
 async function sendMarkdown(ctx, message, extra = {}) {

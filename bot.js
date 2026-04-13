@@ -672,6 +672,10 @@ app.get('/admin/imports-summary', adminAuth, async (req, res) => {
     }
 });
 
+// ============ INITIALIZE TRACKERS ============
+const installmentTracker = new InstallmentTracker(bot);
+const referralTracker = new ReferralTracker(bot);
+
 // ============ CLIENT MANAGEMENT ENDPOINTS ============
 
 // Delete client and all associated data
@@ -1456,77 +1460,6 @@ app.get('/admin/full-stats', adminAuth, async (req, res) => {
     }
 });
 
-// Get payment stats
-app.get('/admin/payment-stats', adminAuth, async (req, res) => {
-    try {
-        const orders = await db.getAllOrders();
-        const installments = await db.getAllInstallmentPlans ? await db.getAllInstallmentPlans() : [];
-        const payLater = await db.getAllPayLaterPlans ? await db.getAllPayLaterPlans() : [];
-        
-        const pendingOrders = orders.filter(o => o.payment_status === 'pending');
-        const pendingAmount = pendingOrders.reduce((sum, o) => {
-            return sum + parseInt(String(o.total_charge).replace(/[^0-9]/g, '') || 0);
-        }, 0);
-        
-        res.json({
-            total_pending: pendingOrders.length,
-            total_pending_amount: pendingAmount,
-            installments_active: installments.filter(i => i.status === 'active').length,
-            pay_later_active: payLater.filter(p => p.status === 'pending').length,
-            pay_later_overdue: payLater.filter(p => p.status === 'pending' && new Date(p.due_date) < new Date()).length
-        });
-    } catch (error) {
-        console.error('Payment stats error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get installments list
-app.get('/admin/installments', adminAuth, async (req, res) => {
-    try {
-        const installments = await db.getAllInstallmentPlans ? await db.getAllInstallmentPlans() : [];
-        
-        const formatted = installments.map(inst => ({
-            order_id: inst.orderId,
-            client_name: inst.clientName,
-            current_installment: inst.current_installment,
-            paid_amount: inst.paid_amount,
-            remaining_amount: inst.remaining_amount,
-            next_due_date: inst.installments?.[inst.current_installment - 1]?.due_date,
-            status: inst.status,
-            days_overdue: inst.next_due_date ? 
-                Math.floor((new Date() - new Date(inst.next_due_date)) / (1000 * 60 * 60 * 24)) : 0
-        }));
-        
-        res.json(formatted);
-    } catch (error) {
-        console.error('Installments error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get pay later list
-app.get('/admin/pay-later', adminAuth, async (req, res) => {
-    try {
-        const payLater = await db.getAllPayLaterPlans ? await db.getAllPayLaterPlans() : [];
-        
-        const formatted = payLater.map(pl => ({
-            order_id: pl.orderId,
-            client_name: pl.clientName,
-            amount: pl.amount,
-            due_date: pl.due_date,
-            days_until_due: pl.due_date ? 
-                Math.ceil((new Date(pl.due_date) - new Date()) / (1000 * 60 * 60 * 24)) : 0,
-            status: pl.status
-        }));
-        
-        res.json(formatted);
-    } catch (error) {
-        console.error('Pay later error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
 // Get error reports list
 app.get('/admin/error-reports', adminAuth, async (req, res) => {
     try {
@@ -1565,8 +1498,6 @@ app.get('/admin/error-report/:id', adminAuth, async (req, res) => {
             ...report,
             client_name: client?.first_name || 'Unknown'
         });
-        const template = ADDITIONAL_TEMPLATES.error_report.received(client.first_name || 'Friend', fileId.slice(0, 8));
-await ctx.reply(template, { parse_mode: 'Markdown' });
     } catch (error) {
         console.error('Error report error:', error);
         res.status(500).json({ error: error.message });
@@ -1577,9 +1508,21 @@ await ctx.reply(template, { parse_mode: 'Markdown' });
 app.post('/admin/resolve-report/:id', adminAuth, async (req, res) => {
     try {
         await db.updateErrorReportStatus(req.params.id, 'resolved', req.body.notes || 'Issue resolved');
+        
+        // Get report and client to send notification
+        const report = await db.getErrorReportById(req.params.id);
+        if (report) {
+            const client = await db.getClientById(report.client_id);
+            if (client && client.telegram_id) {
+                const template = ADDITIONAL_TEMPLATES.error_report.resolved(
+                    client.first_name || 'Friend', 
+                    report.file_id?.slice(0, 8) || report.id
+                );
+                await bot.telegram.sendMessage(client.telegram_id, template, { parse_mode: 'Markdown' });
+            }
+        }
+        
         res.json({ success: true, message: 'Report resolved' });
-        const template = ADDITIONAL_TEMPLATES.error_report.resolved(client.first_name || 'Friend', report.file_id.slice(0, 8));
-await bot.telegram.sendMessage(client.telegram_id, template, { parse_mode: 'Markdown' });
     } catch (error) {
         console.error('Resolve report error:', error);
         res.status(500).json({ error: error.message });
@@ -2460,31 +2403,34 @@ Thank you for choosing EasySuccor! 🙏`
     }
 };
 
-// ============ DYNAMIC THANK YOU RESPONSES ============
+/// ============ DYNAMIC THANK YOU RESPONSES ============
 const THANK_YOU_RESPONSES = [
     (name) => `🙏 *Our pleasure, ${name}.* Serving dedicated professionals like you is why we do what we do.`,
     (name) => `🤝 *The honor is ours, ${name}.* Thank you for trusting EasySuccor with your career journey.`,
     (name) => `✨ *You're most welcome, ${name}.* Your success is our greatest reward.`,
     (name) => `💫 *Thank YOU, ${name}.* Clients like you inspire excellence.`,
     (name) => `🌟 *Our privilege, ${name}.* Wishing you continued success.`
-`━━━━━━━━━━━━━━━━━━━━━━━━━━━
+];
+
+// ============ THANK YOU COMMAND WITH SEPARATE HIRE REMINDER ============
+bot.command('thankyou', async (ctx) => {
+    const client = await db.getClient(ctx.from.id);
+    const name = client?.first_name || 'Friend';
+    const response = THANK_YOU_RESPONSES[Math.floor(Math.random() * THANK_YOU_RESPONSES.length)](name);
+    
+    // Send thank you message
+    await ctx.reply(response, { parse_mode: 'Markdown' });
+    
+    // Send hire reminder as a follow-up
+    await ctx.reply(`━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🌟 *WHEN YOU LAND THE JOB*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 We'd love to celebrate with you! 
 Type /hired to share your success story.
 
-Your achievement inspires others!`
-];
-
-// ============ THANK YOU COMMAND ============
-bot.command('thankyou', async (ctx) => {
-    const client = await db.getClient(ctx.from.id);
-    const name = client?.first_name || 'Friend';
-    const response = THANK_YOU_RESPONSES[Math.floor(Math.random() * THANK_YOU_RESPONSES.length)](name);
-    await ctx.reply(response, { parse_mode: 'Markdown' });
+Your achievement inspires others!`, { parse_mode: 'Markdown' });
 });
-
 // ============ HIRED COMMAND - Client Reports Job Success ============
 bot.command('hired', async (ctx) => {
     const client = await db.getClient(ctx.from.id);
@@ -2728,15 +2674,6 @@ function getEncouragement(type, value, name = '') {
     if (type === 'final') return getRandomEncouragement('final', value);
     if (type === 'start') return getRandomEncouragement('start', value);
     return getReaction();
-}
-
-function random(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function getQuestion(type) { return random(RESPONSES.questions[type]); }
-function getReaction() { return random([...RESPONSES.reactions.positive, ...RESPONSES.reactions.funny]); }
-function getEncouragement(type, value) { 
-    if (type === 'progress') return random(RESPONSES.encouragements.progress)(value);
-    if (type === 'sectionComplete') return random(RESPONSES.encouragements.sectionComplete)(value);
-    return random(RESPONSES.encouragements[type]);
 }
 
 // ============ SAFE CV DATA ACCESS HELPER (UPDATED - 18+ CATEGORIES) ============
@@ -5983,6 +5920,82 @@ Need help? Type /help anytime.`;
 
     await sendMarkdown(ctx, message);
 }
+
+// ============ MISSING HELPER FUNCTIONS ============
+async function showPaymentOptions(ctx, orderId, total, reference) {
+    const message = RESPONSES.payment.payment_options(reference, total);
+    await ctx.reply(message, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "📱 Mobile Money", callback_data: `pay_mobile_${orderId}` }],
+                [{ text: "🏦 Bank Transfer", callback_data: `pay_bank_${orderId}` }],
+                [{ text: "⏳ Pay Later", callback_data: `pay_later_${orderId}` }],
+                [{ text: "📅 Installments", callback_data: `pay_installment_${orderId}` }]
+            ]
+        }
+    });
+}
+
+async function collectFeedback(ctx, client, orderId) {
+    await ctx.reply(`⭐ *Share Your Experience*\n\nHow would you rate our service?`, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    { text: "1", callback_data: `feedback_${orderId}_1` },
+                    { text: "2", callback_data: `feedback_${orderId}_2` },
+                    { text: "3", callback_data: `feedback_${orderId}_3` },
+                    { text: "4", callback_data: `feedback_${orderId}_4` },
+                    { text: "5", callback_data: `feedback_${orderId}_5` }
+                ]
+            ]
+        }
+    });
+}
+
+async function handlePaymentConfirmation(ctx, reference) {
+    const client = await getOrCreateClient(ctx);
+    // Find order by reference
+    const orders = await db.getAllOrders();
+    const order = orders.find(o => o.payment_reference === reference);
+    
+    if (!order) {
+        return ctx.reply('❌ No order found with that reference.');
+    }
+    
+    await db.updateOrderPaymentStatus(order.id, 'pending_verification');
+    await ctx.reply(`✅ Payment confirmation received!\n\nWe'll verify and notify you shortly.`);
+    
+    // Notify admin
+    const adminChatId = process.env.ADMIN_CHAT_ID;
+    if (adminChatId) {
+        await bot.telegram.sendMessage(
+            adminChatId,
+            `💰 *Payment Confirmation*\n\nOrder: ${order.id}\nClient: ${client.first_name}\nAmount: ${order.total_charge}\nReference: ${reference}`,
+            { parse_mode: 'Markdown' }
+        );
+    }
+}
+
+async function showSummaryAndFinalize(ctx, client, session) {
+    const cvData = session.data.cv_data || {};
+    const total = session.data.total_charge || formatPrice(calculateTotal(session.data.category, session.data.service, session.data.delivery_option));
+    
+    let summary = `📄 *CV SUMMARY*\n\n`;
+    summary += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    summary += `👤 ${cvData.personal?.full_name || 'Not provided'}\n`;
+    summary += `💼 ${cvData.employment?.length || 0} jobs · 🎓 ${cvData.education?.length || 0} education\n`;
+    summary += `⚡ ${(cvData.skills?.technical?.length || 0) + (cvData.skills?.soft?.length || 0)} skills\n`;
+    summary += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    summary += `💰 Total: ${total}\n\n`;
+    summary += `Type *CONFIRM* to proceed to payment or *EDIT* to make changes.`;
+    
+    await sendMarkdown(ctx, summary);
+    session.data.awaiting_confirmation = true;
+    await db.updateSession(session.id, 'awaiting_confirmation', 'summary', session.data);
+}
+
 // ============ DOWNLOAD ALL DOCUMENTS AS ZIP ============
 const archiver = require('archiver');
 

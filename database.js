@@ -759,6 +759,72 @@ recordVacancyMatch: async (vacancyId, clientId) => {
         await db.run('INSERT INTO vacancy_matches (vacancy_id, client_id) VALUES (?, ?)', [vacancyId, clientId]);
     }
 },
+// In module.exports of database.js
+
+getAllTestimonials: async () => {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM testimonials ORDER BY created_at DESC');
+        return result.rows;
+    } else {
+        return await db.all('SELECT * FROM testimonials ORDER BY created_at DESC');
+    }
+},
+
+getApprovedTestimonials: async (limit = 10) => {
+    if (dbType === 'postgres') {
+        const result = await db.query('SELECT * FROM testimonials WHERE approved = true ORDER BY created_at DESC LIMIT $1', [limit]);
+        return result.rows;
+    } else {
+        return await db.all('SELECT * FROM testimonials WHERE approved = 1 ORDER BY created_at DESC LIMIT ?', [limit]);
+    }
+},
+
+saveTestimonial: async (data) => {
+    if (dbType === 'postgres') {
+        await db.query(`
+            INSERT INTO testimonials (client_id, name, text, rating, position, approved, is_hire_story, anonymous, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `, [data.client_id, data.name, data.text, data.rating || 5, data.position, 
+            data.approved || false, data.is_hire_story || false, data.anonymous || false, new Date().toISOString()]);
+    } else {
+        await db.run(`
+            INSERT INTO testimonials (client_id, name, text, rating, position, approved, is_hire_story, anonymous, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [data.client_id, data.name, data.text, data.rating || 5, data.position,
+            data.approved ? 1 : 0, data.is_hire_story ? 1 : 0, data.anonymous ? 1 : 0, new Date().toISOString()]);
+    }
+},
+
+updateOrderPaymentReference: async (orderId, reference) => {
+    if (dbType === 'postgres') {
+        await db.query('UPDATE orders SET payment_reference = $1 WHERE id = $2', [reference, orderId]);
+    } else {
+        await db.run('UPDATE orders SET payment_reference = ? WHERE id = ?', [reference, orderId]);
+    }
+},
+
+getAllDocuments: async () => {
+    if (dbType === 'postgres') {
+        const result = await db.query(`
+            SELECT o.id as order_id, o.cv_data, o.created_at, o.status, o.version,
+                   c.first_name, c.last_name, c.id as client_id
+            FROM orders o
+            JOIN clients c ON o.client_id = c.id
+            WHERE o.cv_data IS NOT NULL
+            ORDER BY o.created_at DESC
+        `);
+        return result.rows;
+    } else {
+        return await db.all(`
+            SELECT o.id as order_id, o.cv_data, o.created_at, o.status, o.version,
+                   c.first_name, c.last_name, c.id as client_id
+            FROM orders o
+            JOIN clients c ON o.client_id = c.id
+            WHERE o.cv_data IS NOT NULL
+            ORDER BY o.created_at DESC
+        `);
+    }
+},
     
     deleteClientData: async (clientId) => {
         if (dbType === 'postgres') {

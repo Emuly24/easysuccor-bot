@@ -3083,15 +3083,26 @@ Select an option:`, {
     await db.updateSession(session.id, 'cover_selecting_vacancy', 'cover', session.data);
 }
 
-// In handleCoverLetterStart or when client provides position
+// ============ VACANCY CHECK DURING COVER LETTER FLOW ============
 bot.on('text', async (ctx, next) => {
-    // Check if this is a position being entered
-    const session = await db.getActiveSession(client.id);
+    // Skip if it's a command
+    if (ctx.message.text.startsWith('/')) {
+        return next();
+    }
     
-    if (session?.stage === 'cover_collecting_position') {
+    // Get client
+    const client = await db.getClient(ctx.from.id);
+    if (!client) return next();
+    
+    // Get active session
+    const session = await db.getActiveSession(client.id);
+    if (!session) return next();
+    
+    // Check if this is a position being entered
+    if (session.stage === 'cover_collecting_position') {
         const position = ctx.message.text;
         
-        // Check vacancy library
+        // Check vacancy library for similar positions
         const matches = await vacancyLibrary.findSimilarVacancies(position);
         
         if (matches.length > 0) {
@@ -3102,7 +3113,6 @@ bot.on('text', async (ctx, next) => {
     
     return next();
 });
-
 // Handle vacancy match selection
 bot.action(/vacancy_match_(.+)/, async (ctx) => {
     const vacancyId = ctx.match[1];

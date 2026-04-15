@@ -39,7 +39,6 @@ class AIAnalyzer {
     }
 
     // ============ COMPLETE CV ENHANCEMENT - ALL SECTIONS ============
-    
     async enhanceCVData(rawCvData, vacancyData = null) {
         try {
             const prompt = `You are an expert CV enhancement AI. Enhance ALL sections of this CV data.
@@ -260,7 +259,6 @@ Return ONLY valid JSON.`;
     }
 
     // ============ PROFESSIONAL SUMMARY GENERATION ============
-    
     async generateProfessionalSummary(cvData, vacancyData = null) {
         try {
             const personal = cvData.personal || {};
@@ -333,7 +331,6 @@ Return ONLY the summary text, no explanations.`;
     }
 
     // ============ COMPLETE CV ANALYSIS AGAINST VACANCY ============
-    
     async analyzeCVAgainstVacancy(cvData, vacancyData) {
         if (!vacancyData || !vacancyData.has_vacancy) {
             return { match_score: null, message: "No vacancy data provided for analysis" };
@@ -454,7 +451,6 @@ Return ONLY valid JSON.`;
     }
 
     // ============ EXTRACT AND ANALYZE FROM DOCUMENT ============
-    
     async extractAndAnalyze(fileUrl, fileName, documentGenerator, vacancyData = null) {
         try {
             // Step 1: Extract with DeepSeek
@@ -495,7 +491,6 @@ Return ONLY valid JSON.`;
     }
 
     // ============ COMPLETE SKILLS ENHANCEMENT ============
-    
     async enhanceSkills(skillsData, industry = null) {
         try {
             const prompt = `Enhance this skills list for a ${industry || 'professional'} role.
@@ -531,7 +526,6 @@ Return ONLY valid JSON.`;
     }
 
     // ============ ENHANCE EMPLOYMENT ACHIEVEMENTS ============
-    
     async enhanceAchievements(jobTitle, jobCompany, currentAchievements = []) {
         try {
             const prompt = `Generate 3 powerful, metric-driven achievements for a ${jobTitle} at ${jobCompany || 'a company'}.
@@ -565,7 +559,6 @@ Return ONLY valid JSON array.`;
     }
 
     // ============ EXTRACT CLIENT INFO FROM DOCUMENT ============
-    
     async extractFromDocument(fileUrl, fileName, documentGenerator) {
         try {
             const result = await documentGenerator.extractFullCVDataFromUrl(fileUrl, fileName);
@@ -628,7 +621,6 @@ Return ONLY valid JSON array.`;
     }
 
     // ============ EXTRACT VACANCY FROM FILE ============
-    
     async extractVacancyFromFile(fileUrl, fileName, documentGenerator) {
         try {
             return await documentGenerator.extractVacancyFromFile(fileUrl, fileName);
@@ -639,7 +631,6 @@ Return ONLY valid JSON array.`;
     }
 
     // ============ UTILITY METHODS ============
-    
     calculateTotalYears(employment) {
         let total = 0;
         for (const job of employment) {

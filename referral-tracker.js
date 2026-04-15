@@ -1,8 +1,9 @@
 // referral-tracker.js - Advanced Multi-Level Referral Program with Analytics (UPDATED)
-// Now integrated with 18+ categories and enhanced rewards
-
 const db = require('./database');
 const notificationService = require('./notification-service');
+
+// Mobile-friendly separator
+const SEP = '\n┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅\n';
 
 class ReferralTracker {
   constructor(bot) {
@@ -55,7 +56,6 @@ class ReferralTracker {
       return { success: false, error: "You cannot refer yourself" };
     }
     
-    // Create or update user with referral
     let client;
     if (!newUser) {
       client = await db.createClient(ctx.from.id, ctx.from.username, ctx.from.first_name, ctx.from.last_name);
@@ -65,18 +65,16 @@ class ReferralTracker {
     
     await db.recordReferral(referrer.id, client.id, referralCode);
     
-    // Generate referral code for new user
     const newUserCode = this.generateReferralCode(client.id, ctx.from.username);
     await db.updateClient(client.id, { referral_code: newUserCode });
     
-    // Send notification to referrer
     await this.bot.telegram.sendMessage(
       referrer.telegram_id,
       `🎉 *New Referral!*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ${ctx.from.first_name} joined using your referral link!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 They will receive 10% off their first order.
 You will receive MK2,000 when they complete their first order.
@@ -87,7 +85,6 @@ Keep sharing to unlock higher rewards! 🚀`,
       { parse_mode: 'Markdown' }
     );
     
-    // Log referral for analytics
     await this.logReferralEvent(referrer.id, client.id, 'signup');
     
     return { 
@@ -96,9 +93,9 @@ Keep sharing to unlock higher rewards! 🚀`,
       your_referral_code: newUserCode,
       message: `🎉 *Welcome to EasySuccor!*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 You were referred by ${referrer.first_name}!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 As a thank you, you get *10% off* your first order!
 
@@ -107,9 +104,9 @@ As a thank you, you get *10% off* your first order!
 📱 *Share this link with friends:*
 ${this.getReferralLink(this.bot.botInfo.username, newUserCode)}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💰 *What you earn:*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • MK2,000 per friend who orders
 • MK500 from THEIR referrals
@@ -141,7 +138,6 @@ Type /start to begin your CV journey!`
     
     await db.updateReferralStatus(referral.id, 'completed');
     
-    // Calculate rewards for multi-level
     const rewards = await this.processMultiLevelRewards(client, orderAmount, orderType);
     
     const referrer = await db.getClientById(client.referred_by);
@@ -152,9 +148,9 @@ Type /start to begin your CV journey!`
         referrer.telegram_id,
         `🎉 *Referral Reward Earned!*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ${client.first_name} completed their first order!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 You have earned *MK${rewards.direct_reward.toLocaleString()}* credit!
 
@@ -170,10 +166,8 @@ Use your credit on your next order! Type /referral to see your stats.`,
       );
     }
     
-    // Calculate discount for referred user
     const discountAmount = Math.floor(orderAmount * 0.1);
     
-    // Log completion event
     await this.logReferralEvent(client.referred_by, client.id, 'complete', orderAmount);
     
     return { 
@@ -199,16 +193,13 @@ Use your credit on your next order! Type /referral to see your stats.`,
       const referrer = await db.getClientById(currentUserId);
       if (!referrer) break;
       
-      // Get referrer's current tier
       const referralCount = await this.getReferralCount(currentUserId);
       const tier = this.getTierFromReferrals(referralCount);
       const baseReward = this.tierRewards[tier].reward;
       const bonusPercent = this.tierRewards[tier].bonus;
       
-      // Calculate reward with tier bonus
       let rewardAmount = level === 1 ? baseReward : this.referralLevels[level].reward;
       
-      // Add tier bonus for direct referrals
       if (level === 1 && bonusPercent > 0) {
         const bonus = Math.floor(rewardAmount * (bonusPercent / 100));
         rewardAmount += bonus;
@@ -220,14 +211,11 @@ Use your credit on your next order! Type /referral to see your stats.`,
       if (level === 1) {
         directReward = rewardAmount;
         completedReferrals = referralCount + 1;
-        
-        // Check if tier changed
         const oldTier = this.getTierFromReferrals(referralCount);
         const newTier = this.getTierFromReferrals(completedReferrals);
         tierChanged = oldTier !== newTier;
       }
       
-      // Check for milestone bonus
       if (referralCount + 1 === 5 || referralCount + 1 === 10 || referralCount + 1 === 25 || referralCount + 1 === 50) {
         const bonusAmount = referralCount + 1 === 5 ? 1000 : 
                            referralCount + 1 === 10 ? 2500 : 
@@ -238,7 +226,6 @@ Use your credit on your next order! Type /referral to see your stats.`,
         totalRewards += bonusAmount;
       }
       
-      // Get next level referrer
       const nextReferral = await db.getReferrerOfReferrer(currentUserId);
       currentUserId = nextReferral ? nextReferral.referred_by : null;
       level++;
@@ -274,14 +261,12 @@ Use your credit on your next order! Type /referral to see your stats.`,
   }
 
   async getReferralStats(userId) {
-    // Check cache
     const cached = this.cache.get(`stats_${userId}`);
     if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
       return cached.data;
     }
     
     const client = await db.getClient(userId);
-    
     if (!client) return null;
     
     const referrals = await db.getUserReferrals(client.id);
@@ -291,13 +276,11 @@ Use your credit on your next order! Type /referral to see your stats.`,
     const tier = this.getTierFromReferrals(completedReferrals.length);
     const tierData = this.tierRewards[tier];
     
-    // Calculate earned credit
     let earnedFromReferrals = 0;
     for (const ref of completedReferrals) {
       earnedFromReferrals += tierData.reward;
     }
     
-    // Get multi-level stats
     const secondLevelRefs = await this.getSecondLevelReferrals(client.id);
     const thirdLevelRefs = await this.getThirdLevelReferrals(client.id);
     
@@ -372,14 +355,12 @@ Use your credit on your next order! Type /referral to see your stats.`,
         return rDate.getMonth() === date.getMonth() && rDate.getFullYear() === date.getFullYear();
       }).length;
     }
-    
     return monthlyData;
   }
 
   async getTopReferrers(limit = 10) {
     const clients = await db.getAllClients();
     const referrersWithStats = [];
-    
     for (const client of clients) {
       const refs = await db.getUserReferrals(client.id);
       const completed = refs.filter(r => r.status === 'completed').length;
@@ -391,10 +372,7 @@ Use your credit on your next order! Type /referral to see your stats.`,
         });
       }
     }
-    
-    return referrersWithStats
-      .sort((a, b) => b.referrals - a.referrals)
-      .slice(0, limit);
+    return referrersWithStats.sort((a, b) => b.referrals - a.referrals).slice(0, limit);
   }
 
   async getReferralCount(userId) {
@@ -412,7 +390,6 @@ Use your credit on your next order! Type /referral to see your stats.`,
       order_amount: orderAmount,
       timestamp: new Date().toISOString()
     };
-    
     await db.logReferralEvent(eventData);
   }
 
@@ -438,7 +415,7 @@ Use your credit on your next order! Type /referral to see your stats.`,
     
     let monthlyChart = '';
     if (stats.monthly_stats) {
-      monthlyChart = '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n*📊 Monthly Performance*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      monthlyChart = `\n${SEP}\n*📊 Monthly Performance*\n${SEP}\n`;
       for (const [month, count] of Object.entries(stats.monthly_stats)) {
         const bar = '█'.repeat(Math.min(count, 15));
         const empty = '░'.repeat(15 - Math.min(count, 15));
@@ -448,7 +425,7 @@ Use your credit on your next order! Type /referral to see your stats.`,
     
     let topReferrersList = '';
     if (stats.top_referrers && stats.top_referrers.length > 0) {
-      topReferrersList = '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n*🏆 Top Referrers*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      topReferrersList = `\n${SEP}\n*🏆 Top Referrers*\n${SEP}\n`;
       stats.top_referrers.slice(0, 5).forEach((r, i) => {
         const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
         topReferrersList += `  ${medal} ${r.name} - ${r.referrals} referrals (${r.tier})\n`;
@@ -465,24 +442,24 @@ Use your credit on your next order! Type /referral to see your stats.`,
     
     let message = `🎁 *Your Referral Program* ${tierEmoji[stats.tier] || '🎁'}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 *${stats.tier.toUpperCase()} TIER*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Your code: \`${stats.referral_code}\`
 Reward per referral: *MK${stats.tier_reward.toLocaleString()}*
 Tier bonus: ${stats.tier_bonus}%
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 *📱 Share this link ANYWHERE*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Telegram: ${stats.telegram_link}
 Short link: ${stats.short_link}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 *📊 Your Network Stats*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Direct referrals: ${stats.completed} completed, ${stats.pending} pending
 • Level 2 referrals: ${stats.second_level_refs}
@@ -496,19 +473,19 @@ Short link: ${stats.short_link}
 
 ${monthlyChart}
 ${topReferrersList}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 *⏳ Pending (${stats.pending})*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ${pendingList || '  No pending referrals'}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 *✅ Completed (${stats.completed})*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ${completedList || '  No completed referrals yet'}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 *💰 Reward Tiers*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 🥉 Bronze (0-4): MK2,000/ref
 🥈 Silver (5-9): MK2,500/ref + 5% bonus
@@ -516,9 +493,9 @@ ${completedList || '  No completed referrals yet'}
 💎 Platinum (25-49): MK4,000/ref + 15% bonus
 👑 Diamond (50+): MK5,000/ref + 20% bonus
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 *💡 Pro Tips*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Share on WhatsApp, Facebook, LinkedIn
 • Tell friends about our 18+ category CVs
@@ -540,7 +517,6 @@ Type /referral to see your stats anytime.`;
   async getReferrerInfo(userId) {
     const client = await db.getClient(userId);
     if (!client || !client.referred_by) return null;
-    
     const referrer = await db.getClientById(client.referred_by);
     return {
       referrer_id: referrer.id,

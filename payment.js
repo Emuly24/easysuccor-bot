@@ -3,6 +3,9 @@ const crypto = require('crypto');
 const notificationService = require('./notification-service');
 const db = require('./database');
 
+// Mobile-friendly separator
+const SEP = '\n┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅\n';
+
 class PaymentProcessor {
   constructor() {
     this.paymentReferences = new Map();
@@ -54,9 +57,9 @@ class PaymentProcessor {
 
     const adminMessage = `🚨 *NEW PAYMENT PENDING*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 *Payment Details*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Reference: \`${reference}\`
 Client: ${clientName}
@@ -65,9 +68,9 @@ Amount: ${amount}
 Order: ${orderId}
 Expires: ${expiresAt.toLocaleString()}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 *Action Required*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 To verify: /verify ${reference}`;
 
@@ -88,16 +91,16 @@ To verify: /verify ${reference}`;
       amount,
       message: `💳 *COMPLETE YOUR PAYMENT*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 ORDER SUMMARY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Amount: *${amount}*
 Reference: \`${reference}\`
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 PAYMENT METHODS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+${SEP}`
     };
 
     if (!method || method === 'any') {
@@ -113,9 +116,9 @@ Reference: \`${reference}\`
 *3️⃣ Pay Later* - 7 days to pay
 *4️⃣ Installments* - 2 parts over 7 days
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📌 NEXT STEPS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Choose your preferred payment method above.`;
     }
@@ -162,9 +165,9 @@ Choose your preferred payment method above.`;
     
     const adminMessage = `⏳ *PAY LATER PLAN CREATED*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Order: ${orderId}
 Client: ${clientName}
@@ -172,7 +175,7 @@ Amount: ${amount}
 Reference: \`${reference}\`
 Due Date: ${dueDate.toLocaleDateString()}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ✅ Status: Awaiting payment within 7 days`;
 
     await notificationService.alertAdmin(`⏳ Pay Later: ${orderId}`, adminMessage, ctx.bot);
@@ -183,33 +186,33 @@ Due Date: ${dueDate.toLocaleDateString()}
       dueDate: dueDate.toISOString(),
       message: `⏳ *PAY LATER PLAN ACTIVATED*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 ORDER DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Order: \`${orderId}\`
 Amount: *${amount}*
 Reference: \`${reference}\`
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ⏰ PAYMENT DEADLINE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 *Due Date:* ${dueDate.toLocaleDateString()}
 *Time Remaining:* 7 days
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ⚠️ IMPORTANT NOTES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Your document will be delivered AFTER payment
 • 10% penalty if payment is late
 • Reminders will be sent before due date
 • You can request a 3-day extension (max 2 times)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 WHEN READY TO PAY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Send *${amount}* to:
 📱 Airtel: ${this.providers.airtel.number}
@@ -261,9 +264,9 @@ After payment, type: \`/confirm ${reference}\``
     
     const reminderMessage = `${urgency}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 PAYMENT REMINDER
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Order: \`${orderId}\`
 Amount: *${plan.amount}*
@@ -272,17 +275,17 @@ Due Date: ${new Date(plan.dueDate).toLocaleDateString()}
 
 ${message}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 PAYMENT METHODS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 📱 Airtel: ${this.providers.airtel.number}
 📱 Mpamba: ${this.providers.mpamba.number}
 🏦 MO626: ${this.providers.bank.account}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ⏰ Need more time?
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 You can request a 3-day extension (max 2 times).
 
@@ -290,7 +293,6 @@ Type: \`/extend ${orderId}\``;
 
     await ctx.telegram.sendMessage(client.telegram_id, reminderMessage, { parse_mode: 'Markdown' });
     
-    // Also notify admin
     await notificationService.alertAdmin(
       `⏰ Pay Later Reminder: ${orderId}`,
       `Reminder sent to ${client.first_name} for payment of ${plan.amount}. Due in ${daysBefore} days.`,
@@ -396,14 +398,13 @@ Please make your payment by this date to avoid penalties.`,
     
     this.installmentPlans.set(orderId, installmentPlan);
     
-    // Save to database
     await db.saveInstallmentPlan(installmentPlan);
     
     const adminMessage = `📅 *INSTALLMENT PLAN CREATED*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Order: ${orderId}
 Client: ${clientName}
@@ -412,7 +413,7 @@ First Payment: ${firstAmount}
 Second Payment: ${secondAmount}
 Due Date: ${dueDate.toLocaleDateString()}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ✅ Status: Awaiting first payment`;
 
     await notificationService.alertAdmin(`📅 Installment Plan: ${orderId}`, adminMessage, ctx.bot);
@@ -425,17 +426,17 @@ Due Date: ${dueDate.toLocaleDateString()}
       dueDate: dueDate.toISOString(),
       message: `📅 *INSTALLMENT PLAN ACTIVATED*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 ORDER DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Order: \`${orderId}\`
 Total Amount: *${amount}*
 Reference: \`${reference}\`
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 PAYMENT SCHEDULE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 *1st Payment (50%):* MK${firstAmount.toLocaleString()}
    ➜ Pay now to start CV creation
@@ -444,9 +445,9 @@ Reference: \`${reference}\`
    ➜ Due by: ${dueDate.toLocaleDateString()}
    ➜ Receive your final document
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📌 HOW IT WORKS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 1️⃣ Make the first payment now
 2️⃣ We start working on your CV immediately
@@ -454,16 +455,16 @@ Reference: \`${reference}\`
 4️⃣ Make the second payment within 7 days
 5️⃣ Receive your final downloadable document
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ⚠️ LATE PAYMENT POLICY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • 10% penalty if more than 7 days overdue
 • Extensions available upon request
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 MAKE FIRST PAYMENT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Send *MK${firstAmount.toLocaleString()}* to:
 
@@ -473,9 +474,9 @@ Send *MK${firstAmount.toLocaleString()}* to:
 
 *Reference:* \`${reference}_INST1\`
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ✅ AFTER FIRST PAYMENT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Click the button below to confirm:`
     };
@@ -496,7 +497,6 @@ Click the button below to confirm:`
       firstPaidAt: plan.firstPaidAt
     });
     
-    // Schedule second payment reminder
     this.scheduleSecondInstallmentReminder(orderId, new Date(plan.dueDate), ctx);
     
     const client = await db.getClientById(plan.clientId);
@@ -504,38 +504,38 @@ Click the button below to confirm:`
       await ctx.telegram.sendMessage(client.telegram_id,
         `✅ *FIRST INSTALLMENT CONFIRMED!*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💰 PAYMENT RECEIVED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Amount Paid: *MK${plan.firstAmount.toLocaleString()}*
 Remaining: *MK${plan.secondAmount.toLocaleString()}*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 WHAT HAPPENS NEXT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 ✅ Your CV creation has started!
 ⏰ You will receive a preview within 24 hours
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📅 SECOND PAYMENT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Amount: *MK${plan.secondAmount.toLocaleString()}*
 Due Date: *${new Date(plan.dueDate).toLocaleDateString()}*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ⚠️ REMINDERS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • You will receive reminders before due date
 • Late payments incur 10% penalty
 • Extensions available on request
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ✅ AFTER FINAL PAYMENT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 You will receive your downloadable document immediately.
 
@@ -559,7 +559,6 @@ Thank you for choosing EasySuccor! 🙏`,
     if (!plan.firstPaid) return { success: false, error: "First installment not paid yet" };
     if (plan.secondPaid) return { success: false, error: "Second installment already confirmed" };
     
-    // Check for late payment penalty
     const penalty = await this.applyInstallmentPenalty(orderId);
     let finalAmount = plan.secondAmount;
     let penaltyMessage = '';
@@ -584,23 +583,23 @@ Thank you for choosing EasySuccor! 🙏`,
       await ctx.telegram.sendMessage(client.telegram_id,
         `✅ *FINAL INSTALLMENT CONFIRMED!*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💰 PAYMENT COMPLETE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Total Paid: *MK${plan.totalAmount.toLocaleString()}*${penaltyMessage}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📄 YOUR DOCUMENT IS READY!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Your document will be delivered in this chat immediately.
 
 Thank you for completing your payment! 🎉
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ⭐ *NEXT STEPS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Your document is being delivered
 • You have 2 free revision requests
@@ -664,9 +663,9 @@ Thank you for choosing EasySuccor! 🙏`,
     
     const reminderMessage = `${urgency}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 INSTALLMENT REMINDER
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Order: \`${orderId}\`
 Amount Due: *MK${plan.secondAmount.toLocaleString()}*
@@ -674,9 +673,9 @@ Due Date: ${new Date(plan.dueDate).toLocaleDateString()}
 
 ${message}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 PAYMENT METHODS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 📱 Airtel: ${this.providers.airtel.number}
 📱 Mpamba: ${this.providers.mpamba.number}
@@ -684,9 +683,9 @@ ${message}
 
 Reference: \`${plan.reference}_INST2\`
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ⏰ Need more time?
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 You can request a 3-day extension (max 2 times).
 
@@ -791,9 +790,9 @@ Please make your payment by this date to avoid penalties.`,
 
     const adminMessage = `🚨 *URGENT: PAYMENT NEEDS VERIFICATION*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 *Payment Details*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Reference: \`${reference}\`
 Client: ${payment.clientName}
@@ -802,9 +801,9 @@ Amount: ${payment.amount}
 Order: ${payment.orderId}
 Attempt: ${payment.attempts}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 *Action Required*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 To verify: /verify ${reference}`;
 

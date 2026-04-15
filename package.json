@@ -1,37 +1,50 @@
 {
   "name": "easysuccor-bot",
   "version": "5.0.0",
-  "description": "Professional CV and Cover Letter Creation Assistant Bot",
+  "description": "Professional CV & Cover Letter Telegram Bot with 18+ categories, installments, referrals, and AI-powered extraction",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
     "dev": "nodemon bot.js",
-    "generate": "node document-generator.js",
-    "admin": "node admin-dashboard.js"
+    "health": "node health.js",
+    "postinstall": "echo 'EasySuccor Bot installed successfully'"
   },
+  "keywords": [
+    "telegram",
+    "bot",
+    "cv",
+    "cover-letter",
+    "ai",
+    "deepseek",
+    "installments",
+    "referrals",
+    "railway"
+  ],
+  "author": "EasySuccor",
+  "license": "MIT",
   "dependencies": {
     "archiver": "^7.0.1",
-    "axios": "^1.15.0",
+    "axios": "^1.7.9",
+    "chart.js": "^4.4.0",
+    "cron": "^3.1.7",
     "docx": "^8.5.0",
-    "dotenv": "^16.6.1",
-    "express": "^4.22.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
     "multer": "^1.4.5-lts.1",
-    "natural": "^5.0.0",
+    "natural": "^8.0.1",
     "node-cron": "^3.0.3",
-    "nodemailer": "^8.0.5",
-    "openai": "^6.34.0",
-    "pdfkit": "^0.14.0",
-    "pg": "^8.20.0",
-    "sharp": "^0.33.5",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^6.0.1",
+    "nodemailer": "^6.9.16",
+    "openai": "^4.77.0",
+    "pg": "^8.13.1",
+    "sqlite3": "^5.1.7",
     "telegraf": "^4.16.3",
     "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.1.9"
   },
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   }
 }

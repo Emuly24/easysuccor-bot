@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <title>EasySuccor | Ultimate Control Room</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <style>
+        /* ========== ALL ORIGINAL STYLES PRESERVED ========== */
         * {
             margin: 0;
             padding: 0;
@@ -94,6 +96,7 @@
             display: flex;
             align-items: center;
             gap: 20px;
+            flex-wrap: wrap;
         }
         
         .api-key-input {
@@ -227,6 +230,8 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         
         .section-title {
@@ -465,23 +470,24 @@
             .api-key-input { width: 100%; }
             .stats-grid { grid-template-columns: 1fr 1fr; }
         }
+        
         .export-option {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    padding: 15px;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.export-option:hover {
-    background: rgba(138, 79, 255, 0.1);
-    border-color: var(--primary);
-    transform: translateY(-2px);
-}
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .export-option:hover {
+            background: rgba(138, 79, 255, 0.1);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body>
@@ -495,11 +501,11 @@
                 <span class="control-badge">🎛️ ULTIMATE CONTROL ROOM</span>
             </div>
             <div class="header-actions">
-    <input type="password" id="apiKey" class="api-key-input" placeholder="Admin API Key" value="0.i45qbafdnui0.0b656qiu0v3">
-    <button class="refresh-btn" onclick="openExportModal()">📥 Export</button>
-    <button class="refresh-btn" onclick="refreshAllData()">🔄 Refresh</button>
-    <span class="last-updated" id="lastUpdated"></span>
-</div>
+                <input type="password" id="apiKey" class="api-key-input" placeholder="Admin API Key">
+                <button class="refresh-btn" onclick="openExportModal()">📥 Export</button>
+                <button class="refresh-btn" onclick="refreshAllData()">🔄 Refresh</button>
+                <span class="last-updated" id="lastUpdated"></span>
+            </div>
         </div>
         
         <!-- Navigation Tabs -->
@@ -528,7 +534,7 @@
         </div>
     </div>
     
-    <!-- Modal -->
+    <!-- Main Modal -->
     <div id="modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -537,93 +543,99 @@
             </div>
             <div class="modal-body" id="modalBody"></div>
         </div>
-        <!-- Export Modal -->
-<div id="exportModal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <span class="modal-title">📥 Export Data</span>
-            <span class="close-modal" onclick="closeExportModal()">&times;</span>
-        </div>
-        <div class="modal-body">
-            <div style="display: grid; gap: 15px;">
-                <div class="export-option" onclick="exportData('all', 'json')">
-                    <span style="font-size: 24px;">📦</span>
-                    <div>
-                        <strong style="color: white;">Complete Backup</strong>
-                        <p style="color: var(--text-secondary); font-size: 13px;">All data in JSON format</p>
+    </div>
+    
+    <!-- Export Modal -->
+    <div id="exportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">📥 Export Data</span>
+                <span class="close-modal" onclick="closeExportModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="display: grid; gap: 15px;">
+                    <div class="export-option" onclick="exportData('all', 'json')">
+                        <span style="font-size: 24px;">📦</span>
+                        <div>
+                            <strong style="color: white;">Complete Backup</strong>
+                            <p style="color: var(--text-secondary); font-size: 13px;">All data in JSON format</p>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="export-option" onclick="exportData('clients', 'csv')">
-                    <span style="font-size: 24px;">👥</span>
-                    <div>
-                        <strong style="color: white;">Clients List</strong>
-                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    
+                    <div class="export-option" onclick="exportData('clients', 'csv')">
+                        <span style="font-size: 24px;">👥</span>
+                        <div>
+                            <strong style="color: white;">Clients List</strong>
+                            <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="export-option" onclick="exportData('orders', 'csv')">
-                    <span style="font-size: 24px;">📋</span>
-                    <div>
-                        <strong style="color: white;">Orders Report</strong>
-                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    
+                    <div class="export-option" onclick="exportData('orders', 'csv')">
+                        <span style="font-size: 24px;">📋</span>
+                        <div>
+                            <strong style="color: white;">Orders Report</strong>
+                            <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="export-option" onclick="exportData('vacancies', 'csv')">
-                    <span style="font-size: 24px;">💼</span>
-                    <div>
-                        <strong style="color: white;">Vacancies Library</strong>
-                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    
+                    <div class="export-option" onclick="exportData('vacancies', 'csv')">
+                        <span style="font-size: 24px;">💼</span>
+                        <div>
+                            <strong style="color: white;">Vacancies Library</strong>
+                            <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="export-option" onclick="exportData('hired', 'csv')">
-                    <span style="font-size: 24px;">🏆</span>
-                    <div>
-                        <strong style="color: white;">Hired Clients</strong>
-                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    
+                    <div class="export-option" onclick="exportData('hired', 'csv')">
+                        <span style="font-size: 24px;">🏆</span>
+                        <div>
+                            <strong style="color: white;">Hired Clients</strong>
+                            <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="export-option" onclick="exportData('referrals', 'csv')">
-                    <span style="font-size: 24px;">🎁</span>
-                    <div>
-                        <strong style="color: white;">Referral Report</strong>
-                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    
+                    <div class="export-option" onclick="exportData('referrals', 'csv')">
+                        <span style="font-size: 24px;">🎁</span>
+                        <div>
+                            <strong style="color: white;">Referral Report</strong>
+                            <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="export-option" onclick="exportData('payments', 'csv')">
-                    <span style="font-size: 24px;">💳</span>
-                    <div>
-                        <strong style="color: white;">Payment Report</strong>
-                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    
+                    <div class="export-option" onclick="exportData('payments', 'csv')">
+                        <span style="font-size: 24px;">💳</span>
+                        <div>
+                            <strong style="color: white;">Payment Report</strong>
+                            <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="export-option" onclick="exportData('errors', 'csv')">
-                    <span style="font-size: 24px;">🐛</span>
-                    <div>
-                        <strong style="color: white;">Error Reports</strong>
-                        <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                    
+                    <div class="export-option" onclick="exportData('errors', 'csv')">
+                        <span style="font-size: 24px;">🐛</span>
+                        <div>
+                            <strong style="color: white;">Error Reports</strong>
+                            <p style="color: var(--text-secondary); font-size: 13px;">CSV format for Excel</p>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="export-option" onclick="exportData('documents', 'pdf')">
-                    <span style="font-size: 24px;">📄</span>
-                    <div>
-                        <strong style="color: white;">All Documents (ZIP)</strong>
-                        <p style="color: var(--text-secondary); font-size: 13px;">Download all generated CVs and cover letters</p>
+                    
+                    <div class="export-option" onclick="exportData('documents', 'pdf')">
+                        <span style="font-size: 24px;">📄</span>
+                        <div>
+                            <strong style="color: white;">All Documents (ZIP)</strong>
+                            <p style="color: var(--text-secondary); font-size: 13px;">Download all generated CVs and cover letters</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
-    </div>
 
     <script>
+        // ============ PRODUCTION CONFIGURATION ============
+        // !! CHANGE THIS TO YOUR ACTUAL ADMIN API KEY !!
+        // For security, set via environment variable if possible.
+        const ADMIN_API_KEY = '0.i45qbafdnui0.0b656qiu0v3';
+
         // ============ STATE ============
         let allData = {
             stats: {},
@@ -666,7 +678,10 @@
         
         async function apiCall(endpoint) {
             const response = await fetch(endpoint, { headers: getHeaders() });
-            if (!response.ok) throw new Error(`API Error: ${response.status}`);
+            if (!response.ok) {
+                if (response.status === 401) throw new Error('Unauthorized. Check your Admin API Key.');
+                throw new Error(`API Error: ${response.status}`);
+            }
             return response.json();
         }
         
@@ -677,6 +692,9 @@
                 alert('Please enter Admin API Key');
                 return;
             }
+            
+            // Show loading indicator
+            document.getElementById('tabContent').innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Refreshing data...</p></div>';
             
             try {
                 const [
@@ -736,16 +754,17 @@
             
             if (handlers[tab]) {
                 handlers[tab]();
+            } else {
+                document.getElementById('tabContent').innerHTML = '<div class="loading">Tab not found</div>';
             }
         }
         
-        // ============ RENDER FUNCTIONS ============
+        // ============ RENDER FUNCTIONS (all original logic preserved) ============
         function renderOverview() {
             const stats = allData.stats || {};
             const clients = allData.clients || [];
             const hired = allData.hiredClients || [];
             
-            // Calculate ghost clients (no activity in 30+ days)
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             const ghostClients = clients.filter(c => {
@@ -804,7 +823,7 @@
                 <div class="section-card">
                     <div class="section-header">
                         <span class="section-title">📋 <span>All Orders (${orders.length})</span></span>
-                        <div>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                             <select class="filter-select" id="orderStatusFilter" onchange="filterOrders()">
                                 <option value="all">All Status</option>
                                 <option value="pending">Pending</option>
@@ -817,16 +836,18 @@
                     </div>
                     <div class="table-container">
                         <table>
-                            <thead><tr>
-                                <th>Order ID</th><th>Client</th><th>Service</th><th>Type</th><th>Status</th><th>Payment</th><th>Total</th><th>Created</th><th>Actions</th>
-                            </tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th><th>Client</th><th>Service</th><th>Type</th><th>Status</th><th>Payment</th><th>Total</th><th>Created</th><th>Actions</th>
+                                </tr>
+                            </thead>
                             <tbody id="ordersTableBody">`;
             
             orders.slice(0, 100).forEach(order => {
                 html += `<tr data-status="${order.status}" data-client="${order.client?.name || ''}">
                     <td><code style="color: var(--text-muted);">${String(order.id || '').slice(-12)}</code></td>
-                    <td>${order.client?.name || '-'}</td>
-                    <td>${order.service || '-'}</td>
+                    <td>${escapeHtml(order.client?.name || '-')}</td>
+                    <td>${escapeHtml(order.service || '-')}</td>
                     <td><span class="badge badge-info">${order.payment_type || 'standard'}</span></td>
                     <td><span class="badge badge-${order.status === 'delivered' ? 'success' : 'info'}">${order.status || '-'}</span></td>
                     <td><span class="badge badge-${order.payment_status === 'completed' ? 'success' : 'warning'}">${order.payment_status || '-'}</span></td>
@@ -855,9 +876,11 @@
                     </div>
                     <div class="table-container">
                         <table>
-                            <thead><tr>
-                                <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Orders</th><th>Spent</th><th>Referrals</th><th>Status</th><th>Last Active</th><th>Actions</th>
-                            </tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Orders</th><th>Spent</th><th>Referrals</th><th>Status</th><th>Last Active</th><th>Actions</th>
+                                </tr>
+                            </thead>
                             <tbody id="clientsTableBody">`;
             
             clients.slice(0, 100).forEach(client => {
@@ -867,11 +890,11 @@
                                    isGhost ? '<span class="badge badge-ghost">👻 Ghost</span>' :
                                    '<span class="badge badge-success">✅ Active</span>';
                 
-                html += `<tr data-name="${client.name || client.first_name || ''}">
+                html += `<tr data-name="${escapeHtml(client.name || client.first_name || '')}">
                     <td>${String(client.id || '').slice(-8)}</td>
-                    <td>${client.name || client.first_name || '-'} ${client.last_name || ''}</td>
-                    <td>${client.email || '-'}</td>
-                    <td>${client.phone || '-'}</td>
+                    <td>${escapeHtml(client.name || client.first_name || '-')} ${escapeHtml(client.last_name || '')}</td>
+                    <td>${escapeHtml(client.email || '-')}</td>
+                    <td>${escapeHtml(client.phone || '-')}</td>
                     <td>${client.total_orders || 0}</td>
                     <td>MK${(client.total_spent || 0).toLocaleString()}</td>
                     <td>${client.referral_count || 0}</td>
@@ -901,17 +924,19 @@
                 html += `<p style="color: var(--text-secondary); padding: 20px;">No hired clients reported yet. Clients can report using /hired command.</p>`;
             } else {
                 html += `<div class="table-container"><table>
-                    <thead><tr>
-                        <th>Client</th><th>Position</th><th>Company</th><th>Story</th><th>Date Hired</th><th>Anonymous</th>
-                    </tr></thead>
+                    <thead>
+                        <tr>
+                            <th>Client</th><th>Position</th><th>Company</th><th>Story</th><th>Date Hired</th><th>Anonymous</th>
+                        </tr>
+                    </thead>
                     <tbody>`;
                 
                 hired.forEach(h => {
                     html += `<tr>
-                        <td>${h.anonymous ? 'Anonymous' : (h.client_name || 'Unknown')}</td>
-                        <td>${h.position || '-'}</td>
-                        <td>${h.company || '-'}</td>
-                        <td>${(h.story || '').slice(0, 50)}${h.story?.length > 50 ? '...' : ''}</td>
+                        <td>${escapeHtml(h.anonymous ? 'Anonymous' : (h.client_name || 'Unknown'))}</td>
+                        <td>${escapeHtml(h.position || '-')}</td>
+                        <td>${escapeHtml(h.company || '-')}</td>
+                        <td>${escapeHtml((h.story || '').slice(0, 50))}${h.story?.length > 50 ? '...' : ''}</td>
                         <td>${h.hired_date ? new Date(h.hired_date).toLocaleDateString() : '-'}</td>
                         <td>${h.anonymous ? '✓' : '✗'}</td>
                     </tr>`;
@@ -937,18 +962,20 @@
                 html += `<p style="color: var(--text-secondary); padding: 20px;">No vacancies recorded yet.</p>`;
             } else {
                 html += `<div class="table-container"><table>
-                    <thead><tr>
-                        <th>Position</th><th>Company</th><th>Location</th><th>Requirements</th><th>Client</th><th>Date</th>
-                    </tr></thead>
+                    <thead>
+                        <tr>
+                            <th>Position</th><th>Company</th><th>Location</th><th>Requirements</th><th>Client</th><th>Date</th>
+                        </tr>
+                    </thead>
                     <tbody>`;
                 
                 vacancies.forEach(v => {
                     html += `<tr>
-                        <td>${v.position || '-'}</td>
-                        <td>${v.company || '-'}</td>
-                        <td>${v.location || '-'}</td>
-                        <td>${(v.requirements || []).slice(0, 3).join(', ') || '-'}</td>
-                        <td>${v.client_name || '-'}</td>
+                        <td>${escapeHtml(v.position || '-')}</td>
+                        <td>${escapeHtml(v.company || '-')}</td>
+                        <td>${escapeHtml(v.location || '-')}</td>
+                        <td>${escapeHtml((v.requirements || []).slice(0, 3).join(', ') || '-')}</td>
+                        <td>${escapeHtml(v.client_name || '-')}</td>
                         <td>${v.created_at ? new Date(v.created_at).toLocaleDateString() : '-'}</td>
                     </tr>`;
                 });
@@ -971,16 +998,18 @@
                     </div>
                     <div class="table-container">
                         <table>
-                            <thead><tr>
-                                <th>Order ID</th><th>Client</th><th>Type</th><th>Version</th><th>Format</th><th>Created</th><th>Actions</th>
-                            </tr></thead>
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th><th>Client</th><th>Type</th><th>Version</th><th>Format</th><th>Created</th><th>Actions</th>
+                                </tr>
+                            </thead>
                             <tbody>`;
             
             documents.slice(0, 100).forEach(doc => {
                 html += `<tr>
                     <td><code>${String(doc.order_id || '').slice(-12)}</code></td>
-                    <td>${doc.client_name || '-'}</td>
-                    <td>${doc.document_type || '-'}</td>
+                    <td>${escapeHtml(doc.client_name || '-')}</td>
+                    <td>${escapeHtml(doc.document_type || '-')}</td>
                     <td>v${doc.version || 1}</td>
                     <td>${doc.format || 'PDF'}</td>
                     <td>${new Date(doc.created_at).toLocaleDateString()}</td>
@@ -1008,18 +1037,20 @@
                 html += `<p style="color: var(--text-secondary); padding: 20px;">No updates recorded yet.</p>`;
             } else {
                 html += `<div class="table-container"><table>
-                    <thead><tr>
-                        <th>Order ID</th><th>Client</th><th>Version</th><th>Changes</th><th>Requested By</th><th>Date</th>
-                    </tr></thead>
+                    <thead>
+                        <tr>
+                            <th>Order ID</th><th>Client</th><th>Version</th><th>Changes</th><th>Requested By</th><th>Date</th>
+                        </tr>
+                    </thead>
                     <tbody>`;
                 
                 updates.forEach(u => {
                     html += `<tr>
                         <td><code>${String(u.order_id || '').slice(-12)}</code></td>
-                        <td>${u.client_name || '-'}</td>
+                        <td>${escapeHtml(u.client_name || '-')}</td>
                         <td>v${u.version_number || 1}</td>
-                        <td>${(u.changes || '').slice(0, 60)}${u.changes?.length > 60 ? '...' : ''}</td>
-                        <td>${u.requested_by || 'Client'}</td>
+                        <td>${escapeHtml((u.changes || '').slice(0, 60))}${u.changes?.length > 60 ? '...' : ''}</td>
+                        <td>${escapeHtml(u.requested_by || 'Client')}</td>
                         <td>${new Date(u.created_at).toLocaleDateString()}</td>
                     </tr>`;
                 });
@@ -1060,7 +1091,7 @@
                                         const isOverdue = inst.days_overdue > 0;
                                         return `<tr>
                                             <td><code>${String(inst.order_id || '').slice(-12)}</code></td>
-                                            <td>${inst.client_name || '-'}</td>
+                                            <td>${escapeHtml(inst.client_name || '-')}</td>
                                             <td>${inst.current_installment || 1}/2</td>
                                             <td>MK${(inst.paid_amount || 0).toLocaleString()}</td>
                                             <td>MK${(inst.remaining_amount || 0).toLocaleString()}</td>
@@ -1073,7 +1104,7 @@
                     `;
                     document.getElementById('tabContent').innerHTML += tableHtml;
                 }
-            });
+            }).catch(e => console.error('Failed to load installments:', e));
         }
         
         function renderReferrals() {
@@ -1089,16 +1120,18 @@
                 html += `<p style="color: var(--text-secondary); padding: 20px;">No referrals yet.</p>`;
             } else {
                 html += `<div class="table-container"><table>
-                    <thead><tr>
-                        <th>#</th><th>Client</th><th>Referrals</th><th>Tier</th><th>Total Earned</th><th>Available Credit</th>
-                    </tr></thead>
+                    <thead>
+                        <tr>
+                            <th>#</th><th>Client</th><th>Referrals</th><th>Tier</th><th>Total Earned</th><th>Available Credit</th>
+                        </tr>
+                    </thead>
                     <tbody>`;
                 
                 referrals.slice(0, 20).forEach((r, i) => {
                     const tierEmoji = r.tier === 'Diamond' ? '👑' : r.tier === 'Platinum' ? '💎' : r.tier === 'Gold' ? '🥇' : r.tier === 'Silver' ? '🥈' : '🥉';
                     html += `<tr>
                         <td>${i + 1}</td>
-                        <td>${r.name || '-'}</td>
+                        <td>${escapeHtml(r.name || '-')}</td>
                         <td><strong>${r.total_referrals || 0}</strong> (${r.completed || 0} completed)</td>
                         <td>${tierEmoji} ${r.tier || 'Bronze'}</td>
                         <td>MK${(r.total_earned || 0).toLocaleString()}</td>
@@ -1133,8 +1166,8 @@
             errors.forEach(e => {
                 html += `<tr data-status="${e.status}">
                     <td>${e.id}</td>
-                    <td>${e.client_name || 'Unknown'}</td>
-                    <td>${(e.description || '').slice(0, 50)}${e.description?.length > 50 ? '...' : ''}</td>
+                    <td>${escapeHtml(e.client_name || 'Unknown')}</td>
+                    <td>${escapeHtml((e.description || '').slice(0, 50))}${e.description?.length > 50 ? '...' : ''}</td>
                     <td><span class="badge badge-${e.status === 'pending' ? 'warning' : 'success'}">${e.status}</span></td>
                     <td>${new Date(e.created_at).toLocaleDateString()}</td>
                     <td>
@@ -1172,6 +1205,9 @@
                 }
                 html += '</div>';
                 document.getElementById('priceEditor').innerHTML = html;
+            }).catch(e => {
+                document.getElementById('priceEditor').innerHTML = '<p style="color: red;">Failed to load pricing data.</p>';
+                console.error(e);
             });
         }
         
@@ -1190,14 +1226,14 @@
                         <tbody>
                             ${clients.slice(0, 50).map(c => `
                                 <tr>
-                                    <td>${c.name || c.first_name || '-'} ${c.last_name || ''}</td>
-                                    <td>${c.phone || '-'}</td>
-                                    <td>${c.email || '-'}</td>
+                                    <td>${escapeHtml(c.name || c.first_name || '-')} ${escapeHtml(c.last_name || '')}</td>
+                                    <td>${escapeHtml(c.phone || '-')}</td>
+                                    <td>${escapeHtml(c.email || '-')}</td>
                                     <td>${c.telegram_id ? '✓' : '✗'}</td>
                                     <td>
-                                        ${c.phone ? `<a class="action-link" href="https://wa.me/${c.phone.replace(/[^0-9]/g, '')}" target="_blank">WhatsApp</a>` : ''}
+                                        ${c.phone ? `<a class="action-link" href="https://wa.me/${c.phone.replace(/[^0-9]/g, '')}" target="_blank" rel="noopener noreferrer">WhatsApp</a>` : ''}
                                         ${c.email ? `<a class="action-link" href="mailto:${c.email}">Email</a>` : ''}
-                                        ${c.telegram_id ? `<a class="action-link" href="https://t.me/${c.telegram_id}" target="_blank">Telegram</a>` : ''}
+                                        ${c.telegram_id ? `<a class="action-link" href="https://t.me/${c.telegram_id}" target="_blank" rel="noopener noreferrer">Telegram</a>` : ''}
                                     </td>
                                 </tr>
                             `).join('')}
@@ -1228,7 +1264,7 @@
                             <div style="font-size: 32px; margin-bottom: 10px;">⚠️</div>
                             <div class="stat-label">Clear All Data</div>
                         </div>
-                        <div class="stat-card" onclick="window.open('https://t.me/EasySuccor_bot', '_blank')" style="cursor: pointer;">
+                        <div class="stat-card" onclick="window.open('https://t.me/EasySuccor_bot', '_blank', 'noopener,noreferrer')" style="cursor: pointer;">
                             <div style="font-size: 32px; margin-bottom: 10px;">🤖</div>
                             <div class="stat-label">Open Telegram Bot</div>
                         </div>
@@ -1275,360 +1311,345 @@
         
         // ============ ACTION FUNCTIONS ============
         async function viewOrder(orderId) {
-            const data = await apiCall(`/admin/order/${orderId}`);
-            showModal('Order Details', `<pre style="color: white; overflow-x: auto; max-height: 500px;">${JSON.stringify(data, null, 2)}</pre>`);
+            try {
+                const data = await apiCall(`/admin/order/${orderId}`);
+                showModal('Order Details', `<pre style="color: white; overflow-x: auto; max-height: 500px;">${JSON.stringify(data, null, 2)}</pre>`);
+            } catch (e) {
+                alert('Failed to load order details: ' + e.message);
+            }
         }
         
         async function viewDocument(orderId) {
-            const data = await apiCall(`/admin/document/${orderId}`);
-            showModal('Document Viewer', `
-                <div class="document-viewer">
-                    <div class="document-content">${data.content || 'Document content not available'}</div>
-                </div>
-                <p style="margin-top: 15px;">
-                    <a class="action-link" onclick="downloadDocument('${orderId}')">📥 Download</a>
-                </p>
-            `);
+            try {
+                const data = await apiCall(`/admin/document/${orderId}`);
+                showModal('Document Viewer', `
+                    <div class="document-viewer">
+                        <div class="document-content">${escapeHtml(data.content || 'Document content not available')}</div>
+                    </div>
+                    <p style="margin-top: 15px;">
+                        <a class="action-link" onclick="downloadDocument('${orderId}')">📥 Download</a>
+                    </p>
+                `);
+            } catch (e) {
+                alert('Failed to load document: ' + e.message);
+            }
         }
         
         function downloadDocument(orderId) {
-            window.open(`/admin/download/${orderId}?key=${getApiKey()}`, '_blank');
+            window.open(`/admin/download/${orderId}?key=${encodeURIComponent(getApiKey())}`, '_blank');
         }
         
         async function viewClient(clientId) {
-            const data = await apiCall(`/admin/client/${clientId}`);
-            showModal('Client Details', `
-                <p><strong>Name:</strong> ${data.first_name} ${data.last_name || ''}</p>
-                <p><strong>Email:</strong> ${data.email || '-'}</p>
-                <p><strong>Phone:</strong> ${data.phone || '-'}</p>
-                <p><strong>Total Orders:</strong> ${data.total_orders || 0}</p>
-                <p><strong>Total Spent:</strong> MK${(data.total_spent || 0).toLocaleString()}</p>
-                <p><strong>Referral Code:</strong> ${data.referral_code || '-'}</p>
-                <p><strong>Referrals:</strong> ${data.referral_count || 0}</p>
-            `);
+            try {
+                const data = await apiCall(`/admin/client/${clientId}`);
+                showModal('Client Details', `
+                    <p><strong>Name:</strong> ${escapeHtml(data.first_name)} ${escapeHtml(data.last_name || '')}</p>
+                    <p><strong>Email:</strong> ${escapeHtml(data.email || '-')}</p>
+                    <p><strong>Phone:</strong> ${escapeHtml(data.phone || '-')}</p>
+                    <p><strong>Total Orders:</strong> ${data.total_orders || 0}</p>
+                    <p><strong>Total Spent:</strong> MK${(data.total_spent || 0).toLocaleString()}</p>
+                    <p><strong>Referral Code:</strong> ${escapeHtml(data.referral_code || '-')}</p>
+                    <p><strong>Referrals:</strong> ${data.referral_count || 0}</p>
+                `);
+            } catch (e) {
+                alert('Failed to load client details: ' + e.message);
+            }
         }
         
         function contactClient(phone) {
-            if (phone) window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}`, '_blank');
+            if (phone) window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}`, '_blank', 'noopener,noreferrer');
             else alert('No phone number available');
         }
         
         async function viewErrorReport(reportId) {
-            const data = await apiCall(`/admin/error-report/${reportId}`);
-            showModal('Error Report', `
-                <p><strong>Client:</strong> ${data.client_name || 'Unknown'}</p>
-                <p><strong>Description:</strong> ${data.description}</p>
-                <p><strong>Status:</strong> ${data.status}</p>
-                <p><strong>Created:</strong> ${new Date(data.created_at).toLocaleString()}</p>
-                ${data.status === 'pending' ? `<button class="refresh-btn" onclick="resolveErrorReport(${reportId})">✅ Mark Resolved</button>` : ''}
-            `);
+            try {
+                const data = await apiCall(`/admin/error-report/${reportId}`);
+                showModal('Error Report', `
+                    <p><strong>Client:</strong> ${escapeHtml(data.client_name || 'Unknown')}</p>
+                    <p><strong>Description:</strong> ${escapeHtml(data.description)}</p>
+                    <p><strong>Status:</strong> ${data.status}</p>
+                    <p><strong>Created:</strong> ${new Date(data.created_at).toLocaleString()}</p>
+                    ${data.status === 'pending' ? `<button class="refresh-btn" onclick="resolveErrorReport(${reportId})">✅ Mark Resolved</button>` : ''}
+                `);
+            } catch (e) {
+                alert('Failed to load error report: ' + e.message);
+            }
         }
         
         async function resolveErrorReport(reportId) {
             if (!confirm('Mark this report as resolved?')) return;
-            await fetch(`/admin/resolve-report/${reportId}`, { method: 'POST', headers: getHeaders() });
-            alert('Report resolved');
-            closeModal();
-            refreshAllData();
+            try {
+                await fetch(`/admin/resolve-report/${reportId}`, { method: 'POST', headers: getHeaders() });
+                alert('Report resolved');
+                closeModal();
+                refreshAllData();
+            } catch (e) {
+                alert('Failed to resolve report: ' + e.message);
+            }
         }
+        
         // ============ EXPORT FUNCTIONS ============
-function openExportModal() {
-    document.getElementById('exportModal').style.display = 'flex';
-}
-
-function closeExportModal() {
-    document.getElementById('exportModal').style.display = 'none';
-}
-
-async function exportData(type, format) {
-    closeExportModal();
-    
-    const apiKey = getApiKey();
-    if (!apiKey) {
-        alert('Please enter Admin API Key');
-        return;
-    }
-    
-    const timestamp = new Date().toISOString().split('T')[0];
-    
-    switch(type) {
-        case 'all':
-            await exportAllDataJSON(timestamp);
-            break;
-        case 'clients':
-            await exportClientsCSV(timestamp);
-            break;
-        case 'orders':
-            await exportOrdersCSV(timestamp);
-            break;
-        case 'vacancies':
-            await exportVacanciesCSV(timestamp);
-            break;
-        case 'hired':
-            await exportHiredCSV(timestamp);
-            break;
-        case 'referrals':
-            await exportReferralsCSV(timestamp);
-            break;
-        case 'payments':
-            await exportPaymentsCSV(timestamp);
-            break;
-        case 'errors':
-            await exportErrorsCSV(timestamp);
-            break;
-        case 'documents':
-            await exportDocumentsZip(timestamp);
-            break;
-    }
-}
-
-// Complete Backup (JSON)
-function exportAllDataJSON(timestamp) {
-    const data = {
-        exported_at: new Date().toISOString(),
-        stats: allData.stats,
-        clients: allData.clients,
-        orders: allData.orders,
-        vacancies: allData.vacancies,
-        hiredClients: allData.hiredClients,
-        documents: allData.documents,
-        updates: allData.updates,
-        payments: allData.payments,
-        referrals: allData.referrals,
-        errors: allData.errors
-    };
-    
-    downloadFile(
-        JSON.stringify(data, null, 2),
-        `easysuccor-backup-${timestamp}.json`,
-        'application/json'
-    );
-}
-
-// Clients CSV
-function exportClientsCSV(timestamp) {
-    const clients = allData.clients || [];
-    const headers = ['ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Location', 'Total Orders', 'Total Spent', 'Referrals', 'Status', 'Joined', 'Last Active'];
-    
-    const rows = clients.map(c => [
-        c.id || '',
-        c.first_name || '',
-        c.last_name || '',
-        c.email || '',
-        c.phone || '',
-        c.location || '',
-        c.total_orders || 0,
-        c.total_spent || 0,
-        c.referral_count || 0,
-        getClientStatus(c),
-        c.created_at ? new Date(c.created_at).toLocaleDateString() : '',
-        c.last_active ? new Date(c.last_active).toLocaleDateString() : ''
-    ]);
-    
-    exportCSV(headers, rows, `easysuccor-clients-${timestamp}.csv`);
-}
-
-// Orders CSV
-function exportOrdersCSV(timestamp) {
-    const orders = allData.orders || [];
-    const headers = ['Order ID', 'Client Name', 'Client Email', 'Client Phone', 'Service', 'Category', 'Payment Type', 'Status', 'Payment Status', 'Total', 'Created', 'Delivered'];
-    
-    const rows = orders.map(o => [
-        o.id || '',
-        o.client?.name || '',
-        o.client?.email || '',
-        o.client?.phone || '',
-        o.service || '',
-        o.category || '',
-        o.payment_type || 'standard',
-        o.status || '',
-        o.payment_status || '',
-        o.total_charge || '',
-        o.created_at ? new Date(o.created_at).toLocaleString() : '',
-        o.delivered_at ? new Date(o.delivered_at).toLocaleString() : ''
-    ]);
-    
-    exportCSV(headers, rows, `easysuccor-orders-${timestamp}.csv`);
-}
-
-// Vacancies CSV
-function exportVacanciesCSV(timestamp) {
-    const vacancies = allData.vacancies || [];
-    const headers = ['ID', 'Position', 'Company', 'Location', 'Job Type', 'Experience Required', 'Deadline', 'Usage Count', 'Created'];
-    
-    const rows = vacancies.map(v => [
-        v.id || '',
-        v.position || '',
-        v.company || '',
-        v.location || '',
-        v.job_type || '',
-        v.experience_required || '',
-        v.deadline || '',
-        v.usage_count || 0,
-        v.created_at ? new Date(v.created_at).toLocaleDateString() : ''
-    ]);
-    
-    exportCSV(headers, rows, `easysuccor-vacancies-${timestamp}.csv`);
-}
-
-// Hired Clients CSV
-function exportHiredCSV(timestamp) {
-    const hired = allData.hiredClients || [];
-    const headers = ['Client Name', 'Position Hired', 'Company', 'Story', 'Anonymous', 'Date Hired'];
-    
-    const rows = hired.map(h => [
-        h.anonymous ? 'Anonymous' : (h.client_name || ''),
-        h.position || '',
-        h.company || '',
-        h.story || '',
-        h.anonymous ? 'Yes' : 'No',
-        h.hired_date ? new Date(h.hired_date).toLocaleDateString() : ''
-    ]);
-    
-    exportCSV(headers, rows, `easysuccor-hired-${timestamp}.csv`);
-}
-
-// Referrals CSV
-function exportReferralsCSV(timestamp) {
-    const referrals = allData.referrals || [];
-    const headers = ['Rank', 'Client Name', 'Total Referrals', 'Completed', 'Tier', 'Total Earned', 'Available Credit'];
-    
-    const rows = referrals.map((r, i) => [
-        i + 1,
-        r.name || '',
-        r.total_referrals || 0,
-        r.completed || 0,
-        r.tier || 'Bronze',
-        r.total_earned || 0,
-        r.available_credit || 0
-    ]);
-    
-    exportCSV(headers, rows, `easysuccor-referrals-${timestamp}.csv`);
-}
-
-// Payments CSV
-async function exportPaymentsCSV(timestamp) {
-    try {
-        const [stats, installments, payLater] = await Promise.all([
-            apiCall('/admin/payment-stats'),
-            apiCall('/admin/installments'),
-            apiCall('/admin/pay-later')
-        ]);
+        function openExportModal() {
+            document.getElementById('exportModal').style.display = 'flex';
+        }
         
-        // Summary section
-        let csv = 'PAYMENT SUMMARY\n';
-        csv += `Total Pending,${stats.total_pending || 0}\n`;
-        csv += `Pending Amount,${stats.total_pending_amount || 0}\n`;
-        csv += `Active Installments,${stats.installments_active || 0}\n`;
-        csv += `Completed Installments,${stats.installments_completed || 0}\n`;
-        csv += `Active Pay Later,${stats.pay_later_active || 0}\n`;
-        csv += `Overdue Pay Later,${stats.pay_later_overdue || 0}\n\n`;
+        function closeExportModal() {
+            document.getElementById('exportModal').style.display = 'none';
+        }
         
-        // Installments section
-        csv += 'INSTALLMENTS\n';
-        csv += 'Order ID,Client,Progress,Paid,Remaining,Next Due,Status\n';
-        installments.forEach(i => {
-            csv += `"${i.order_id || ''}","${i.client_name || ''}",${i.current_installment || 1}/2,${i.paid_amount || 0},${i.remaining_amount || 0},"${i.next_due_date || ''}","${i.status || ''}"\n`;
-        });
+        async function exportData(type, format) {
+            closeExportModal();
+            
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                alert('Please enter Admin API Key');
+                return;
+            }
+            
+            const timestamp = new Date().toISOString().split('T')[0];
+            
+            switch(type) {
+                case 'all':
+                    await exportAllDataJSON(timestamp);
+                    break;
+                case 'clients':
+                    await exportClientsCSV(timestamp);
+                    break;
+                case 'orders':
+                    await exportOrdersCSV(timestamp);
+                    break;
+                case 'vacancies':
+                    await exportVacanciesCSV(timestamp);
+                    break;
+                case 'hired':
+                    await exportHiredCSV(timestamp);
+                    break;
+                case 'referrals':
+                    await exportReferralsCSV(timestamp);
+                    break;
+                case 'payments':
+                    await exportPaymentsCSV(timestamp);
+                    break;
+                case 'errors':
+                    await exportErrorsCSV(timestamp);
+                    break;
+                case 'documents':
+                    await exportDocumentsZip(timestamp);
+                    break;
+            }
+        }
         
-        csv += '\nPAY LATER\n';
-        csv += 'Order ID,Client,Amount,Due Date,Days Left,Status\n';
-        payLater.forEach(p => {
-            csv += `"${p.order_id || ''}","${p.client_name || ''}",${p.amount || 0},"${p.due_date || ''}",${p.days_until_due || 0},"${p.status || ''}"\n`;
-        });
+        function exportAllDataJSON(timestamp) {
+            const data = {
+                exported_at: new Date().toISOString(),
+                stats: allData.stats,
+                clients: allData.clients,
+                orders: allData.orders,
+                vacancies: allData.vacancies,
+                hiredClients: allData.hiredClients,
+                documents: allData.documents,
+                updates: allData.updates,
+                payments: allData.payments,
+                referrals: allData.referrals,
+                errors: allData.errors
+            };
+            downloadFile(JSON.stringify(data, null, 2), `easysuccor-backup-${timestamp}.json`, 'application/json');
+        }
         
-        downloadFile(csv, `easysuccor-payments-${timestamp}.csv`, 'text/csv');
-    } catch (error) {
-        alert('Error exporting payments: ' + error.message);
-    }
-}
-
-// Errors CSV
-function exportErrorsCSV(timestamp) {
-    const errors = allData.errors || [];
-    const headers = ['ID', 'Client', 'Description', 'Status', 'Resolution', 'Created', 'Resolved'];
-    
-    const rows = errors.map(e => [
-        e.id || '',
-        e.client_name || 'Unknown',
-        e.description || '',
-        e.status || '',
-        e.resolution_notes || '',
-        e.created_at ? new Date(e.created_at).toLocaleString() : '',
-        e.resolved_at ? new Date(e.resolved_at).toLocaleString() : ''
-    ]);
-    
-    exportCSV(headers, rows, `easysuccor-errors-${timestamp}.csv`);
-}
-
-// Documents ZIP
-async function exportDocumentsZip(timestamp) {
-    const apiKey = getApiKey();
-    
-    // Show loading
-    alert('Preparing document download... This may take a moment.');
-    
-    try {
-        const response = await fetch('/admin/download-all-documents', {
-            headers: { 'x-admin-key': apiKey }
-        });
+        function exportClientsCSV(timestamp) {
+            const clients = allData.clients || [];
+            const headers = ['ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Location', 'Total Orders', 'Total Spent', 'Referrals', 'Status', 'Joined', 'Last Active'];
+            const rows = clients.map(c => [
+                c.id || '',
+                c.first_name || '',
+                c.last_name || '',
+                c.email || '',
+                c.phone || '',
+                c.location || '',
+                c.total_orders || 0,
+                c.total_spent || 0,
+                c.referral_count || 0,
+                getClientStatus(c),
+                c.created_at ? new Date(c.created_at).toLocaleDateString() : '',
+                c.last_active ? new Date(c.last_active).toLocaleDateString() : ''
+            ]);
+            exportCSV(headers, rows, `easysuccor-clients-${timestamp}.csv`);
+        }
         
-        if (response.ok) {
-            const blob = await response.blob();
+        function exportOrdersCSV(timestamp) {
+            const orders = allData.orders || [];
+            const headers = ['Order ID', 'Client Name', 'Client Email', 'Client Phone', 'Service', 'Category', 'Payment Type', 'Status', 'Payment Status', 'Total', 'Created', 'Delivered'];
+            const rows = orders.map(o => [
+                o.id || '',
+                o.client?.name || '',
+                o.client?.email || '',
+                o.client?.phone || '',
+                o.service || '',
+                o.category || '',
+                o.payment_type || 'standard',
+                o.status || '',
+                o.payment_status || '',
+                o.total_charge || '',
+                o.created_at ? new Date(o.created_at).toLocaleString() : '',
+                o.delivered_at ? new Date(o.delivered_at).toLocaleString() : ''
+            ]);
+            exportCSV(headers, rows, `easysuccor-orders-${timestamp}.csv`);
+        }
+        
+        function exportVacanciesCSV(timestamp) {
+            const vacancies = allData.vacancies || [];
+            const headers = ['ID', 'Position', 'Company', 'Location', 'Job Type', 'Experience Required', 'Deadline', 'Usage Count', 'Created'];
+            const rows = vacancies.map(v => [
+                v.id || '',
+                v.position || '',
+                v.company || '',
+                v.location || '',
+                v.job_type || '',
+                v.experience_required || '',
+                v.deadline || '',
+                v.usage_count || 0,
+                v.created_at ? new Date(v.created_at).toLocaleDateString() : ''
+            ]);
+            exportCSV(headers, rows, `easysuccor-vacancies-${timestamp}.csv`);
+        }
+        
+        function exportHiredCSV(timestamp) {
+            const hired = allData.hiredClients || [];
+            const headers = ['Client Name', 'Position Hired', 'Company', 'Story', 'Anonymous', 'Date Hired'];
+            const rows = hired.map(h => [
+                h.anonymous ? 'Anonymous' : (h.client_name || ''),
+                h.position || '',
+                h.company || '',
+                h.story || '',
+                h.anonymous ? 'Yes' : 'No',
+                h.hired_date ? new Date(h.hired_date).toLocaleDateString() : ''
+            ]);
+            exportCSV(headers, rows, `easysuccor-hired-${timestamp}.csv`);
+        }
+        
+        function exportReferralsCSV(timestamp) {
+            const referrals = allData.referrals || [];
+            const headers = ['Rank', 'Client Name', 'Total Referrals', 'Completed', 'Tier', 'Total Earned', 'Available Credit'];
+            const rows = referrals.map((r, i) => [
+                i + 1,
+                r.name || '',
+                r.total_referrals || 0,
+                r.completed || 0,
+                r.tier || 'Bronze',
+                r.total_earned || 0,
+                r.available_credit || 0
+            ]);
+            exportCSV(headers, rows, `easysuccor-referrals-${timestamp}.csv`);
+        }
+        
+        async function exportPaymentsCSV(timestamp) {
+            try {
+                const [stats, installments, payLater] = await Promise.all([
+                    apiCall('/admin/payment-stats'),
+                    apiCall('/admin/installments'),
+                    apiCall('/admin/pay-later')
+                ]);
+                
+                let csv = 'PAYMENT SUMMARY\n';
+                csv += `Total Pending,${stats.total_pending || 0}\n`;
+                csv += `Pending Amount,${stats.total_pending_amount || 0}\n`;
+                csv += `Active Installments,${stats.installments_active || 0}\n`;
+                csv += `Completed Installments,${stats.installments_completed || 0}\n`;
+                csv += `Active Pay Later,${stats.pay_later_active || 0}\n`;
+                csv += `Overdue Pay Later,${stats.pay_later_overdue || 0}\n\n`;
+                
+                csv += 'INSTALLMENTS\n';
+                csv += 'Order ID,Client,Progress,Paid,Remaining,Next Due,Status\n';
+                installments.forEach(i => {
+                    csv += `"${i.order_id || ''}","${i.client_name || ''}",${i.current_installment || 1}/2,${i.paid_amount || 0},${i.remaining_amount || 0},"${i.next_due_date || ''}","${i.status || ''}"\n`;
+                });
+                
+                csv += '\nPAY LATER\n';
+                csv += 'Order ID,Client,Amount,Due Date,Days Left,Status\n';
+                payLater.forEach(p => {
+                    csv += `"${p.order_id || ''}","${p.client_name || ''}",${p.amount || 0},"${p.due_date || ''}",${p.days_until_due || 0},"${p.status || ''}"\n`;
+                });
+                
+                downloadFile(csv, `easysuccor-payments-${timestamp}.csv`, 'text/csv');
+            } catch (error) {
+                alert('Error exporting payments: ' + error.message);
+            }
+        }
+        
+        function exportErrorsCSV(timestamp) {
+            const errors = allData.errors || [];
+            const headers = ['ID', 'Client', 'Description', 'Status', 'Resolution', 'Created', 'Resolved'];
+            const rows = errors.map(e => [
+                e.id || '',
+                e.client_name || 'Unknown',
+                e.description || '',
+                e.status || '',
+                e.resolution_notes || '',
+                e.created_at ? new Date(e.created_at).toLocaleString() : '',
+                e.resolved_at ? new Date(e.resolved_at).toLocaleString() : ''
+            ]);
+            exportCSV(headers, rows, `easysuccor-errors-${timestamp}.csv`);
+        }
+        
+        async function exportDocumentsZip(timestamp) {
+            const apiKey = getApiKey();
+            alert('Preparing document download... This may take a moment.');
+            try {
+                const response = await fetch('/admin/download-all-documents', { headers: { 'x-admin-key': apiKey } });
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `easysuccor-documents-${timestamp}.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                } else {
+                    alert('Failed to download documents. Please try again.');
+                }
+            } catch (error) {
+                alert('Error downloading documents: ' + error.message);
+            }
+        }
+        
+        // Helper Functions
+        function getClientStatus(client) {
+            const hiredIds = new Set((allData.hiredClients || []).map(h => h.client_id));
+            if (hiredIds.has(client.id)) return 'Hired';
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            if (!client.last_active || new Date(client.last_active) < thirtyDaysAgo) return 'Ghost';
+            return 'Active';
+        }
+        
+        function exportCSV(headers, rows, filename) {
+            let csv = headers.join(',') + '\n';
+            rows.forEach(row => {
+                const escapedRow = row.map(cell => {
+                    if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"'))) {
+                        return `"${cell.replace(/"/g, '""')}"`;
+                    }
+                    return cell;
+                }).join(',');
+                csv += escapedRow + '\n';
+            });
+            downloadFile(csv, filename, 'text/csv;charset=utf-8;');
+        }
+        
+        function downloadFile(content, filename, type) {
+            const blob = new Blob([content], { type });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `easysuccor-documents-${timestamp}.zip`;
+            a.download = filename;
+            document.body.appendChild(a);
             a.click();
+            document.body.removeChild(a);
             URL.revokeObjectURL(url);
-        } else {
-            alert('Failed to download documents. Please try again.');
         }
-    } catch (error) {
-        alert('Error downloading documents: ' + error.message);
-    }
-}
-
-// Helper Functions
-function getClientStatus(client) {
-    const hiredIds = new Set((allData.hiredClients || []).map(h => h.client_id));
-    if (hiredIds.has(client.id)) return 'Hired';
-    
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    if (!client.last_active || new Date(client.last_active) < thirtyDaysAgo) return 'Ghost';
-    
-    return 'Active';
-}
-
-function exportCSV(headers, rows, filename) {
-    let csv = headers.join(',') + '\n';
-    
-    rows.forEach(row => {
-        const escapedRow = row.map(cell => {
-            if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"'))) {
-                return `"${cell.replace(/"/g, '""')}"`;
-            }
-            return cell;
-        }).join(',');
-        csv += escapedRow + '\n';
-    });
-    
-    downloadFile(csv, filename, 'text/csv;charset=utf-8;');
-}
-
-function downloadFile(content, filename, type) {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
-
+        
         async function savePrices() {
             const prices = {};
             document.querySelectorAll('[id^="price_"]').forEach(input => {
@@ -1637,22 +1658,31 @@ function downloadFile(content, filename, type) {
                 prices[category][service] = parseInt(input.value);
             });
             
-            await fetch('/admin/update-prices', {
-                method: 'POST',
-                headers: { ...getHeaders(), 'Content-Type': 'application/json' },
-                body: JSON.stringify(prices)
-            });
-            alert('Prices saved!');
-        }
-        
-        function broadcastMessage() {
-            const message = prompt('Enter message to broadcast to all clients:');
-            if (message) {
-                fetch('/admin/broadcast', {
+            try {
+                await fetch('/admin/update-prices', {
                     method: 'POST',
                     headers: { ...getHeaders(), 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message })
-                }).then(() => alert('Broadcast sent!'));
+                    body: JSON.stringify(prices)
+                });
+                alert('Prices saved!');
+            } catch (e) {
+                alert('Failed to save prices: ' + e.message);
+            }
+        }
+        
+        async function broadcastMessage() {
+            const message = prompt('Enter message to broadcast to all clients:');
+            if (message) {
+                try {
+                    await fetch('/admin/broadcast', {
+                        method: 'POST',
+                        headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message })
+                    });
+                    alert('Broadcast sent!');
+                } catch (e) {
+                    alert('Broadcast failed: ' + e.message);
+                }
             }
         }
         
@@ -1669,21 +1699,16 @@ function downloadFile(content, filename, type) {
             downloadFile(JSON.stringify(allData, null, 2), `easysuccor-export-${new Date().toISOString().split('T')[0]}.json`, 'application/json');
         }
         
-        function downloadFile(content, filename, type) {
-            const blob = new Blob([content], { type });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-        
-        function clearAllData() {
+        async function clearAllData() {
             if (confirm('⚠️ DANGER: This will delete ALL data! Are you absolutely sure?')) {
                 if (confirm('FINAL WARNING: All clients, orders, and data will be permanently deleted!')) {
-                    fetch('/admin/clear-all', { method: 'DELETE', headers: getHeaders() })
-                        .then(() => { alert('All data cleared'); refreshAllData(); });
+                    try {
+                        await fetch('/admin/clear-all', { method: 'DELETE', headers: getHeaders() });
+                        alert('All data cleared');
+                        refreshAllData();
+                    } catch (e) {
+                        alert('Failed to clear data: ' + e.message);
+                    }
                 }
             }
         }
@@ -1704,11 +1729,22 @@ function downloadFile(content, filename, type) {
             document.getElementById('modal').style.display = 'none';
         }
         
-        window.onclick = function(event) {
-            if (event.target === document.getElementById('modal')) closeModal();
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
         }
         
-        // Make functions globally available
+        window.onclick = function(event) {
+            if (event.target === document.getElementById('modal')) closeModal();
+            if (event.target === document.getElementById('exportModal')) closeExportModal();
+        };
+        
+        // Expose global functions
         window.refreshAllData = refreshAllData;
         window.viewOrder = viewOrder;
         window.viewDocument = viewDocument;
@@ -1730,6 +1766,6 @@ function downloadFile(content, filename, type) {
         window.openExportModal = openExportModal;
         window.closeExportModal = closeExportModal;
         window.exportData = exportData;
-            </script>
+    </script>
 </body>
 </html>

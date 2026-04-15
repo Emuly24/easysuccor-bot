@@ -3,6 +3,9 @@ const db = require('./database');
 const notificationService = require('./notification-service');
 const cron = require('node-cron');
 
+// Mobile-friendly separator
+const SEP = '\n┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅\n';
+
 class InstallmentTracker {
   constructor(bot) {
     this.bot = bot;
@@ -13,13 +16,11 @@ class InstallmentTracker {
     this.startPayLaterReminderScheduler();
   }
 
-  // Get database type safely
   getDbType() {
     return process.env.NODE_ENV === 'production' ? 'postgres' : 'sqlite';
   }
 
   startReminderScheduler() {
-    // Run every 6 hours
     cron.schedule('0 */6 * * *', async () => {
       console.log('🔄 Running installment reminder check...');
       await this.sendDueReminders();
@@ -27,7 +28,6 @@ class InstallmentTracker {
   }
 
   startOverdueScheduler() {
-    // Run daily at 8 AM
     cron.schedule('0 8 * * *', async () => {
       console.log('🔄 Running overdue installment check...');
       await this.processOverdueInstallments();
@@ -35,7 +35,6 @@ class InstallmentTracker {
   }
 
   startPayLaterReminderScheduler() {
-    // Run daily at 10 AM for Pay Later reminders
     cron.schedule('0 10 * * *', async () => {
       console.log('🔄 Running Pay Later reminder check...');
       await this.sendPayLaterReminders();
@@ -84,7 +83,7 @@ class InstallmentTracker {
       status: 'active',
       cv_status: 'pending',
       delivery_time: deliveryTime,
-      cv_data: cvData, // Store CV data with 18+ categories
+      cv_data: cvData,
       penalty_amount: 0,
       extension_requests: 0,
       max_extensions: 2,
@@ -96,15 +95,14 @@ class InstallmentTracker {
     this.installments.set(orderId, installmentData);
     await this.saveToDatabase(installmentData);
     
-    // Send initial confirmation
     await this.notifyClient(installmentData, `📋 *Installment Plan Created*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Order: ${orderId}
 Total Amount: ${totalAmount}
 First Payment: ${firstInstallment}
 Second Payment: ${secondInstallment} (due in 7 days)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Your CV creation will begin after first payment.
 
@@ -205,11 +203,11 @@ Click below to make your first payment.`, {
       installment.cv_status = 'in_progress';
       responseMessage = `✅ *First Payment Received!*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Amount Paid: ${currentInstallment.amount}
 Remaining: ${installment.remaining_amount}
 ${change > 0 ? `Change/Overpayment: ${change}\n` : ''}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Your CV creation has started!
 
@@ -226,10 +224,10 @@ Thank you for choosing EasySuccor! 🙏`;
       installment.cv_status = 'completed';
       responseMessage = `✅ *Final Payment Received!*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Total Paid: ${installment.paid_amount}
 ${change > 0 ? `Change/Overpayment: ${change}\n` : ''}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Your CV will be delivered within ${installment.delivery_time}.
 
@@ -249,7 +247,6 @@ Thank you for completing your payment! 🎉`;
     
     await this.notifyClient(installment, responseMessage);
     
-    // Update order status in database
     await db.updateOrderPaymentStatus(orderId, installment.status === 'completed' ? 'completed' : 'installment_first_paid');
     
     return {
@@ -273,7 +270,6 @@ Thank you for completing your payment! 🎉`;
       const lastReminder = installment.last_reminder_sent ? new Date(installment.last_reminder_sent) : null;
       const hoursSinceLastReminder = lastReminder ? (now - lastReminder) / (1000 * 60 * 60) : 24;
       
-      // Check if reminder already sent for this interval
       if (installment.reminders_sent?.includes(daysUntilDue)) continue;
       
       if (daysUntilDue === 3 && (!lastReminder || hoursSinceLastReminder > 12)) {
@@ -316,12 +312,12 @@ Thank you for completing your payment! 🎉`;
           
           await this.notifyClient(installment, `⚠️ *Late Payment Penalty Applied*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Your payment for installment ${currentInstallment.number} is ${daysOverdue} days overdue.
 
 A late fee of ${penalty} has been added.
 New amount due: ${currentInstallment.amount}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Please make your payment as soon as possible to avoid additional penalties.`);
           
@@ -351,9 +347,9 @@ Please make your payment as soon as possible to avoid additional penalties.`);
     
     const message = `${urgencyMessages[urgency]}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 *Installment Payment Required*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Order: ${installment.orderId}
 Installment ${currentInstallment.number} of 2
@@ -361,9 +357,9 @@ Amount Due: ${currentInstallment.amount}
 Due Date: ${currentInstallment.due_date}
 ${daysUntilDue < 0 ? `Days Overdue: ${Math.abs(daysUntilDue)}` : `Days Remaining: ${daysUntilDue}`}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 *Payment Methods*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Airtel Money: 0991295401
 • TNM Mpamba: 0886928639
@@ -371,7 +367,7 @@ ${daysUntilDue < 0 ? `Days Overdue: ${Math.abs(daysUntilDue)}` : `Days Remaining
 
 *Reference:* Use your order ID: ${installment.orderId}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ✅ After payment, click the button below:
 
 ${urgency === 'overdue' ? 'Late fees may apply if payment is not received soon.' : 'Pay on time to avoid late fees.'}
@@ -398,14 +394,14 @@ Your CV will be delivered once payment is confirmed.`;
   async notifyAdmin(installment, subject, amount) {
     const adminMessage = `💰 *Installment Update*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Order: ${installment.orderId}
 Client: ${installment.clientName}
 Event: ${subject}
 Amount: ${amount}
 Remaining: ${installment.remaining_amount}
 Status: ${installment.cv_status}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+${SEP}`;
     
     await notificationService.alertAdmin(`Installment: ${subject}`, adminMessage, this.bot);
   }
@@ -435,13 +431,13 @@ Status: ${installment.cv_status}
     
     await this.notifyClient(installment, `✅ *Extension Granted*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Your due date has been extended by ${extensionDays} days.
 
 New due date: ${currentInstallment.due_date}
 
 Please make your payment by this date to avoid penalties.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+${SEP}`);
     
     return {
       success: true,
@@ -512,12 +508,12 @@ Please make your payment by this date to avoid penalties.
     
     await this.notifyClient(payLaterData, `⏳ *Pay Later Plan Created*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Order: ${orderId}
 Amount: ${totalAmount}
 Reference: \`${reference}\`
 Due Date: ${dueDate}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 You have ${dueDays} days to complete your payment.
 
@@ -578,7 +574,6 @@ Click below when you make payment.`, {
         await this.sendPayLaterReminder(plan, Math.abs(daysUntilDue), 'overdue');
         plan.reminders_sent.push('overdue');
         
-        // Apply penalty after 7 days overdue
         if (Math.abs(daysUntilDue) >= 7 && !plan.penalty_applied) {
           const penalty = Math.floor(plan.amount * 0.1);
           plan.penalty_applied = true;
@@ -613,18 +608,18 @@ Please make your payment as soon as possible.`);
     
     const message = `${urgencyMessages[urgency]}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 *Pay Later Payment Required*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Order: ${plan.orderId}
 Amount Due: ${plan.amount}
 Due Date: ${plan.due_date}
 ${daysUntilDue < 0 ? `Days Overdue: ${Math.abs(daysUntilDue)}` : `Days Remaining: ${daysUntilDue}`}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 *Payment Methods*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Airtel Money: 0991295401
 • TNM Mpamba: 0886928639
@@ -632,7 +627,7 @@ ${daysUntilDue < 0 ? `Days Overdue: ${Math.abs(daysUntilDue)}` : `Days Remaining
 
 *Reference:* ${plan.reference}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ✅ Click below when payment is made:`;
     
     await this.bot.telegram.sendMessage(client.telegram_id, message, {
@@ -663,13 +658,13 @@ ${daysUntilDue < 0 ? `Days Overdue: ${Math.abs(daysUntilDue)}` : `Days Remaining
     
     await this.notifyClient(plan, `✅ *Payment Confirmed!*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Your payment of ${plan.amount} has been confirmed.
 
 Your document will be delivered within the specified timeframe.
 
 Thank you for choosing EasySuccor! 🙏
-━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+${SEP}`);
     
     await this.notifyAdmin(plan, `Pay Later payment completed - ${plan.amount}`, plan.amount);
     

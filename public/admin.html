@@ -6,6 +6,7 @@
     <title>EasySuccor | Document Upload Center</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <style>
+        /* ========== ALL ORIGINAL STYLES PRESERVED ========== */
         * {
             margin: 0;
             padding: 0;
@@ -562,6 +563,7 @@
             <div class="header-actions">
                 <a href="/dashboard" class="nav-link">📊 Dashboard</a>
                 <a href="/" class="nav-link">🏠 Home</a>
+                <button class="nav-link" onclick="logoutAdmin()" style="background: none; border: none; cursor: pointer;">🚪 Logout</button>
             </div>
         </div>
         
@@ -569,9 +571,10 @@
         <div class="api-section">
             <div class="form-label">🔑 Admin API Key</div>
             <div class="api-input-group">
-                <input type="password" id="apiKey" class="api-input" placeholder="Enter your admin API key" value="0.i45qbafdnui0.0b656qiu0v3">
+                <input type="password" id="apiKey" class="api-input" placeholder="Enter your admin API key">
                 <button class="btn btn-secondary" onclick="verifyApiKey()">Verify</button>
             </div>
+            <div id="apiStatus" style="margin-top: 10px; font-size: 12px;"></div>
         </div>
         
         <!-- Main Content -->
@@ -593,13 +596,12 @@
                         <option value="reviewed_cover">✅ Reviewed Cover Letter</option>
                         <option value="final_cv">🎯 Final CV (Ready for Delivery)</option>
                         <option value="final_cover">🎯 Final Cover Letter</option>
-                        <option value="template">📐 Template/Format Document</option>
                     </select>
                 </div>
                 
                 <!-- Review Options (shown only for reviewed documents) -->
                 <div id="reviewOptions" class="review-options" style="display: none;">
-                    <div class="review-title">🔄 Review Details</div>
+                    <div class="review-title">🔄 Review Details (Informational only)</div>
                     <div class="form-group">
                         <label class="form-label">Review Number</label>
                         <div class="radio-group">
@@ -621,12 +623,13 @@
                         <label class="form-label">Revision Notes (Optional)</label>
                         <textarea id="revisionNotes" class="form-input" rows="3" placeholder="What changes were made in this review?"></textarea>
                     </div>
+                    <small style="color: var(--text-muted);">Note: Review details are stored locally for reference only.</small>
                 </div>
                 
                 <!-- Client Information -->
                 <div class="form-group">
-                    <label class="form-label">👤 Client Information</label>
-                    <input type="text" id="clientName" class="form-input" placeholder="Client Full Name (Optional - auto-extract if blank)">
+                    <label class="form-label">👤 Client Information (Optional - will be auto-extracted)</label>
+                    <input type="text" id="clientName" class="form-input" placeholder="Client Full Name">
                 </div>
                 
                 <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
@@ -704,14 +707,18 @@
     </div>
     
     <script>
-        // ============ STATE ============
+        // ============ PRODUCTION CONFIGURATION ============
+        // Allowed file types and max size
+        const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.jpg', '.jpeg', '.png'];
+        const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+        
         let selectedFiles = [];
         let uploadHistory = [];
         
         // ============ INITIALIZATION ============
         document.addEventListener('DOMContentLoaded', function() {
             setupDragDrop();
-            loadUploadHistory();
+            loadStoredHistory();
             checkApiKeyStored();
         });
         
@@ -723,18 +730,54 @@
             const storedKey = localStorage.getItem('easysuccor_admin_token');
             if (storedKey) {
                 document.getElementById('apiKey').value = storedKey;
+                verifyApiKey(); // silently verify
             }
         }
         
-        function verifyApiKey() {
+        async function verifyApiKey() {
             const apiKey = getApiKey();
             if (!apiKey) {
-                alert('Please enter API Key');
+                showApiStatus('Please enter API Key', 'error');
                 return;
             }
-            localStorage.setItem('easysuccor_admin_token', apiKey);
-            alert('✅ API Key verified!');
-            loadUploadHistory();
+            
+            showApiStatus('Verifying...', 'info');
+            
+            try {
+                const response = await fetch('/api/status', {
+                    headers: { 'x-admin-key': apiKey }
+                });
+                
+                if (response.ok) {
+                    localStorage.setItem('easysuccor_admin_token', apiKey);
+                    showApiStatus('✅ API Key verified!', 'success');
+                    loadUploadHistory();
+                    updateUploadButton();
+                } else {
+                    showApiStatus('❌ Invalid API Key', 'error');
+                    localStorage.removeItem('easysuccor_admin_token');
+                }
+            } catch (error) {
+                showApiStatus('❌ Cannot connect to server', 'error');
+            }
+        }
+        
+        function showApiStatus(message, type) {
+            const statusDiv = document.getElementById('apiStatus');
+            statusDiv.innerHTML = message;
+            statusDiv.style.color = type === 'error' ? 'var(--danger)' : (type === 'success' ? 'var(--success)' : 'var(--text-secondary)');
+            setTimeout(() => {
+                if (type !== 'error') statusDiv.innerHTML = '';
+            }, 3000);
+        }
+        
+        function logoutAdmin() {
+            localStorage.removeItem('easysuccor_admin_token');
+            document.getElementById('apiKey').value = '';
+            showApiStatus('Logged out', 'info');
+            uploadHistory = [];
+            renderHistory();
+            updateUploadButton();
         }
         
         // ============ DRAG & DROP ============
@@ -762,9 +805,31 @@
         }
         
         function handleFiles(files) {
-            selectedFiles = [...selectedFiles, ...Array.from(files)];
-            updateFileList();
-            updateUploadButton();
+            const validFiles = [];
+            const errors = [];
+            
+            for (const file of Array.from(files)) {
+                const ext = '.' + file.name.split('.').pop().toLowerCase();
+                if (!ALLOWED_EXTENSIONS.includes(ext)) {
+                    errors.push(`${file.name}: Unsupported file type`);
+                    continue;
+                }
+                if (file.size > MAX_FILE_SIZE) {
+                    errors.push(`${file.name}: Exceeds 20MB limit`);
+                    continue;
+                }
+                validFiles.push(file);
+            }
+            
+            if (errors.length) {
+                alert(errors.join('\n'));
+            }
+            
+            if (validFiles.length) {
+                selectedFiles = [...selectedFiles, ...validFiles];
+                updateFileList();
+                updateUploadButton();
+            }
         }
         
         function updateFileList() {
@@ -780,7 +845,7 @@
                 <div class="file-item">
                     <div class="file-info">
                         <span class="file-icon">${getFileIcon(file.name)}</span>
-                        <span class="file-name">${file.name}</span>
+                        <span class="file-name">${escapeHtml(file.name)}</span>
                         <span class="file-size">${formatFileSize(file.size)}</span>
                     </div>
                     <span class="file-remove" onclick="removeFile(${index})">✖</span>
@@ -840,7 +905,7 @@
         function updateUploadButton() {
             const docType = document.getElementById('documentType').value;
             const hasFiles = selectedFiles.length > 0;
-            const hasApiKey = getApiKey().length > 0;
+            const hasApiKey = localStorage.getItem('easysuccor_admin_token') !== null;
             
             document.getElementById('uploadBtn').disabled = !docType || !hasFiles || !hasApiKey;
         }
@@ -851,7 +916,7 @@
             const docType = document.getElementById('documentType').value;
             
             if (!apiKey || !docType || selectedFiles.length === 0) {
-                alert('Please fill all required fields');
+                alert('Please select document type and files, and verify API key');
                 return;
             }
             
@@ -869,6 +934,10 @@
             let successCount = 0;
             let failCount = 0;
             
+            // Determine endpoint based on document type (CV or Cover Letter)
+            const isCV = docType.includes('cv');
+            const endpoint = isCV ? '/admin/upload-cv' : '/admin/upload-cover';
+            
             for (let i = 0; i < selectedFiles.length; i++) {
                 const file = selectedFiles[i];
                 const progress = Math.round((i / selectedFiles.length) * 100);
@@ -876,24 +945,15 @@
                 progressText.textContent = `Processing ${i + 1} of ${selectedFiles.length}: ${file.name}`;
                 
                 const formData = new FormData();
-                formData.append('file', file);
-                formData.append('document_type', docType);
+                formData.append(isCV ? 'cv_file' : 'cover_file', file);
                 formData.append('client_name', document.getElementById('clientName').value);
                 formData.append('client_email', document.getElementById('clientEmail').value);
                 formData.append('client_phone', document.getElementById('clientPhone').value);
                 
-                if (docType === 'reviewed_cv' || docType === 'reviewed_cover') {
-                    const reviewNumber = document.querySelector('input[name="reviewNumber"]:checked')?.value || '1';
-                    formData.append('review_number', reviewNumber);
-                    formData.append('revision_notes', document.getElementById('revisionNotes').value);
-                }
-                
-                // Determine endpoint based on document type
-                let endpoint = '/admin/upload-document';
-                if (docType.includes('cv')) {
-                    endpoint = '/admin/upload-cv';
-                } else if (docType.includes('cover')) {
-                    endpoint = '/admin/upload-cover';
+                // Add optional position/company for cover letters
+                if (!isCV) {
+                    formData.append('position', '');
+                    formData.append('company', '');
                 }
                 
                 try {
@@ -907,11 +967,24 @@
                     
                     if (response.ok) {
                         successCount++;
+                        const extractedStats = result.extracted_data?.stats || {};
+                        const categoriesCount = Object.values(extractedStats).reduce((a,b) => a + b, 0);
+                        
                         results.push({
                             file: file.name,
                             success: true,
                             message: result.message || 'Upload successful',
-                            categories: result.categories_extracted || 0
+                            categories: categoriesCount
+                        });
+                        
+                        // Save to local history
+                        saveToHistory({
+                            filename: file.name,
+                            document_type: docType,
+                            client_name: document.getElementById('clientName').value || 'Auto-extracted',
+                            status: 'success',
+                            categories_extracted: categoriesCount,
+                            created_at: new Date().toISOString()
                         });
                     } else {
                         failCount++;
@@ -920,6 +993,14 @@
                             success: false,
                             error: result.error || 'Upload failed'
                         });
+                        saveToHistory({
+                            filename: file.name,
+                            document_type: docType,
+                            client_name: document.getElementById('clientName').value || 'Unknown',
+                            status: 'error',
+                            error: result.error,
+                            created_at: new Date().toISOString()
+                        });
                     }
                 } catch (error) {
                     failCount++;
@@ -927,6 +1008,14 @@
                         file: file.name,
                         success: false,
                         error: error.message
+                    });
+                    saveToHistory({
+                        filename: file.name,
+                        document_type: docType,
+                        client_name: document.getElementById('clientName').value || 'Unknown',
+                        status: 'error',
+                        error: error.message,
+                        created_at: new Date().toISOString()
                     });
                 }
             }
@@ -938,8 +1027,8 @@
             resultsContainer.style.display = 'block';
             resultsContainer.innerHTML = results.map(r => `
                 <div class="result-item ${r.success ? 'result-success' : 'result-error'}">
-                    ${r.success ? '✅' : '❌'} ${r.file}
-                    ${r.success ? `<br><small>${r.categories} categories extracted</small>` : `<br><small>${r.error}</small>`}
+                    ${r.success ? '✅' : '❌'} ${escapeHtml(r.file)}
+                    ${r.success ? `<br><small>${r.categories || 0} categories extracted</small>` : `<br><small>${escapeHtml(r.error)}</small>`}
                 </div>
             `).join('');
             
@@ -955,25 +1044,54 @@
             }, 3000);
         }
         
-        // ============ UPLOAD HISTORY ============
-        async function loadUploadHistory() {
-            const apiKey = getApiKey();
-            if (!apiKey) return;
-            
-            try {
-                const response = await fetch('/admin/recent-uploads', {
-                    headers: { 'x-admin-key': apiKey }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    uploadHistory = data.uploads || [];
-                    renderHistory();
-                    updateStats();
-                }
-            } catch (error) {
-                console.error('Failed to load history:', error);
+        // ============ LOCAL HISTORY MANAGEMENT ============
+        function saveToHistory(item) {
+            let history = JSON.parse(localStorage.getItem('easysuccor_upload_history') || '[]');
+            history.unshift(item);
+            // Keep only last 100 items
+            if (history.length > 100) history = history.slice(0, 100);
+            localStorage.setItem('easysuccor_upload_history', JSON.stringify(history));
+            uploadHistory = history;
+            renderHistory();
+            updateStats();
+        }
+        
+        function loadStoredHistory() {
+            const stored = localStorage.getItem('easysuccor_upload_history');
+            if (stored) {
+                uploadHistory = JSON.parse(stored);
+                renderHistory();
+                updateStats();
+            } else {
+                uploadHistory = [];
+                renderHistory();
             }
+        }
+        
+        async function loadUploadHistory() {
+            // First try to fetch from server if endpoint exists
+            const apiKey = getApiKey();
+            if (apiKey) {
+                try {
+                    const response = await fetch('/admin/recent-uploads', {
+                        headers: { 'x-admin-key': apiKey }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.uploads && data.uploads.length) {
+                            uploadHistory = data.uploads;
+                            localStorage.setItem('easysuccor_upload_history', JSON.stringify(uploadHistory));
+                            renderHistory();
+                            updateStats();
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    // Fallback to local storage
+                }
+            }
+            // Fallback to local storage
+            loadStoredHistory();
         }
         
         function renderHistory() {
@@ -992,17 +1110,18 @@
             container.innerHTML = uploadHistory.slice(0, 20).map(item => `
                 <div class="history-item">
                     <div class="history-header">
-                        <span class="history-name">${item.filename || 'Unknown'}</span>
+                        <span class="history-name">${escapeHtml(item.filename || 'Unknown')}</span>
                         <span class="history-time">${formatTime(item.created_at)}</span>
                     </div>
                     <div class="history-details">
                         <span class="history-type">${getDocumentTypeLabel(item.document_type)}</span>
-                        <span>Client: ${item.client_name || 'Auto-extracted'}</span>
+                        <span>Client: ${escapeHtml(item.client_name || 'Auto-extracted')}</span>
                         <span class="history-status ${item.status === 'success' ? 'status-success' : 'status-error'}">
                             ${item.status === 'success' ? '✓ Success' : '✗ Failed'}
                         </span>
                     </div>
                     ${item.categories_extracted ? `<div class="history-details" style="margin-top: 5px;">📊 ${item.categories_extracted} categories extracted</div>` : ''}
+                    ${item.error ? `<div class="history-details" style="margin-top: 5px; color: var(--danger);">❌ ${escapeHtml(item.error)}</div>` : ''}
                 </div>
             `).join('');
         }
@@ -1026,8 +1145,7 @@
                 'reviewed_cv': '✅ Reviewed CV',
                 'reviewed_cover': '✅ Reviewed Cover',
                 'final_cv': '🎯 Final CV',
-                'final_cover': '🎯 Final Cover',
-                'template': '📐 Template'
+                'final_cover': '🎯 Final Cover'
             };
             return labels[type] || type;
         }
@@ -1044,13 +1162,24 @@
             return date.toLocaleDateString();
         }
         
-        // Make functions available globally
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+        
+        // Make functions globally available
         window.onDocumentTypeChange = onDocumentTypeChange;
         window.removeFile = removeFile;
         window.clearAll = clearAll;
         window.uploadFiles = uploadFiles;
         window.verifyApiKey = verifyApiKey;
         window.loadUploadHistory = loadUploadHistory;
+        window.logoutAdmin = logoutAdmin;
     </script>
 </body>
 </html>

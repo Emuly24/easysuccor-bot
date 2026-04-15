@@ -2,9 +2,12 @@
 const db = require('./database');
 const cron = require('node-cron');
 
+// Mobile-friendly separator
+const SEP = '\n┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅\n';
+
 class AdminDashboard {
   constructor(bot) {
-    this.bot = bot; // Store bot instance for sending messages
+    this.bot = bot;
     this.stats = {};
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
@@ -12,22 +15,18 @@ class AdminDashboard {
   }
 
   startAutoRefresh() {
-    // Refresh every 15 minutes
     cron.schedule('*/15 * * * *', async () => {
       await this.refreshStats();
     });
     
-    // Daily summary at 9 PM
     cron.schedule('0 21 * * *', async () => {
       await this.sendDailySummary();
     });
     
-    // Weekly report on Monday at 8 AM
     cron.schedule('0 8 * * 1', async () => {
       await this.sendWeeklyReport();
     });
     
-    // Monthly report on 1st at 9 AM
     cron.schedule('0 9 1 * *', async () => {
       await this.sendMonthlyReport();
     });
@@ -42,7 +41,6 @@ class AdminDashboard {
     const firstDayOfWeek = new Date(now.setDate(now.getDate() - now.getDay())).toISOString().split('T')[0];
     const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30)).toISOString().split('T')[0];
     
-    // Get all data in parallel for performance
     const [
       allOrders, allClients, allFeedback, testimonials,
       pendingPayments, weeklyOrders, monthlyOrders, yearlyOrders,
@@ -62,27 +60,22 @@ class AdminDashboard {
       db.getOrdersByService('cv update'),
       db.getAllInstallmentPlans(),
       db.getAllPayLaterPlans(),
-      db.getErrorReports ? db.getErrorReports(null, 1000) : [] // Get all error reports
+      db.getErrorReports ? db.getErrorReports(null, 1000) : []
     ]);
     
-    // Today's orders
     const todayOrders = allOrders.filter(o => o.created_at.split('T')[0] === today);
     const todayRevenue = this.calculateRevenue(todayOrders);
     
-    // Weekly stats
     const weeklyRevenue = this.calculateRevenue(weeklyOrders);
     const weeklyCompleted = weeklyOrders.filter(o => o.status === 'delivered').length;
     
-    // Monthly stats
     const monthlyRevenue = this.calculateRevenue(monthlyOrders);
     const monthlyNewClients = allClients.filter(c => c.created_at >= firstDayOfMonth).length;
     const monthlyReturning = allClients.filter(c => c.total_orders > 1 && c.created_at < firstDayOfMonth).length;
     
-    // Yearly stats
     const yearlyRevenue = this.calculateRevenue(yearlyOrders);
     const yearlyOrdersCount = yearlyOrders.length;
     
-    // CV-specific stats (18+ categories)
     let totalSkills = 0;
     let totalProjects = 0;
     let totalAchievements = 0;
@@ -115,7 +108,6 @@ class AdminDashboard {
     const avgSkillsPerCV = allCVOrders.length > 0 ? Math.round(totalSkills / allCVOrders.length) : 0;
     const avgProjectsPerCV = allCVOrders.length > 0 ? Math.round(totalProjects / allCVOrders.length) : 0;
     
-    // Feedback analysis
     const recentFeedback = allFeedback.filter(f => f.created_at >= thirtyDaysAgo);
     const avgRating = recentFeedback.length > 0 
       ? recentFeedback.reduce((sum, f) => sum + (f.rating || 0), 0) / recentFeedback.length 
@@ -129,7 +121,6 @@ class AdminDashboard {
       1: recentFeedback.filter(f => f.rating === 1).length
     };
     
-    // Service popularity (detailed)
     const serviceCount = {};
     const serviceRevenue = {};
     for (const order of allOrders) {
@@ -140,26 +131,22 @@ class AdminDashboard {
     const mostRequested = Object.entries(serviceCount).sort((a, b) => b[1] - a[1])[0];
     const highestRevenue = Object.entries(serviceRevenue).sort((a, b) => b[1] - a[1])[0];
     
-    // Payment method distribution
     const paymentMethodCount = {};
     for (const order of allOrders) {
       const method = order.payment_method || 'unknown';
       paymentMethodCount[method] = (paymentMethodCount[method] || 0) + 1;
     }
     
-    // Installment stats
     const activeInstallments = installmentPlans.filter(p => p.status === 'active' || p.status === 'first_paid').length;
     const completedInstallments = installmentPlans.filter(p => p.status === 'completed').length;
     const totalInstallmentAmount = installmentPlans.reduce((sum, p) => sum + (p.total_amount || 0), 0);
     const collectedInstallmentAmount = installmentPlans.reduce((sum, p) => sum + (p.paid_amount || 0), 0);
     
-    // Pay Later stats
     const activePayLater = payLaterPlans.filter(p => p.status === 'pending').length;
     const completedPayLater = payLaterPlans.filter(p => p.status === 'completed').length;
     const overduePayLater = payLaterPlans.filter(p => p.status === 'pending' && new Date(p.due_date) < new Date()).length;
     const totalPayLaterAmount = payLaterPlans.reduce((sum, p) => sum + (p.amount || 0), 0);
     
-    // ============ ERROR REPORTING STATS (NEW) ============
     const totalErrorReports = errorReports.length;
     const pendingErrorReports = errorReports.filter(r => r.status === 'pending').length;
     const resolvedErrorReports = errorReports.filter(r => r.status === 'resolved').length;
@@ -167,7 +154,6 @@ class AdminDashboard {
     const errorReportsThisWeek = errorReports.filter(r => r.created_at >= firstDayOfWeek).length;
     const errorReportsThisMonth = errorReports.filter(r => r.created_at >= firstDayOfMonth).length;
     
-    // Average resolution time for resolved reports
     let totalResolutionHours = 0;
     let resolvedWithTime = 0;
     for (const report of errorReports.filter(r => r.status === 'resolved' && r.resolved_at)) {
@@ -178,13 +164,11 @@ class AdminDashboard {
     }
     const avgResolutionHours = resolvedWithTime > 0 ? Math.round(totalResolutionHours / resolvedWithTime) : 0;
     
-    // Recent pending reports (last 5)
     const recentPendingReports = errorReports
       .filter(r => r.status === 'pending')
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, 5);
     
-    // Client retention
     const totalClients = allClients.length;
     const activeClients = allClients.filter(c => {
       const lastOrder = allOrders.find(o => o.client_id === c.id);
@@ -192,19 +176,16 @@ class AdminDashboard {
     }).length;
     const retentionRate = totalClients > 0 ? (activeClients / totalClients) * 100 : 0;
     
-    // Conversion metrics
     const ordersCompleted = allOrders.filter(o => o.payment_status === 'completed').length;
     const ordersPending = allOrders.filter(o => o.payment_status === 'pending').length;
     const conversionRate = allOrders.length > 0 ? (ordersCompleted / allOrders.length) * 100 : 0;
     
-    // Testimonial stats
     const approvedTestimonials = testimonials.filter(t => t.approved).length;
     const pendingTestimonials = testimonials.filter(t => !t.approved).length;
     const avgTestimonialRating = testimonials.length > 0 
       ? testimonials.reduce((sum, t) => sum + (t.rating || 0), 0) / testimonials.length 
       : 0;
     
-    // Daily revenue trend (last 30 days)
     const dailyRevenue = {};
     const last30Days = new Date();
     last30Days.setDate(last30Days.getDate() - 30);
@@ -295,7 +276,6 @@ class AdminDashboard {
         }
       },
       
-      // ============ ERROR REPORTING ANALYTICS (NEW) ============
       error_analytics: {
         total_reports: totalErrorReports,
         pending: pendingErrorReports,
@@ -461,36 +441,36 @@ class AdminDashboard {
     const report = `
 📊 *WEEKLY REPORT - ${new Date().toLocaleDateString()}*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📈 PERFORMANCE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 • Orders: ${s.week.orders}
 • Revenue: MK${s.week.revenue.toLocaleString()}
 • Growth: ${s.week.growth.toFixed(1)}%
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 👥 CLIENTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 • New: ${s.month.new_clients}
 • Active: ${s.clients.active}
 • Retention: ${s.clients.retention_rate}%
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ⭐ FEEDBACK
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 • Avg Rating: ${s.month.avg_rating} ★
 • Testimonials: ${s.testimonials.approved} approved
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 🐛 ERROR REPORTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 • Pending: ${s.error_analytics.pending}
 • Resolved: ${s.error_analytics.resolved}
 • Resolution Rate: ${s.error_analytics.resolution_rate}%
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 🎯 TOP SERVICE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 • ${s.month.most_requested || 'None'} (${s.month.most_requested_count || 0} orders)
 
 Keep up the great work! 🚀`;
@@ -507,38 +487,38 @@ Keep up the great work! 🚀`;
     const report = `
 📊 *MONTHLY REPORT - ${new Date().toLocaleDateString()}*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📈 SUMMARY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 • Total Orders: ${s.month.orders}
 • Revenue: MK${s.month.revenue.toLocaleString()}
 • New Clients: ${s.month.new_clients}
 • Returning Clients: ${s.month.returning_clients}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📊 CV ANALYTICS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 • Total CVs: ${s.cv_analytics.total_cvs}
 • Avg Skills/CV: ${s.cv_analytics.avg_skills_per_cv}
 • Total Projects: ${s.cv_analytics.total_projects}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 PAYMENTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 • Installments Completed: ${s.payment_analytics.installments.completed}
 • Pay Later Overdue: ${s.payment_analytics.pay_later.overdue}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 🐛 ERROR REPORTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 • Total Reports: ${s.error_analytics.total_reports}
 • Pending: ${s.error_analytics.pending}
 • Resolved: ${s.error_analytics.resolved}
 • Avg Resolution: ${s.error_analytics.avg_resolution_hours} hours
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ⭐ RATINGS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 • Average Rating: ${s.month.avg_rating} ★
 • Testimonials: ${s.testimonials.approved} approved
 
@@ -558,13 +538,11 @@ Great month! On to the next! 🎯`;
   async getRevenueByService() {
     const orders = await db.getAllOrders();
     const revenueByService = {};
-    
     for (const order of orders) {
       const service = order.service;
       const amount = this.calculateRevenue([order]);
       revenueByService[service] = (revenueByService[service] || 0) + amount;
     }
-    
     return revenueByService;
   }
 
@@ -572,16 +550,13 @@ Great month! On to the next! 🎯`;
     const clients = await db.getAllClients();
     const trend = [];
     const today = new Date();
-    
     for (let i = days; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
-      
       const count = clients.filter(c => c.created_at.split('T')[0] === dateStr).length;
       trend.push({ date: dateStr, new_clients: count });
     }
-    
     return trend;
   }
 
@@ -590,13 +565,8 @@ Great month! On to the next! 🎯`;
     const clientsWithSpending = await Promise.all(clients.map(async (client) => {
       const orders = await db.getClientOrders(client.id);
       const totalSpent = this.calculateRevenue(orders.filter(o => o.payment_status === 'completed'));
-      return {
-        ...client,
-        total_spent: totalSpent,
-        order_count: orders.length
-      };
+      return { ...client, total_spent: totalSpent, order_count: orders.length };
     }));
-    
     return clientsWithSpending.sort((a, b) => b.total_spent - a.total_spent).slice(0, limit);
   }
 
@@ -608,7 +578,6 @@ Great month! On to the next! 🎯`;
     };
   }
 
-  // ============ ERROR REPORTING METHODS (NEW) ============
   async getErrorReportStats() {
     await this.refreshStats();
     return this.stats.error_analytics;
@@ -624,7 +593,6 @@ Great month! On to the next! 🎯`;
   }
 }
 
-// Auto-refresh every hour
 const dashboard = new AdminDashboard();
 dashboard.refreshStats().catch(console.error);
 

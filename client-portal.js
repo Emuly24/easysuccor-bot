@@ -4,6 +4,9 @@
 const db = require('./database');
 const notificationService = require('./notification-service');
 
+// Mobile-friendly separator
+const SEP = '\n┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅\n';
+
 class ClientPortal {
   constructor(bot) {
     this.bot = bot;
@@ -20,9 +23,9 @@ class ClientPortal {
     
     let portalMessage = `🏢 *EASYSUCCOR CLIENT PORTAL*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 👤 *ACCOUNT INFORMATION*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Name: ${client.first_name} ${client.last_name || ''}
 • Phone: ${client.phone || '❌ Not set'}
@@ -30,9 +33,9 @@ class ClientPortal {
 • Location: ${client.location || '❌ Not set'}
 • Member since: ${new Date(client.created_at).toLocaleDateString()}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📊 *YOUR STATISTICS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Total orders: ${stats.total_orders}
 • Completed: ${stats.completed_orders}
@@ -40,18 +43,18 @@ class ClientPortal {
 • Total spent: ${stats.total_spent}
 • CV Completeness: ${cvCompleteness}%
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 *PAYMENT SUMMARY*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Active Installments: ${paymentSummary.active_installments}
 • Pay Later Active: ${paymentSummary.active_pay_later}
 • Pending Payments: ${paymentSummary.pending_payments}
 • Available Credit: ${paymentSummary.available_credit}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 🎁 *REFERRAL PROGRAM*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Your code: \`${referralStats.referral_code}\`
 • Tier: ${referralStats.tier}
@@ -59,9 +62,9 @@ class ClientPortal {
 • Network size: ${referralStats.network_size}
 • Your credit: MK${(referralStats.available_credit || 0).toLocaleString()}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📄 *RECENT DOCUMENTS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+${SEP}`;
 
     if (orders.length > 0) {
       portalMessage += orders.slice(0, 3).map((o, i) => {
@@ -75,9 +78,9 @@ class ClientPortal {
       portalMessage += `\nNo documents yet. Start your first order with /start`;
     }
     
-    portalMessage += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    portalMessage += `\n\n${SEP}
 ⚙️ *QUICK ACTIONS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 /mydocs - View all documents
 /mypayments - Payment history & status
@@ -146,7 +149,6 @@ Need help? Type /help anytime.`;
       return sum + amount;
     }, 0);
     
-    // Calculate average order value
     const avgOrderValue = completedOrders.length > 0 
       ? Math.round(totalSpent / completedOrders.length) 
       : 0;
@@ -164,25 +166,21 @@ Need help? Type /help anytime.`;
   async getPaymentSummary(clientId) {
     const orders = await db.getClientOrders(clientId);
     
-    // Count active installments
     const activeInstallments = orders.filter(o => 
       o.payment_type === 'installment' && 
       o.installment_status === 'active'
     ).length;
     
-    // Count active pay later
     const activePayLater = orders.filter(o => 
       o.payment_type === 'pay_later' && 
       o.pay_later_status === 'pending'
     ).length;
     
-    // Count pending payments
     const pendingPayments = orders.filter(o => 
       o.payment_status === 'pending' && 
       o.status !== 'cancelled'
     ).length;
     
-    // Get referral credit
     const client = await db.getClient(clientId);
     const availableCredit = client?.referral_credit || 0;
     
@@ -208,30 +206,24 @@ Need help? Type /help anytime.`;
     let score = 0;
     let total = 0;
     
-    // Personal info (20%)
     const personalFields = ['full_name', 'email', 'primary_phone', 'location'];
     total += personalFields.length;
     personalFields.forEach(f => { if (cvData.personal?.[f]) score++; });
     
-    // Professional summary (10%)
     total += 1;
     if (cvData.professional_summary) score++;
     
-    // Employment (15%)
     total += 1;
     if (cvData.employment?.length > 0) score++;
     
-    // Education (10%)
     total += 1;
     if (cvData.education?.length > 0) score++;
     
-    // Skills (15%)
     total += 1;
     const skills = cvData.skills || {};
     const totalSkills = (skills.technical?.length || 0) + (skills.soft?.length || 0) + (skills.tools?.length || 0);
     if (totalSkills > 3) score++;
     
-    // 18+ Categories (30% - 10 categories x 3% each)
     const categories = ['certifications', 'languages', 'projects', 'achievements', 
                        'volunteer', 'leadership', 'awards', 'publications', 
                        'conferences', 'referees'];
@@ -250,7 +242,6 @@ Need help? Type /help anytime.`;
     const referrals = await db.getUserReferrals(client.id);
     const completedRefs = referrals.filter(r => r.status === 'completed').length;
     
-    // Get multi-level stats
     const secondLevel = await this.getSecondLevelCount(client.id);
     const thirdLevel = await this.getThirdLevelCount(client.id);
     
@@ -322,16 +313,15 @@ Need help? Type /help anytime.`;
     }
     
     let message = `📁 *YOUR DOCUMENT ARCHIVE*\n\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `${SEP}\n`;
     
-    // Group by status
     const active = orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
     const completed = orders.filter(o => o.status === 'completed' || o.status === 'delivered');
     const cancelled = orders.filter(o => o.status === 'cancelled');
     
     if (active.length > 0) {
       message += `⏳ *ACTIVE ORDERS*\n`;
-      message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `${SEP}\n`;
       for (const order of active) {
         message += this.formatOrderSummary(order);
       }
@@ -340,7 +330,7 @@ Need help? Type /help anytime.`;
     
     if (completed.length > 0) {
       message += `✅ *COMPLETED DOCUMENTS*\n`;
-      message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `${SEP}\n`;
       for (const order of completed.slice(0, 5)) {
         message += this.formatOrderSummary(order);
       }
@@ -349,7 +339,7 @@ Need help? Type /help anytime.`;
       }
     }
     
-    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `\n${SEP}\n`;
     message += `To request a new document, type /start`;
     
     const keyboard = {
@@ -382,13 +372,11 @@ Need help? Type /help anytime.`;
       summary += `   📬 Delivered: ${new Date(order.delivered_at).toLocaleDateString()}\n`;
     }
     
-    // Show installment info if applicable
     if (order.payment_type === 'installment' && order.installment_data) {
       const inst = order.installment_data;
       summary += `   💳 Installment: ${inst.current_installment}/2 (MK${inst.remaining_amount} remaining)\n`;
     }
     
-    // Show pay later info
     if (order.payment_type === 'pay_later' && order.pay_later_data) {
       const pl = order.pay_later_data;
       const dueDate = new Date(pl.due_date);
@@ -405,53 +393,48 @@ Need help? Type /help anytime.`;
     const referralCredit = client.referral_credit || 0;
     
     let message = `💳 *PAYMENT CENTER*\n\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `${SEP}\n`;
     message += `📊 *SUMMARY*\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `${SEP}\n\n`;
     message += `• Active Installments: ${paymentSummary.active_installments}\n`;
     message += `• Pay Later Active: ${paymentSummary.active_pay_later}\n`;
     message += `• Pending Payments: ${paymentSummary.pending_payments}\n`;
     message += `• Referral Credit: MK${referralCredit.toLocaleString()}\n\n`;
     
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `${SEP}\n`;
     message += `💳 *PAYMENT METHODS*\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `${SEP}\n\n`;
     message += `• Airtel Money: 0991295401\n`;
     message += `• TNM Mpamba: 0886928639\n`;
     message += `• MO626 Bank: 1005653618\n\n`;
     
-    // Show pending payments
     const pendingOrders = orders.filter(o => 
       o.payment_status === 'pending' && 
       o.status !== 'cancelled'
     );
     
     if (pendingOrders.length > 0) {
-      message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `${SEP}\n`;
       message += `⏳ *PENDING PAYMENTS*\n`;
-      message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-      
+      message += `${SEP}\n\n`;
       for (const order of pendingOrders.slice(0, 5)) {
         message += `• Order: \`${order.id}\`\n`;
         message += `  Amount: ${order.total_charge}\n`;
         message += `  Type: ${order.payment_type || 'Standard'}\n`;
         message += `  Due: ${order.due_date || 'Upon order'}\n\n`;
       }
-      
       message += `\nTo make a payment, type /pay\n`;
     }
     
-    // Show installment details
     const installmentOrders = orders.filter(o => 
       o.payment_type === 'installment' && 
       o.installment_status === 'active'
     );
     
     if (installmentOrders.length > 0) {
-      message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `${SEP}\n`;
       message += `💰 *ACTIVE INSTALLMENTS*\n`;
-      message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-      
+      message += `${SEP}\n\n`;
       for (const order of installmentOrders) {
         const inst = order.installment_data || {};
         message += `• Order: \`${order.id}\`\n`;
@@ -481,9 +464,9 @@ Need help? Type /help anytime.`;
     const lastOrder = orders[0];
     
     let message = `👤 *PROFILE SETTINGS*\n\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `${SEP}\n`;
     message += `📋 *CONTACT INFORMATION*\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `${SEP}\n\n`;
     message += `• Name: ${client.first_name} ${client.last_name || ''}\n`;
     message += `• Phone: ${client.phone || '❌ Not set'}\n`;
     message += `• Alternative Phone: ${client.alternative_phone || '❌ Not set'}\n`;
@@ -492,17 +475,17 @@ Need help? Type /help anytime.`;
     message += `• Physical Address: ${client.physical_address || '❌ Not set'}\n`;
     message += `• Nationality: ${client.nationality || '❌ Not set'}\n\n`;
     
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `${SEP}\n`;
     message += `📊 *PROFILE STATS*\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `${SEP}\n\n`;
     message += `• CV Completeness: ${cvCompleteness}%\n`;
     message += `• Total Orders: ${orders.length}\n`;
     message += `• Member Since: ${new Date(client.created_at).toLocaleDateString()}\n`;
     message += `• Last Activity: ${lastOrder ? new Date(lastOrder.created_at).toLocaleDateString() : 'Never'}\n\n`;
     
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `${SEP}\n`;
     message += `✏️ *UPDATE OPTIONS*\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    message += `${SEP}`;
     
     const keyboard = {
       inline_keyboard: [
@@ -551,11 +534,10 @@ Need help? Type /help anytime.`;
     const completeness = await this.getCVCompleteness(client.id);
     
     let message = `📊 *CV COMPLETENESS REPORT*\n\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `${SEP}\n`;
     message += `Overall Score: ${completeness}%\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `${SEP}\n\n`;
     
-    // Personal Info
     const personal = cvData.personal || {};
     message += `👤 *Personal Info* ${personal.full_name ? '✅' : '❌'}\n`;
     message += `   • Name: ${personal.full_name || 'Missing'}\n`;
@@ -563,20 +545,16 @@ Need help? Type /help anytime.`;
     message += `   • Phone: ${personal.primary_phone || 'Missing'}\n`;
     message += `   • Location: ${personal.location || 'Missing'}\n\n`;
     
-    // Professional Summary
     message += `📝 *Professional Summary* ${cvData.professional_summary ? '✅' : '❌'}\n\n`;
     
-    // Employment
     const employment = cvData.employment || [];
     message += `💼 *Employment* ${employment.length > 0 ? '✅' : '❌'}\n`;
     message += `   • ${employment.length} position(s) recorded\n\n`;
     
-    // Education
     const education = cvData.education || [];
     message += `🎓 *Education* ${education.length > 0 ? '✅' : '❌'}\n`;
     message += `   • ${education.length} qualification(s) recorded\n\n`;
     
-    // Skills
     const skills = cvData.skills || {};
     const techSkills = skills.technical || [];
     const softSkills = skills.soft || [];
@@ -587,10 +565,9 @@ Need help? Type /help anytime.`;
     message += `   • Soft: ${softSkills.length}\n`;
     message += `   • Tools: ${toolsSkills.length}\n\n`;
     
-    // 18+ Categories
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `${SEP}\n`;
     message += `📂 *18+ CATEGORIES*\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `${SEP}\n\n`;
     
     const categories = [
       { name: 'Certifications', data: cvData.certifications },
@@ -610,9 +587,9 @@ Need help? Type /help anytime.`;
       message += `${hasData ? '✅' : '❌'} ${cat.name}: ${hasData ? cat.data.length + ' item(s)' : 'Missing'}\n`;
     }
     
-    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `\n${SEP}\n`;
     message += `💡 *Recommendations*\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `${SEP}\n\n`;
     
     if (completeness < 50) {
       message += `⚠️ Your CV needs significant improvement.\n`;
@@ -651,9 +628,9 @@ Need help? Type /help anytime.`;
     
     const message = `🎁 *REFERRAL PROGRAM*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 *YOUR REFERRAL LINKS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 *Telegram:*
 \`${shareLink}\`
@@ -661,9 +638,9 @@ Need help? Type /help anytime.`;
 *Short Link (WhatsApp/SMS):*
 \`${shortLink}\`
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📊 *YOUR STATISTICS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Tier: ${stats.tier}
 • Direct Referrals: ${stats.completed_referrals}
@@ -672,9 +649,9 @@ Need help? Type /help anytime.`;
 • Total Network: ${stats.network_size}
 • Available Credit: MK${(stats.available_credit || 0).toLocaleString()}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💰 *REWARD TIERS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 🥉 Bronze (0-4): MK2,000/ref
 🥈 Silver (5-9): MK2,500/ref + 5% bonus
@@ -682,9 +659,9 @@ Need help? Type /help anytime.`;
 💎 Platinum (25-49): MK4,000/ref + 15% bonus
 👑 Diamond (50+): MK5,000/ref + 20% bonus
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💡 *HOW IT WORKS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 1️⃣ Share your link with friends
 2️⃣ Friend gets 10% off their first order
@@ -760,7 +737,6 @@ Type the number of your choice or click below:`, {
     updateData[field] = value;
     await db.updateClient(client.id, updateData);
     
-    // Clear cache
     this.sessionCache.delete(client.id);
     
     await ctx.reply(`✅ *${field.replace(/_/g, ' ').toUpperCase()} updated successfully!*
@@ -787,33 +763,33 @@ Type /portal to view your updated profile.`, {
   async showSupport(ctx, client) {
     const message = `🆘 *SUPPORT CENTER*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📞 *CONTACT INFORMATION*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Phone: +265 991 295 401
 • WhatsApp: +265 881 193 707
 • Email: ${process.env.EMAIL_USER || 'easysuccor.bot@gmail.com'}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 *PAYMENT METHODS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Airtel Money: 0991295401
 • TNM Mpamba: 0886928639
 • MO626 Bank: 1005653618
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ⏰ *BUSINESS HOURS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Monday - Friday: 8:00 AM - 8:00 PM
 Saturday: 9:00 AM - 5:00 PM
 Sunday: Closed
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 *COMMON ISSUES*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Payment issues? Type /pay
 • Need your documents? Type /mydocs
@@ -821,9 +797,9 @@ Sunday: Closed
 • Reset session? Type /reset
 • Referral questions? Type /referral
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💬 *LIVE SUPPORT*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 For urgent matters, please call or WhatsApp us directly.
 
@@ -844,7 +820,6 @@ We typically respond within 2 hours during business hours.`;
     });
   }
 
-  // Handle portal callbacks
   async handleCallback(ctx, client, action) {
     switch (action) {
       case 'portal_docs':

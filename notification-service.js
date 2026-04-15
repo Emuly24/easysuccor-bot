@@ -2,7 +2,10 @@
 const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
-const db = require('./database'); // Added missing import
+const db = require('./database');
+
+// Mobile-friendly separator
+const SEP = '\n┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅\n';
 
 class NotificationService {
   constructor() {
@@ -14,17 +17,14 @@ class NotificationService {
     this.notificationQueue = [];
     this.isProcessing = false;
     
-    // Email templates directory
     this.templatePath = path.join(__dirname, 'email_templates');
     if (!fs.existsSync(this.templatePath)) {
       fs.mkdirSync(this.templatePath, { recursive: true });
     }
     
-    // Notification history
     this.historyPath = path.join(__dirname, 'data', 'notification_history.json');
     this.notificationHistory = this.loadHistory();
     
-    // Start queue processor
     this.startQueueProcessor();
   }
 
@@ -132,7 +132,6 @@ class NotificationService {
   }
 
   // ============ EMAIL NOTIFICATION ============
-  
   async sendEmail(to, subject, message, attachments = null, priority = 'normal') {
     return this.queueNotification({
       type: 'email',
@@ -324,7 +323,6 @@ class NotificationService {
   }
 
   // ============ TELEGRAM NOTIFICATION ============
-  
   async sendTelegram(chatId, message, bot, priority = 'normal') {
     return this.queueNotification({
       type: 'telegram',
@@ -363,7 +361,6 @@ class NotificationService {
   }
 
   // ============ MULTI-CHANNEL ALERTS ============
-  
   async sendToBoth(to, subject, message, attachments = null, bot) {
     const emailResult = await this.sendEmailDirect(to, subject, message, attachments);
     const telegramResult = await this.sendTelegramDirect(to, message, bot);
@@ -385,7 +382,6 @@ class NotificationService {
   }
 
   // ============ ADMIN ALERTS ============
-  
   async alertAdmin(subject, message, bot, priority = 'high') {
     const adminChatId = process.env.ADMIN_CHAT_ID;
     const adminEmail = this.adminEmail;
@@ -431,7 +427,6 @@ class NotificationService {
   }
 
   // ============ CLIENT NOTIFICATIONS ============
-  
   async sendClientConfirmation(chatId, message, bot, clientEmail = null) {
     const telegramResult = await this.sendTelegram(chatId, message, bot);
     
@@ -449,11 +444,11 @@ class NotificationService {
     
     const clientMessage = `✅ *PAYMENT CONFIRMED!* 🎉
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Order: \`${order.id}\`
 Amount: ${order.total_charge}
 Reference: \`${reference}\`
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Your document will be delivered within ${order.delivery_time}.
 
@@ -461,12 +456,12 @@ Thank you for choosing EasySuccor! 🙏`;
 
     const adminMessage = `✅ *PAYMENT VERIFIED*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Order: ${order.id}
 Client: ${client.first_name} ${client.last_name || ''}
 Amount: ${order.total_charge}
 Reference: ${reference}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Document has been sent to client.`;
 
@@ -477,12 +472,12 @@ Document has been sent to client.`;
   async sendInstallmentPaymentConfirmation(client, order, installmentPlan, bot) {
     const message = `✅ *INSTALLMENT PAYMENT CONFIRMED!*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Order: \`${order.id}\`
 Payment: Installment ${installmentPlan.current_installment} of 2
 Amount Paid: ${installmentPlan.last_paid_amount}
 Remaining: ${installmentPlan.remaining_amount}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 ${installmentPlan.current_installment === 1 ? 
   'Your CV creation has started! You will receive a preview within 24 hours.' : 
@@ -496,12 +491,12 @@ Thank you for choosing EasySuccor! 🙏`;
   async sendPayLaterReminder(client, plan, bot) {
     const message = `⏰ *PAYMENT REMINDER*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Order: \`${plan.orderId}\`
 Amount Due: ${plan.amount}
 Due Date: ${plan.due_date}
 Days Remaining: ${plan.days_until_due}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Please make your payment to receive your document.
 
@@ -534,11 +529,11 @@ After payment, type: /confirm ${plan.reference}`;
   async sendDocumentReadyNotification(client, order, documentType, bot) {
     const message = `📄 *YOUR DOCUMENT IS READY!*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 Order: \`${order.id}\`
 Document: ${documentType}
 Format: ${order.service.includes('editable') ? 'Word (DOCX)' : 'PDF'}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Your document has been delivered to this chat.
 
@@ -555,7 +550,6 @@ Thank you for choosing EasySuccor! 🎉`;
   }
 
   // ============ BULK NOTIFICATIONS ============
-  
   async sendBulkEmail(recipients, subject, message) {
     const results = [];
     for (const recipient of recipients) {
@@ -583,7 +577,6 @@ Thank you for choosing EasySuccor! 🎉`;
   }
 
   // ============ TEMPLATE MANAGEMENT ============
-  
   async saveTemplate(name, subject, htmlContent, textContent) {
     const template = {
       name,
@@ -628,7 +621,6 @@ Thank you for choosing EasySuccor! 🎉`;
   }
 
   // ============ STATISTICS & MONITORING ============
-  
   getNotificationStats() {
     const last24h = this.notificationHistory.filter(n => {
       const date = new Date(n.timestamp);

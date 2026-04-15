@@ -1,9 +1,13 @@
 // payment-reminder.js - Automated Smart Payment Reminder System (UPDATED)
 // Now supports Installment Plans, Pay Later, and 18+ categories
+// Includes clear penalty percentage messaging for overdue payments
 
 const cron = require('node-cron');
 const db = require('./database');
 const notificationService = require('./notification-service');
+
+// Mobile-friendly separator
+const SEP = '\n┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅\n';
 
 class PaymentReminder {
   constructor(bot) {
@@ -55,7 +59,6 @@ class PaymentReminder {
     const now = new Date();
     
     for (const order of pendingOrders) {
-      // Skip if this is an installment order (handled separately)
       if (order.payment_type === 'installment') continue;
       if (order.payment_type === 'pay_later') continue;
       
@@ -64,7 +67,6 @@ class PaymentReminder {
       const lastReminder = this.reminderHistory.get(order.id);
       const hoursSinceLastReminder = lastReminder ? (now - lastReminder) / (1000 * 60 * 60) : 24;
       
-      // Smart reminder scheduling
       let shouldRemind = false;
       let urgency = 'normal';
       
@@ -92,10 +94,10 @@ class PaymentReminder {
     }
   }
 
-  // NEW: Installment-specific reminders
   async sendInstallmentReminders() {
     const installmentPlans = await db.getAllInstallmentPlans?.() || [];
     const now = new Date();
+    const PENALTY_PERCENT = parseInt(process.env.INSTALLMENT_PENALTY_PERCENT) || 10;
     
     for (const plan of installmentPlans) {
       if (plan.status !== 'active') continue;
@@ -113,7 +115,6 @@ class PaymentReminder {
       let shouldRemind = false;
       let urgency = 'normal';
       
-      // Before due date
       if (daysUntilDue === 3 && hoursSinceLastReminder > 12) {
         shouldRemind = true;
         urgency = 'warning';
@@ -123,9 +124,7 @@ class PaymentReminder {
       } else if (daysUntilDue === 0 && hoursSinceLastReminder > 3) {
         shouldRemind = true;
         urgency = 'due_today';
-      } 
-      // After due date (overdue)
-      else if (daysOverdue === 1 && hoursSinceLastReminder > 12) {
+      } else if (daysOverdue === 1 && hoursSinceLastReminder > 12) {
         shouldRemind = true;
         urgency = 'overdue_1';
       } else if (daysOverdue === 3 && hoursSinceLastReminder > 24) {
@@ -140,13 +139,13 @@ class PaymentReminder {
       }
       
       if (shouldRemind) {
-        await this.sendInstallmentReminder(plan, currentInstallment, daysUntilDue, urgency);
+        await this.sendInstallmentReminder(plan, currentInstallment, daysUntilDue, urgency, PENALTY_PERCENT);
         this.installmentReminderHistory.set(`${plan.orderId}_${plan.current_installment}`, now);
       }
     }
   }
 
-  async sendInstallmentReminder(plan, installment, daysUntilDue, urgency) {
+  async sendInstallmentReminder(plan, installment, daysUntilDue, urgency, penaltyPercent) {
     const client = await db.getClientById(plan.clientId);
     if (!client || !client.telegram_id) return;
     
@@ -163,11 +162,18 @@ class PaymentReminder {
     const isOverdue = daysUntilDue < 0;
     const daysDisplay = isOverdue ? Math.abs(daysUntilDue) : daysUntilDue;
     
+    let penaltyMessage = '';
+    if (isOverdue && daysDisplay >= 7) {
+      penaltyMessage = `\n⚠️ *A ${penaltyPercent}% late fee (MK${Math.floor(installment.amount * penaltyPercent / 100)}) has been applied to your balance.*`;
+    } else if (isOverdue && daysDisplay > 0) {
+      penaltyMessage = `\n⚠️ *Payment is ${daysDisplay} day(s) overdue. A ${penaltyPercent}% penalty will apply after 7 days.*`;
+    }
+    
     const message = `${urgencyMessages[urgency]}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 *INSTALLMENT DETAILS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Order: \`${plan.orderId}\`
 Installment: ${plan.current_installment} of 2
@@ -175,27 +181,27 @@ Amount Due: ${installment.amount}
 Due Date: ${installment.due_date}
 ${isOverdue ? `Days Overdue: ${daysDisplay}` : `Days Remaining: ${daysDisplay}`}
 Total Remaining: ${plan.remaining_amount}
+${penaltyMessage}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 *PAYMENT METHODS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Airtel Money: 0991295401
 • TNM Mpamba: 0886928639
 • MO626 Bank: 1005653618
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📌 *INSTRUCTIONS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 1️⃣ Send exactly ${installment.amount} to any account above
 2️⃣ Use order ID \`${plan.orderId}\` as reference
 3️⃣ Click the button below after payment
 
 ${plan.current_installment === 1 ? '• First payment starts CV creation\n• Final CV delivered after second payment' : '• Final payment releases your completed CV'}
-${isOverdue && daysDisplay >= 7 ? '⚠️ A 10% late fee has been applied to your balance' : ''}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+${SEP}`;
 
     await this.bot.telegram.sendMessage(client.telegram_id, message, {
       parse_mode: 'Markdown',
@@ -206,7 +212,6 @@ ${isOverdue && daysDisplay >= 7 ? '⚠️ A 10% late fee has been applied to you
       }
     });
     
-    // Notify admin for overdue installments
     if (urgency.includes('overdue')) {
       await notificationService.alertAdmin(
         `📊 Installment ${urgency}`,
@@ -216,10 +221,10 @@ ${isOverdue && daysDisplay >= 7 ? '⚠️ A 10% late fee has been applied to you
     }
   }
 
-  // NEW: Pay Later reminders
   async sendPayLaterReminders() {
     const payLaterPlans = await db.getAllPayLaterPlans?.() || [];
     const now = new Date();
+    const PENALTY_PERCENT = 10;
     
     for (const plan of payLaterPlans) {
       if (plan.status !== 'pending') continue;
@@ -255,13 +260,13 @@ ${isOverdue && daysDisplay >= 7 ? '⚠️ A 10% late fee has been applied to you
       }
       
       if (shouldRemind) {
-        await this.sendPayLaterReminder(plan, daysUntilDue, urgency);
+        await this.sendPayLaterReminder(plan, daysUntilDue, urgency, PENALTY_PERCENT);
         this.payLaterReminderHistory.set(plan.orderId, now);
       }
     }
   }
 
-  async sendPayLaterReminder(plan, daysUntilDue, urgency) {
+  async sendPayLaterReminder(plan, daysUntilDue, urgency, penaltyPercent) {
     const client = await db.getClientById(plan.clientId);
     if (!client || !client.telegram_id) return;
     
@@ -277,38 +282,46 @@ ${isOverdue && daysDisplay >= 7 ? '⚠️ A 10% late fee has been applied to you
     const isOverdue = daysUntilDue < 0;
     const daysDisplay = isOverdue ? Math.abs(daysUntilDue) : daysUntilDue;
     
+    let penaltyMessage = '';
+    if (isOverdue && daysDisplay >= 7) {
+      const penaltyAmount = Math.floor(plan.amount * penaltyPercent / 100);
+      penaltyMessage = `\n⚠️ *A ${penaltyPercent}% late fee (MK${penaltyAmount}) has been applied to your balance.*`;
+    } else if (isOverdue && daysDisplay > 0) {
+      penaltyMessage = `\n⚠️ *Payment is ${daysDisplay} day(s) overdue. A ${penaltyPercent}% penalty will apply after 7 days.*`;
+    }
+    
     const message = `${urgencyMessages[urgency]}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 *PAY LATER DETAILS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Order: \`${plan.orderId}\`
 Amount Due: ${plan.amount}
 Reference: \`${plan.reference}\`
 Due Date: ${plan.due_date}
 ${isOverdue ? `Days Overdue: ${daysDisplay}` : `Days Remaining: ${daysDisplay}`}
+${penaltyMessage}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 *PAYMENT METHODS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Airtel Money: 0991295401
 • TNM Mpamba: 0886928639
 • MO626 Bank: 1005653618
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📌 *INSTRUCTIONS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 1️⃣ Send exactly ${plan.amount} to any account above
 2️⃣ Use reference: \`${plan.reference}\`
 3️⃣ Click the button below after payment
 
 Your document will be delivered AFTER payment confirmation.
-${isOverdue && daysDisplay >= 7 ? '⚠️ A 10% late fee has been applied' : ''}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+${SEP}`;
 
     await this.bot.telegram.sendMessage(client.telegram_id, message, {
       parse_mode: 'Markdown',
@@ -340,15 +353,21 @@ ${isOverdue && daysDisplay >= 7 ? '⚠️ A 10% late fee has been applied' : ''}
       overdue: '⚠️'
     };
     
-    // Determine document type for 18+ categories reference
     const documentType = order.service || 'document';
     const hasCVData = order.cv_data ? true : false;
+    const PENALTY_PERCENT = 10;
+    let penaltyMessage = '';
+    
+    if (urgency === 'overdue') {
+      const daysOverdue = daysSince - 14;
+      penaltyMessage = `\n⚠️ *Payment is ${daysOverdue} day(s) overdue. A ${PENALTY_PERCENT}% penalty may apply.*`;
+    }
     
     const message = `${urgencyMessages[urgency]}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 *ORDER DETAILS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Order ID: \`${order.id}\`
 Service: ${order.service}
@@ -357,26 +376,27 @@ ${hasCVData ? '✅ CV data received (18+ categories)' : '⏳ CV data pending'}
 Amount Due: ${order.total_charge}
 Days Since Order: ${daysSince}
 ${urgency === 'overdue' ? `Days Overdue: ${daysSince - 14}` : ''}
+${penaltyMessage}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 *PAYMENT METHODS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Airtel Money: 0991295401
 • TNM Mpamba: 0886928639
 • MO626 Bank: 1005653618
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📌 *INSTRUCTIONS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 1️⃣ Send exactly ${order.total_charge} to any account above
 2️⃣ Use order ID \`${order.id}\` as reference
 3️⃣ After payment, type: \`/pay\`
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 ⚠️ *IMPORTANT NOTES*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 ${urgency === 'final' ? '• This is your final reminder before order cancellation\n' : ''}
 ${urgency === 'overdue' ? '• Your order may be cancelled if payment is not received within 7 days\n' : ''}
@@ -394,10 +414,8 @@ Need help? Contact support: +265 991 295 401`;
       }
     });
     
-    // Update reminder count in database
     await db.updatePaymentReminder(order.id, daysSince);
     
-    // Notify admin for high urgency cases
     if (urgency === 'high' || urgency === 'final' || urgency === 'overdue') {
       await notificationService.alertAdmin(
         `${urgencyColors[urgency]} Urgent Payment Reminder Sent`,
@@ -413,7 +431,6 @@ Need help? Contact support: +265 991 295 401`;
     const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
     
     for (const order of pendingOrders) {
-      // Skip installment and pay later orders (handled separately)
       if (order.payment_type === 'installment' || order.payment_type === 'pay_later') continue;
       
       const orderDate = new Date(order.created_at);
@@ -427,7 +444,6 @@ Need help? Contact support: +265 991 295 401`;
       }
     }
     
-    // Also check installment plans
     const installmentPlans = await db.getAllInstallmentPlans?.() || [];
     for (const plan of installmentPlans) {
       if (plan.status !== 'active') continue;
@@ -454,7 +470,6 @@ Need help? Contact support: +265 991 295 401`;
     const now = new Date();
     
     for (const order of pendingOrders) {
-      // Skip installment/pay later
       if (order.payment_type === 'installment' || order.payment_type === 'pay_later') continue;
       
       const orderDate = new Date(order.created_at);
@@ -469,7 +484,6 @@ Need help? Contact support: +265 991 295 401`;
       }
     }
     
-    // Add installment overdue to report
     const installmentPlans = await db.getAllInstallmentPlans?.() || [];
     const overdueInstallments = [];
     for (const plan of installmentPlans) {
@@ -490,7 +504,6 @@ Need help? Contact support: +265 991 295 401`;
       }
     }
     
-    // Add Pay Later overdue
     const payLaterPlans = await db.getAllPayLaterPlans?.() || [];
     const overduePayLater = [];
     for (const plan of payLaterPlans) {
@@ -517,9 +530,9 @@ Need help? Contact support: +265 991 295 401`;
       report += `- Pay Later: ${overduePayLater.length}\n\n`;
       
       if (overdueOrders.length > 0) {
-        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        report += `${SEP}\n`;
         report += `📋 *REGULAR ORDERS*\n`;
-        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        report += `${SEP}\n\n`;
         for (const order of overdueOrders.slice(0, 10)) {
           report += `• Order: ${order.id}\n`;
           report += `  Client: ${order.client_name}\n`;
@@ -532,9 +545,9 @@ Need help? Contact support: +265 991 295 401`;
       }
       
       if (overdueInstallments.length > 0) {
-        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        report += `${SEP}\n`;
         report += `💰 *INSTALLMENTS*\n`;
-        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        report += `${SEP}\n\n`;
         for (const inst of overdueInstallments.slice(0, 10)) {
           report += `• Order: ${inst.orderId}\n`;
           report += `  Client: ${inst.client_name}\n`;
@@ -566,9 +579,9 @@ Need help? Contact support: +265 991 295 401`;
     
     const message = `⏰ *MANUAL PAYMENT REMINDER - URGENT*
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📋 *ORDER DETAILS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 Order: \`${order.id}\`
 Client: ${client.first_name} ${client.last_name || ''}
@@ -576,17 +589,17 @@ Amount: ${order.total_charge}
 Created: ${orderDate.toLocaleDateString()}
 Days Since: ${daysSince}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 💳 *PAYMENT METHODS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 • Airtel Money: 0991295401
 • TNM Mpamba: 0886928639
 • MO626 Bank: 1005653618
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 📌 *INSTRUCTIONS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${SEP}
 
 1️⃣ Send exactly ${order.total_charge} to any account above
 2️⃣ Use order ID \`${order.id}\` as reference
@@ -626,12 +639,10 @@ Need help? Contact support: +265 991 295 401`;
       const amount = parseInt(order.total_charge?.replace(/[^0-9]/g, '') || 0);
       stats.total_amount_pending += amount;
       
-      // Count by type
       if (order.payment_type === 'installment') stats.by_type.installment++;
       else if (order.payment_type === 'pay_later') stats.by_type.pay_later++;
       else stats.by_type.regular++;
       
-      // Count by days
       if (daysSince <= 3) stats.by_days['1-3']++;
       else if (daysSince <= 7) stats.by_days['4-7']++;
       else if (daysSince <= 14) stats.by_days['8-14']++;

@@ -5,7 +5,6 @@
 
 const { Telegraf, Markup } = require('telegraf');
 const dotenv = require('dotenv');
-const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const axios = require('axios');
@@ -19,8 +18,9 @@ const notificationService = require('./notification-service');
 const documentGenerator = require('./document-generator');
 const aiAnalyzer = require('./ai-analyzer');
 const intelligentUpdate = require('./intelligent-update');
+const path = require('path');
 
-dotenv.config();
+require('dotenv').config();
 
 // ============ MOBILE-FRIENDLY SEPARATOR ============
 const SEP = '\n┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅\n';

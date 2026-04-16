@@ -1263,10 +1263,12 @@
     </div>
 
     <!-- CTA Section -->
-    <div class="cta-section">
-        <a href="https://t.me/EasySuccor_bot" class="telegram-btn" target="_blank" rel="noopener noreferrer"><span>📱</span> Start on Telegram <span>→</span></a>
-        <div class="email-option">Or <span class="email-link" onclick="openEmailModal()">send the link to my email</span> — I'll come back when ready</div>
-    </div>
+   <div class="cta-section">
+    <a id="telegramStartBtn" href="#" class="telegram-btn">
+        <span>📱</span> Start on Telegram <span>→</span>
+    </a>
+    <div class="email-option">Or <span class="email-link" onclick="openEmailModal()">send the link to my email</span> — I'll come back when ready</div>
+</div>
 
     <div class="footer">
         <p>© 2025 EasySuccor — Professional CV & Cover Letter Services</p>
@@ -1285,8 +1287,12 @@
         <p style="color: #5a5a6e; margin-bottom: 20px;">We're honored you chose us for your professional journey.</p>
         <p style="color: #5a5a6e; margin-bottom: 15px; font-size: 14px;">May we know your name? (Optional)</p>
         <input type="text" id="visitorName" placeholder="Your name">
-        <div style="display: flex; gap: 10px; margin-top: 20px;"><button onclick="continueToTelegram()" style="flex: 1;">Continue to Telegram →</button></div>
-        <p style="margin-top: 15px; font-size: 12px; color: #5a5a6e;"><a href="#" onclick="skipNameAndContinue()" style="color: #8A4FFF; text-decoration: none;">Skip and continue anonymously</a></p>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button onclick="continueToTelegram()" style="flex: 1;">Continue to Telegram →</button>
+        </div>
+        <p style="margin-top: 15px; font-size: 12px; color: #5a5a6e;">
+            <a href="#" onclick="skipNameAndContinue()" style="color: #8A4FFF; text-decoration: none;">Skip and continue anonymously</a>
+        </p>
     </div>
 </div>
 
@@ -1318,7 +1324,6 @@
 <script>
     // ============ PRODUCTION CONFIGURATION ============
     const ADMIN_API_KEY = '0.i45qbafdnui0.0b656qiu0v3';
-    const TELEGRAM_BOT_LINK = "https://t.me/EasySuccor_bot";
 
     // ============ DYNAMIC MESSAGES ============
     const dynamicMessages = [
@@ -1358,6 +1363,72 @@
     updateDynamicMessage();
     resetInterval();
 
+    // ============ TELEGRAM MODAL HANDLERS ============
+const TELEGRAM_BOT_LINK = "https://t.me/EasySuccor_bot";
+
+function openNameModal() {
+    document.getElementById('nameModal').style.display = 'flex';
+}
+
+function closeNameModal() {
+    document.getElementById('nameModal').style.display = 'none';
+}
+
+function continueToTelegram() {
+    const name = document.getElementById('visitorName').value.trim();
+    let telegramUrl = TELEGRAM_BOT_LINK;
+    
+    // Check for referral code from URL (if any)
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    
+    if (refCode) {
+        if (name) {
+            telegramUrl = `${TELEGRAM_BOT_LINK}?start=ref_${refCode}_${encodeURIComponent(name)}`;
+        } else {
+            telegramUrl = `${TELEGRAM_BOT_LINK}?start=ref_${refCode}`;
+        }
+        // Clear the stored code after use (optional)
+        localStorage.removeItem('easysuccor_referral_code');
+    } else {
+        if (name) {
+            telegramUrl = `${TELEGRAM_BOT_LINK}?start=${encodeURIComponent(name)}`;
+        }
+    }
+    
+    if (name) {
+        localStorage.setItem('easysuccor_visitor_name', name);
+    }
+    
+    // Open Telegram in a new tab
+    window.open(telegramUrl, '_blank');
+    closeNameModal();
+}
+
+function skipNameAndContinue() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    let telegramUrl = TELEGRAM_BOT_LINK;
+    
+    if (refCode) {
+        telegramUrl = `${TELEGRAM_BOT_LINK}?start=ref_${refCode}`;
+    }
+    
+    window.open(telegramUrl, '_blank');
+    closeNameModal();
+}
+
+// Attach the click event to the Telegram button
+document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('telegramStartBtn');
+    if (btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            openNameModal();
+        });
+    }
+});
+
     // ============ FORCE ALL FAQS CLOSED ON PAGE LOAD ============
     document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.faq-item').forEach(item => {
@@ -1374,57 +1445,6 @@
         }
     }
 
-    // ============ HANDLE REFERRAL CODE FROM URL ============
-    document.addEventListener('DOMContentLoaded', function() {
-        const telegramBtn = document.querySelector('.telegram-btn');
-        if (telegramBtn) {
-            telegramBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                openNameModal();
-            });
-        }
-        
-        // Check for referral code in URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const refCode = urlParams.get('ref');
-        
-        if (refCode) {
-            localStorage.setItem('easysuccor_referral_code', refCode);
-            showReferredWelcome();
-        }
-        
-        checkAdminStatus();
-    });
-
-    function showReferredWelcome() {
-        const banner = document.createElement('div');
-        banner.style.cssText = `
-            background: linear-gradient(135deg, #8A4FFF, #00C4CC);
-            color: white;
-            padding: 16px 24px;
-            border-radius: 16px;
-            margin-bottom: 20px;
-            text-align: center;
-            font-weight: 600;
-            font-size: 16px;
-            box-shadow: 0 4px 15px rgba(138, 79, 255, 0.3);
-            animation: slideDown 0.5s ease;
-        `;
-        banner.innerHTML = `🎁 You've been referred! Enjoy 10% off your first order! 🎁`;
-        
-        const container = document.querySelector('.container');
-        const header = document.querySelector('.header');
-        container.insertBefore(banner, header.nextSibling);
-        
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideDown {
-                from { opacity: 0; transform: translateY(-20px); }
-                to { opacity: 1; transform: translateY(0); }
-            }
-        `;
-        document.head.appendChild(style);
-    }
 
     function continueToTelegram() {
         const name = document.getElementById('visitorName').value.trim();

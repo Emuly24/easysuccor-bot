@@ -7365,18 +7365,18 @@ async function startBot() {
     console.log('╚════════════════════════════════════════════════════════════════╝');
     console.log('');
 
-    // Override SIGTERM to prevent Railway from stopping the container
-    process.on('SIGTERM', () => {
-        console.log('⚠️ Received SIGTERM – ignoring to keep container alive');
-        // Do not exit
-    });
-    // Keep original SIGINT for local development
-    process.on('SIGINT', async () => {
-        console.log('\n🛑 Shutting down gracefully...');
-        try { await bot.telegram.deleteWebhook(); console.log('✅ Webhook deleted'); } catch (e) { console.log('⚠️ Could not delete webhook'); }
-        console.log('👋 Goodbye!');
-        process.exit(0);
-    });
+   // Prevent Railway from stopping the container – do NOT exit
+process.on('SIGTERM', () => {
+    console.log('⚠️ SIGTERM received – ignoring to keep container alive');
+    // Do nothing – container stays up
+});
+
+// For local development (Ctrl+C) – exit gracefully
+process.on('SIGINT', async () => {
+    console.log('\n🛑 SIGINT received – shutting down for local testing');
+    try { await bot.telegram.deleteWebhook(); } catch (e) {}
+    process.exit(0);
+});
 }
 
 startBot().catch(console.error);

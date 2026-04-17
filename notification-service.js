@@ -1,4 +1,4 @@
-// notification-service.js - Enterprise-Grade Multi-Channel Notification System (UPDATED)
+// notification-service.js - Enterprise-Grade Multi-Channel Notification System (FIXED)
 const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
@@ -22,7 +22,13 @@ class NotificationService {
       fs.mkdirSync(this.templatePath, { recursive: true });
     }
     
-    this.historyPath = path.join(__dirname, 'data', 'notification_history.json');
+    // Ensure data directory exists
+    const dataDir = path.join(__dirname, 'data');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    this.historyPath = path.join(dataDir, 'notification_history.json');
     this.notificationHistory = this.loadHistory();
     
     this.startQueueProcessor();
@@ -84,17 +90,17 @@ class NotificationService {
   }
 
   async sendNotificationWithRetry(notification) {
-    const { type, to, subject, message, attachments, priority, channel } = notification;
+    const { type, to, subject, message, attachments, priority, channel, bot } = notification;
     
     for (let attempt = 1; attempt <= this.retryCount; attempt++) {
       try {
         let result;
         if (channel === 'email' || type === 'email') {
-          result = await this.sendEmailDirect(to, subject, message, attachments);
+          result = await this.sendEmailDirect(to, subject, message, attachments, priority);
         } else if (channel === 'telegram' || type === 'telegram') {
-          result = await this.sendTelegramDirect(to, message, notification.bot);
+          result = await this.sendTelegramDirect(to, message, bot);
         } else {
-          result = await this.sendToBoth(to, subject, message, attachments, notification.bot);
+          result = await this.sendToBoth(to, subject, message, attachments, bot);
         }
         
         if (result.success) {
@@ -144,7 +150,7 @@ class NotificationService {
     });
   }
 
-  async sendEmailDirect(to, subject, message, attachments = null) {
+  async sendEmailDirect(to, subject, message, attachments = null, priority = 'normal') {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       console.error('❌ Email credentials missing');
       return { success: false, error: 'Email credentials not configured' };

@@ -22,6 +22,16 @@ const path = require('path');
 
 require('dotenv').config();
 
+// ============ GLOBAL ERROR HANDLERS TO PREVENT CRASHES ============
+process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    // Do not exit – log and continue
+});
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection:', reason);
+    // Do not exit
+});
+
 // ============ MOBILE-FRIENDLY SEPARATOR ============
 const SEP = '\n┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅\n';
 
@@ -7235,7 +7245,7 @@ bot.on('text', async (ctx, next) => {
 async function startBot() {
     console.log('🚀 Starting EasySuccor Bot...');
     try { await db.initDatabase(); console.log('✅ Database initialized successfully'); } catch (dbError) { console.error('❌ Database initialization failed:', dbError.message); process.exit(1); }
-    async function loadTestimonialsCache() { try { const testimonials = await db.getAllTestimonials(); const approved = testimonials.filter(t => t.approved); console.log(`✅ Loaded ${approved.length} approved testimonials`); return approved; } catch (error) { console.log('⚠️ Could not load testimonials:', error.message); return []; } }
+
     console.log('🔍 Verifying DeepSeek API connection...');
     try {
         const { OpenAI } = require('openai');
@@ -7243,6 +7253,7 @@ async function startBot() {
         const testResponse = await deepseek.chat.completions.create({ model: 'deepseek-chat', messages: [{ role: 'user', content: 'Say "API OK"' }], max_tokens: 10 });
         console.log('✅ DeepSeek API connected:', testResponse.choices[0].message.content);
     } catch (deepseekError) { console.error('❌ DeepSeek API connection failed:', deepseekError.message); console.log('⚠️ Bot will run but CV extraction will use fallback mode'); }
+
     try {
         await bot.telegram.setMyCommands([
             { command: 'start', description: '🚀 Begin your journey' },
@@ -7271,14 +7282,34 @@ async function startBot() {
         ]);
         console.log('✅ Bot commands registered');
     } catch (cmdError) { console.log('⚠️ Could not set commands:', cmdError.message); }
+
     const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://easysuccor-bot-production.up.railway.app';
     const webhookPath = '/webhook';
     const fullWebhookUrl = `${WEBHOOK_URL}${webhookPath}`;
-    try { const webhookInfo = await bot.telegram.getWebhookInfo(); console.log(`📡 Current webhook: ${webhookInfo.url || 'Not set'}`); } catch (webhookInfoError) { console.log('⚠️ Could not get webhook info:', webhookInfoError.message); }
-    try { await bot.telegram.deleteWebhook(); console.log('✅ Existing webhook deleted'); } catch (deleteError) { console.log('⚠️ Could not delete webhook:', deleteError.message); }
-    try { await bot.telegram.setWebhook(fullWebhookUrl, { allowed_updates: ['message', 'callback_query', 'inline_query'] }); console.log(`✅ Webhook set to ${fullWebhookUrl}`); } catch (webhookError) { console.error('❌ Failed to set webhook:', webhookError.message); console.log('⚠️ Bot will use polling mode as fallback'); }
+
+    // Retry webhook setting
+    let webhookSet = false;
+    let retries = 0;
+    while (!webhookSet && retries < 3) {
+        try {
+            await bot.telegram.deleteWebhook();
+            await bot.telegram.setWebhook(fullWebhookUrl, { allowed_updates: ['message', 'callback_query', 'inline_query'] });
+            console.log(`✅ Webhook set to ${fullWebhookUrl}`);
+            webhookSet = true;
+        } catch (webhookError) {
+            console.error(`❌ Webhook attempt ${retries + 1} failed:`, webhookError.message);
+            retries++;
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+    }
+    if (!webhookSet) {
+        console.error('❌ Could not set webhook after 3 attempts. Falling back to polling.');
+        bot.launch();
+    }
+
     app.post(webhookPath, (req, res) => { try { bot.handleUpdate(req.body, res); } catch (handleError) { console.error('Webhook handle error:', handleError.message); res.status(500).send('Error processing update'); } });
-    app.listen(PORT, '0.0.0.0', () => {
+
+    const server = app.listen(PORT, '0.0.0.0', () => {
         console.log(`\n${'='.repeat(60)}`);
         console.log(`✅ EasySuccor Express Server Started`);
         console.log(`${'='.repeat(60)}`);
@@ -7294,6 +7325,23 @@ async function startBot() {
         console.log(`🔑 Admin API Key required in header: x-admin-key`);
         console.log(`${'='.repeat(60)}\n`);
     });
+
+    // ============ KEEP-ALIVE: Self-ping every 5 minutes ============
+    const cron = require('node-cron');
+    const axios = require('axios');
+    cron.schedule('*/5 * * * *', async () => {
+        try {
+            const url = `http://localhost:${PORT}/health`;
+            await axios.get(url);
+            console.log(`✅ Keep-alive ping sent at ${new Date().toISOString()}`);
+        } catch (err) {
+            console.error('❌ Keep-alive ping failed:', err.message);
+        }
+    });
+
+    // Keep event loop busy 
+    setInterval(() => { const now = Date.now(); }, 60000);
+
     console.log('');
     console.log('╔════════════════════════════════════════════════════════════════╗');
     console.log('║                    🤖 EASYSUCCOR BOT RUNNING                    ║');
@@ -7303,7 +7351,7 @@ async function startBot() {
     console.log('║  ✅ Clickable buttons for all user choices                     ║');
     console.log('║  ✅ MO626 payment method added                                 ║');
     console.log('║  ✅ Health check endpoint: /health                             ║');
-    console.log('║  ✅ Home Page: / (index.html)                               ║');
+    console.log('║  ✅ Home Page: / (index.html)                                  ║');
     console.log('║  ✅ Admin panel: /admin.html                                   ║');
     console.log('║  ✅ 18+ CV categories fully supported                          ║');
     console.log('║  ✅ Admin full control (delete, clear, price update)           ║');
@@ -7316,10 +7364,19 @@ async function startBot() {
     console.log(`║  🌐 Webhook URL: ${WEBHOOK_URL}                                  ║`);
     console.log('╚════════════════════════════════════════════════════════════════╝');
     console.log('');
-    process.on('SIGINT', async () => { console.log('\n🛑 Shutting down gracefully...'); try { await bot.telegram.deleteWebhook(); console.log('✅ Webhook deleted'); } catch (e) { console.log('⚠️ Could not delete webhook'); } console.log('👋 Goodbye!'); process.exit(0); });
-    process.on('SIGTERM', async () => { console.log('\n🛑 Received SIGTERM, shutting down...'); try { await bot.telegram.deleteWebhook(); } catch (e) {} process.exit(0); });
-    process.on('uncaughtException', (error) => { console.error('❌ Uncaught Exception:', error); });
-    process.on('unhandledRejection', (reason, promise) => { console.error('❌ Unhandled Rejection:', reason); });
+
+    // Override SIGTERM to prevent Railway from stopping the container
+    process.on('SIGTERM', () => {
+        console.log('⚠️ Received SIGTERM – ignoring to keep container alive');
+        // Do not exit
+    });
+    // Keep original SIGINT for local development
+    process.on('SIGINT', async () => {
+        console.log('\n🛑 Shutting down gracefully...');
+        try { await bot.telegram.deleteWebhook(); console.log('✅ Webhook deleted'); } catch (e) { console.log('⚠️ Could not delete webhook'); }
+        console.log('👋 Goodbye!');
+        process.exit(0);
+    });
 }
 
 startBot().catch(console.error);

@@ -6234,6 +6234,12 @@ Let's begin! 🚀`);
     }
 }
 
+// ============ CALCULATE TOTAL PRICE ============
+function calculateTotal(category, service, delivery) {
+    const basePrice = getBasePrice(category, service);
+    const deliveryFee = DELIVERY_PRICES[delivery] || 0;
+    return basePrice + deliveryFee;
+}
 // ============ UPLOAD DRAFT CONFIRMATION ============
 async function handleUploadDraftConfirm(ctx, client, session) {
     await sendMarkdown(ctx, `📎 *Ready to Upload*
@@ -6420,6 +6426,82 @@ async function handleCoverContinue(ctx, client, session, data) {
         await db.updateSession(session.id, 'awaiting_cover_confirmation', 'cover', session.data);
     }
 }
+// ============ NEW USER CATEGORY HANDLERS ============
+bot.action('category_student', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleCategorySelection(ctx, client, session, 'cat_student');
+});
+bot.action('category_professional', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleCategorySelection(ctx, client, session, 'cat_professional');
+});
+bot.action('category_nonworking', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleCategorySelection(ctx, client, session, 'cat_nonworking');
+});
+bot.action('category_returning', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleCategorySelection(ctx, client, session, 'cat_returning');
+});
+
+// ============ CERTIFICATION OPTIONAL HANDLERS ============
+bot.action('skip_expiry', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    // Call handleCertificationsCollection with 'skip_expiry' as callbackData
+    await handleCertificationsCollection(ctx, client, session, null, 'skip_expiry');
+});
+bot.action('skip_credential_id', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    await handleCertificationsCollection(ctx, client, session, null, 'skip_credential_id');
+});
+bot.action('skip_cert_url', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    await handleCertificationsCollection(ctx, client, session, null, 'skip_cert_url');
+});
+bot.action('use_existing_cert_image', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    const existingDocs = await db.getClientDocuments(client.id, 'certification_image');
+    if (existingDocs.length) {
+        if (!session.data.uploaded_docs) session.data.uploaded_docs = {};
+        session.data.uploaded_docs.certification_image = existingDocs[0].id;
+        await ctx.editMessageText(`✅ Using existing certificate image.`);
+    }
+    session.data.collection_step = 'waiting_cert_image';
+    await handleCertificationsCollection(ctx, client, session, null, null);
+});
+bot.action('upload_new_cert_image', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.editMessageText(`📸 Please upload the certificate image.`);
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    const certIndex = session.data.pending_cert_image;
+    session.data.awaiting_document = { type: 'certification_image', field: `certifications.${certIndex}.image`, description: 'certificate image' };
+    await db.updateSession(session.id, session.stage, session.current_section, session.data);
+});
+bot.action('skip_cert_image', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.editMessageText(`⏭️ Skipped certificate image.`);
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.collection_step = 'waiting_cert_image';
+    await handleCertificationsCollection(ctx, client, session, null, null);
+});
 // ============ INTELLIGENT UPDATE HANDLERS ============
 async function handleIntelligentUpdate(ctx, client, session) {
     const orders = await db.getClientOrders(client.id);

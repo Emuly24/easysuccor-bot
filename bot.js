@@ -7146,6 +7146,81 @@ bot.command('reset', async (ctx) => {
     await db.endSession(client.id);
     await sendMarkdown(ctx, `🔄 *Session reset.* Type /start to begin fresh.`);
 });
+// ============ SERVICE SELECTION HANDLERS ============
+bot.action('service_new', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleServiceSelection(ctx, client, session, 'service_new');
+});
+
+bot.action('service_editable', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleServiceSelection(ctx, client, session, 'service_editable');
+});
+
+bot.action('service_cover', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleServiceSelection(ctx, client, session, 'service_cover');
+});
+
+bot.action('service_editable_cover', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleServiceSelection(ctx, client, session, 'service_editable_cover');
+});
+
+bot.action('service_update', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleServiceSelection(ctx, client, session, 'service_update');
+});
+bot.action('service_new_cv', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleServiceSelection(ctx, client, session, 'service_new');
+});
+
+bot.action('service_editable_cv', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleServiceSelection(ctx, client, session, 'service_editable');
+});
+
+bot.action('service_cover_letter', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleServiceSelection(ctx, client, session, 'service_cover');
+});
+
+bot.action('service_editable_cover', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleServiceSelection(ctx, client, session, 'service_editable_cover');
+});
+
+bot.action('prefill_update', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    const session = await getOrCreateSession(client.id);
+    await handleIntelligentUpdate(ctx, client, session);
+});
+
+bot.action('portal_main', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await getOrCreateClient(ctx);
+    await showClientPortal(ctx, client);
+});
 // ============ HANDLE PERSISTENT KEYBOARD BUTTONS ============
 bot.hears('📄 New CV', async (ctx) => {
     const client = await getOrCreateClient(ctx);

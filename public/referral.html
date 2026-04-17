@@ -1242,33 +1242,33 @@
     }
 
     async function sendLinkToEmail() {
-        const email = document.getElementById('userEmail').value.trim();
-        const statusDiv = document.getElementById('emailStatus');
-        if (!email || !email.includes('@')) { 
-            statusDiv.innerHTML = '<span style="color: red;">❌ Please enter a valid email address</span>'; 
-            return; 
-        }
-        statusDiv.innerHTML = '<span style="color: #8A4FFF;">📤 Sending...</span>';
-        try {
-            const response = await fetch('/api/send-telegram-link', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ email: email, link: TELEGRAM_BOT_LINK }) 
-            });
-            const result = await response.json();
-            if (result.success) { 
-                statusDiv.innerHTML = '<span style="color: #00C4CC;">✅ Link sent to your email! Check your inbox.</span>'; 
-                setTimeout(() => closeEmailModal(), 3000); 
-            } else { 
-                throw new Error(); 
-            }
-        } catch (error) {
-            await navigator.clipboard.writeText(TELEGRAM_BOT_LINK);
-            statusDiv.innerHTML = '<span style="color: #00C4CC;">📋 Link copied to clipboard! Paste it anywhere.</span>';
-            setTimeout(() => closeEmailModal(), 2000);
-        }
+    const email = document.getElementById('userEmail').value.trim();
+    const name = document.getElementById('visitorName')?.value.trim() || '';
+    const statusDiv = document.getElementById('emailStatus');
+    if (!email || !email.includes('@')) {
+        statusDiv.innerHTML = '<span style="color: red;">❌ Please enter a valid email address</span>';
+        return;
     }
-
+    statusDiv.innerHTML = '<span style="color: #8A4FFF;">📤 Sending...</span>';
+    try {
+        const response = await fetch('/api/send-telegram-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, link: TELEGRAM_BOT_LINK, name: name })
+        });
+        const result = await response.json();
+        if (result.success) {
+            statusDiv.innerHTML = '<span style="color: #00C4CC;">✅ Link sent to your email! Check your inbox.</span>';
+            setTimeout(() => closeEmailModal(), 3000);
+        } else {
+            throw new Error();
+        }
+    } catch (error) {
+        await navigator.clipboard.writeText(TELEGRAM_BOT_LINK);
+        statusDiv.innerHTML = '<span style="color: #00C4CC;">📋 Link copied to clipboard! Paste it anywhere.</span>';
+        setTimeout(() => closeEmailModal(), 2000);
+    }
+}
     // ============ ADMIN AUTHENTICATION ============
     function checkAdminStatus() {
         const adminToken = localStorage.getItem('easysuccor_admin_token');

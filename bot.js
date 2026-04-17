@@ -164,6 +164,33 @@ function generatePaymentReference() {
 app.get('/admin/prices', adminAuth, (req, res) => {
     res.json(PRICE_CONFIG);
 });
+// ============ SEND TELEGRAM LINK TO EMAIL ============
+app.post('/api/send-telegram-link', async (req, res) => {
+    try {
+        const { email, link, name } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: 'Email address is required' });
+        }
+        
+        const botLink = link || `https://t.me/${process.env.BOT_USERNAME || 'EasySuccor_bot'}`;
+        const subject = 'Your EasySuccor Telegram Bot Link';
+        const userName = name || 'there';
+        
+        const textMessage = `Hello ${userName},\n\nYou requested the link to our Telegram bot. Click the link below to start using EasySuccor:\n\n${botLink}\n\nIf the link doesn't work, copy and paste it into your browser.\n\nThank you for choosing EasySuccor!`;
+        
+        const result = await notificationService.sendEmail(email, subject, textMessage);
+        
+        if (result.success) {
+            res.json({ success: true, message: 'Email sent successfully' });
+        } else {
+            console.error('Email send failed:', result.error);
+            res.status(500).json({ error: result.error || 'Failed to send email' });
+        }
+    } catch (error) {
+        console.error('Send email endpoint error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 app.post('/admin/update-prices', adminAuth, async (req, res) => {
     try {
@@ -2641,7 +2668,16 @@ function getEncouragement(type, value, name = '') {
 
 // ============ SAFE CV DATA ACCESS HELPER (UPDATED - 18+ CATEGORIES) ============
 function ensureCVData(session) {
+    // Parse session.data if it came from the database as a string
+    if (typeof session.data === 'string') {
+        try {
+            session.data = JSON.parse(session.data);
+        } catch(e) {
+            session.data = {};
+        }
+    }
     if (!session.data) session.data = {};
+    
     if (!session.data.cv_data) {
         session.data.cv_data = {
             personal: { full_name: '', email: '', primary_phone: '', alternative_phone: '', whatsapp_phone: '', location: '', physical_address: '', nationality: '', linkedin: '', github: '', portfolio: '', professional_title: '', date_of_birth: '', special_documents: [] },
@@ -2713,15 +2749,25 @@ function ensureCVData(session) {
 
 // ============ SAFE COVER LETTER DATA ACCESS HELPER ============
 function ensureCoverLetterData(session) {
+    // Parse session.data if it came from the database as a string
+    if (typeof session.data === 'string') {
+        try {
+            session.data = JSON.parse(session.data);
+        } catch(e) {
+            session.data = {};
+        }
+    }
     if (!session.data) session.data = {};
+    
     if (!session.data.coverletter) session.data.coverletter = {};
     if (session.data.coverletter_position === undefined) session.data.coverletter_position = '';
     if (session.data.coverletter_company === undefined) session.data.coverletter_company = '';
     if (session.data.vacancy_data === undefined) session.data.vacancy_data = null;
     if (session.data.awaiting_vacancy === undefined) session.data.awaiting_vacancy = false;
     if (!session.data.cover_data) session.data.cover_data = {};
+    
     return session.data;
-};
+}
 
 // ============ DATABASE HELPERS ============
 async function getOrCreateClient(ctx) {
@@ -3812,6 +3858,9 @@ https://yourportfolio.com`, {
 const portfolioCollector = new PortfolioCollector();
 
 async function handlePortfolioCollection(ctx, client, session, text) {
+    if (typeof session.data === 'string') {
+    try { session.data = JSON.parse(session.data); } catch(e) { session.data = {}; }
+}
     try {
         let portfolioLinks = [];
         let socialMedia = { linkedin: null, github: null, twitter: null, facebook: null, instagram: null, portfolio: null };
@@ -3830,6 +3879,9 @@ async function handlePortfolioCollection(ctx, client, session, text) {
                 }
             }
         }
+        if (typeof session.data === 'string') {
+    try { session.data = JSON.parse(session.data); } catch(e) { session.data = {}; }
+}
         session.data.portfolio_links = portfolioLinks;
         const cvData = ensureCVData(session);
         cvData.social_media = socialMedia;
@@ -6245,12 +6297,7 @@ Let's begin! 🚀`);
     }
 }
 
-// ============ CALCULATE TOTAL PRICE ============
-function calculateTotal(category, service, delivery) {
-    const basePrice = getBasePrice(category, service);
-    const deliveryFee = DELIVERY_PRICES[delivery] || 0;
-    return basePrice + deliveryFee;
-}
+
 // ============ UPLOAD DRAFT CONFIRMATION ============
 async function handleUploadDraftConfirm(ctx, client, session) {
     await sendMarkdown(ctx, `📎 *Ready to Upload*
@@ -7165,43 +7212,199 @@ bot.command('pause', async (ctx) => {
 bot.command('resume', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const pausedSession = await db.getPausedSession(client.id);
-    if (pausedSession) {
-        pausedSession.data = JSON.parse(pausedSession.data);
-        await db.updateSession(pausedSession.id, pausedSession.stage, pausedSession.current_section, pausedSession.data, 0);
-        let resumeMessage = "🔄 Welcome back! Let's continue where we left off.\n\n";
-        if (pausedSession.stage === 'collecting_personal') {
+    if (!pausedSession) {
+        await sendMarkdown(ctx, `No paused session found. Type /start to begin fresh.`);
+        return;
+    }
+    
+    // Parse session data if string
+    if (typeof pausedSession.data === 'string') {
+        try { pausedSession.data = JSON.parse(pausedSession.data); } catch(e) { pausedSession.data = {}; }
+    }
+    
+    // Reactivate the session (set is_paused = 0)
+    await db.updateSession(pausedSession.id, pausedSession.stage, pausedSession.current_section, pausedSession.data, 0);
+    
+    let resumeMessage = "🔄 Welcome back! Let's continue where we left off.\n\n";
+    
+    // Determine the correct prompt based on stage and collection step
+    switch (pausedSession.stage) {
+        case 'collecting_personal':
             const step = pausedSession.data.collection_step;
             if (step === 'name') resumeMessage += getQuestion('name');
             else if (step === 'email') resumeMessage += getQuestion('email');
             else if (step === 'phone') resumeMessage += getQuestion('phone');
-            else if (step === 'alt_phone') resumeMessage += "Alternative phone? (or click 'Skip') 📞";
-            else if (step === 'whatsapp') resumeMessage += "WhatsApp for delivery? (or click 'Same') 📱";
+            else if (step === 'alt_phone') resumeMessage += "📞 Alternative phone number?\n\nClick 'Skip' if none.";
+            else if (step === 'whatsapp') resumeMessage += "📱 WhatsApp for delivery?\n\nClick 'Same' or type a new number.";
             else if (step === 'location') resumeMessage += getQuestion('location');
-            else if (step === 'physical_address') resumeMessage += "Physical address? 🏠 (or click 'Skip')";
-            else if (step === 'nationality') resumeMessage += "Nationality? 🌍 (or click 'Skip')";
+            else if (step === 'professional_title') resumeMessage += "💼 Professional title? (Optional)\n\nType 'Skip' to continue.";
+            else if (step === 'linkedin') resumeMessage += "🔗 LinkedIn URL? (Optional)\n\nType 'Skip' to continue.";
+            else if (step === 'github') resumeMessage += "💻 GitHub URL? (Optional)\n\nType 'Skip' to continue.";
+            else if (step === 'physical_address') resumeMessage += "🏠 Physical address? (Optional)\n\nType 'Skip' to continue.";
+            else if (step === 'nationality') resumeMessage += "🌍 Nationality? (Optional)\n\nType 'Skip' to continue.";
+            else if (step === 'date_of_birth') resumeMessage += "🎂 Date of birth? (Optional)\n\nType 'Skip' to continue.";
+            else if (step === 'id_upload') resumeMessage += "Please upload your National ID or Driver's Licence, or click Skip.";
+            else if (step === 'after_id') resumeMessage += "Do you have any special documents? (e.g., Professional License)\n\nType each, then click 'Done'.";
             else resumeMessage += getQuestion('name');
-        } else if (pausedSession.stage === 'collecting_education') {
-            const step = pausedSession.data.collection_step;
-            if (step === 'level') resumeMessage += "Highest qualification? 🎓";
-            else if (step === 'field') resumeMessage += "Field of study? 📚";
-            else if (step === 'institution') resumeMessage += "Institution? 🏛️";
-            else if (step === 'year') resumeMessage += "Year of completion? 📅";
-            else resumeMessage += "Highest qualification? 🎓";
-        } else if (pausedSession.stage === 'collecting_employment') {
-            const step = pausedSession.data.collection_step;
-            if (step === 'title') resumeMessage += getQuestion('jobTitle');
-            else if (step === 'company') resumeMessage += "Company name? 🏢";
-            else if (step === 'duration') resumeMessage += "Duration? 📅";
-            else if (step === 'responsibilities') resumeMessage += "Key responsibilities? (click DONE when finished)";
-            else resumeMessage += getQuestion('jobTitle');
-        } else if (pausedSession.stage === 'collecting_skills') resumeMessage += getQuestion('skills');
-        else if (pausedSession.stage === 'collecting_certifications') resumeMessage += "Any certifications? (Click SKIP if none)";
-        else if (pausedSession.stage === 'collecting_languages') resumeMessage += "Languages you speak? (Click SKIP if none)";
-        else if (pausedSession.stage === 'collecting_referees') resumeMessage += "Professional referees? (Minimum 2 recommended)\n\nReferee 1 - Full name?";
-        else resumeMessage += "Let's continue where we left off.";
-        await sendMarkdown(ctx, resumeMessage);
-    } else await sendMarkdown(ctx, `No paused session found. Type /start to begin fresh.`);
+            break;
+            
+        case 'collecting_education':
+            const eduStep = pausedSession.data.collection_step;
+            if (eduStep === 'level') resumeMessage += "What's your highest qualification? 🎓";
+            else if (eduStep === 'field') resumeMessage += "Field of study? 📚";
+            else if (eduStep === 'institution') resumeMessage += "Institution? 🏛️";
+            else if (eduStep === 'year') resumeMessage += "Year of completion? 📅";
+            else if (eduStep === 'add_more') resumeMessage += "Another qualification? (Click Yes/No)";
+            else resumeMessage += "Let's continue with your education.";
+            break;
+            
+        case 'collecting_skills':
+            resumeMessage += getQuestion('skills');
+            break;
+            
+        case 'collecting_certifications':
+            const certStep = pausedSession.data.collection_step;
+            if (certStep === 'name') resumeMessage += "Certification name? 📜";
+            else if (certStep === 'issuer') resumeMessage += "Issuing organization? 🏛️";
+            else if (certStep === 'date') resumeMessage += "Date obtained? 📅";
+            else if (certStep === 'expiry') resumeMessage += "Expiry date? (or type 'Skip')";
+            else if (certStep === 'credential_id') resumeMessage += "Credential ID? (or type 'Skip')";
+            else if (certStep === 'url') resumeMessage += "Certificate URL? (or type 'Skip')";
+            else if (certStep === 'add_more') resumeMessage += "Another certification? (Click Yes/No)";
+            else resumeMessage += "Any certifications? (Click SKIP if none)";
+            break;
+            
+        case 'collecting_projects':
+            const projStep = pausedSession.data.collection_step;
+            if (projStep === 'name') resumeMessage += "Project name? 📁";
+            else if (projStep === 'description') resumeMessage += "Project description? (2-3 sentences)";
+            else if (projStep === 'technologies') resumeMessage += "Technologies used? 🔧";
+            else if (projStep === 'role') resumeMessage += "Your role? 👤";
+            else if (projStep === 'team_size') resumeMessage += "Team size? (or type 'Skip')";
+            else if (projStep === 'duration') resumeMessage += "Duration? 📅";
+            else if (projStep === 'link') resumeMessage += "Project link? (or type 'Skip')";
+            else if (projStep === 'outcome') resumeMessage += "Project outcome/impact? 📊";
+            else if (projStep === 'add_more') resumeMessage += "Another project? (Click Yes/No)";
+            else resumeMessage += "Any projects? (Click SKIP if none)";
+            break;
+            
+        case 'collecting_achievements':
+            resumeMessage += "What are your key achievements? (Type each, then DONE when finished)";
+            break;
+            
+        case 'collecting_volunteer':
+            resumeMessage += "Any volunteer experience? (Click SKIP if none)";
+            break;
+            
+        case 'collecting_leadership':
+            resumeMessage += "Any leadership roles? (Click SKIP if none)";
+            break;
+            
+        case 'collecting_awards':
+            resumeMessage += "Any awards? (Click SKIP if none)";
+            break;
+            
+        case 'collecting_publications':
+            resumeMessage += "Any publications? (Click SKIP if none)";
+            break;
+            
+        case 'collecting_conferences':
+            resumeMessage += "Any conferences? (Click SKIP if none)";
+            break;
+            
+        case 'collecting_interests':
+            resumeMessage += "What are your interests/hobbies? (comma separated, or click SKIP)";
+            break;
+            
+        case 'collecting_portfolio':
+            resumeMessage += "📎 Please provide your portfolio links (one per line) or click SKIP.";
+            break;
+            
+        case 'collecting_missing':
+            const missingSection = pausedSession.data.current_section;
+            resumeMessage += `Let's continue with: ${missingSection}\n\n${getMissingPrompt(missingSection)}`;
+            break;
+            
+        case 'cover_selecting_vacancy':
+            resumeMessage += "Do you have a job vacancy in mind? (Yes/No)";
+            break;
+            
+        case 'cover_collecting_position':
+            resumeMessage += "What position are you applying for?";
+            break;
+            
+        case 'cover_collecting_company':
+            resumeMessage += "Which company are you applying to?";
+            break;
+            
+        case 'cover_collecting_experience':
+            resumeMessage += "What's your most relevant experience for this role? (2-3 sentences)";
+            break;
+            
+        case 'cover_collecting_skills':
+            resumeMessage += "What are your top 3 skills for this role? (comma separated)";
+            break;
+            
+        case 'cover_collecting_achievement':
+            resumeMessage += "What's your biggest professional achievement?";
+            break;
+            
+        case 'cover_collecting_why':
+            resumeMessage += "Why are you interested in this role/company? (2-3 sentences)";
+            break;
+            
+        case 'cover_collecting_availability':
+            resumeMessage += "When are you available to start? (Immediately / 2 weeks / 1 month / Specific date)";
+            break;
+            
+        case 'awaiting_cover_confirmation':
+            resumeMessage += "Please type CONFIRM to proceed or EDIT to make changes.";
+            break;
+            
+        case 'selecting_delivery':
+            resumeMessage += "Please select delivery speed: Standard (6h), Express (+MK3,000), Rush (+MK5,000)";
+            break;
+            
+        case 'awaiting_payment':
+            resumeMessage += "You have a pending payment. Use /pay to complete it.";
+            break;
+            
+        default:
+            resumeMessage += "Type /start to begin or /help for commands.";
+            break;
+    }
+    
+    await sendMarkdown(ctx, resumeMessage);
 });
+
+// Helper function for missing section prompts (used in smart draft resume)
+function getMissingPrompt(section) {
+    const prompts = {
+        'Full Name': "What's your full name? 📛",
+        'Email': "What's your email address? 📧",
+        'Phone': "What's your phone number? 📞",
+        'Location': "Where are you based? (City, Country) 📍",
+        'Physical Address (Optional)': "🏠 Physical address? (Optional)\n\nType 'Skip' to continue.",
+        'Nationality (Optional)': "🌍 Nationality? (Optional)\n\nType 'Skip' to continue.",
+        'LinkedIn (Optional)': "🔗 LinkedIn URL? (Optional)\n\nType 'Skip' to continue.",
+        'GitHub (Optional)': "💻 GitHub URL? (Optional)\n\nType 'Skip' to continue.",
+        'Work Experience': "Let's add your work experience. Most recent job title? 💼",
+        'Education': "What's your highest qualification? 🎓",
+        'Skills': "List your key skills (comma separated) ⚡",
+        'Certifications (Optional)': "📜 Any certifications? (Optional)\n\nClick SKIP to continue.",
+        'Languages (Optional)': "🌍 What languages do you speak? (Optional)\n\nClick SKIP to continue.",
+        'Projects (Optional)': "📁 Any projects you want to showcase? (Optional)\n\nClick SKIP to continue.",
+        'Achievements (Optional)': "🏆 What are your key achievements? (Optional)\n\nClick SKIP to continue.",
+        'Volunteer Experience (Optional)': "🤝 Any volunteer experience? (Optional)\n\nClick SKIP to continue.",
+        'Leadership Roles (Optional)': "👔 Any leadership roles? (Optional)\n\nClick SKIP to continue.",
+        'Awards (Optional)': "🏅 Any awards or recognition? (Optional)\n\nClick SKIP to continue.",
+        'Publications (Optional)': "📖 Any publications? (Optional)\n\nClick SKIP to continue.",
+        'Conferences (Optional)': "🎤 Any conferences attended? (Optional)\n\nClick SKIP to continue.",
+        'Interests (Optional)': "💡 What are your interests/hobbies? (Optional)\n\nClick SKIP to continue.",
+        'Referees (need 2 more, minimum 2 required)': "Please provide professional referees (minimum 2 required).\n\nReferee 1 - Full name? 👥"
+    };
+    return prompts[section] || `Please provide your ${section.toLowerCase()}:`;
+};
 
 bot.command('confirm', async (ctx) => {
     const args = ctx.message.text.split(' ');
@@ -7397,8 +7600,43 @@ bot.action('report_cancel', async (ctx) => {
 bot.on('text', async (ctx, next) => {
     const client = await db.getClient(ctx.from.id);
     if (!client) return next();
+    
     const session = await db.getActiveSession(client.id);
-    if (session?.data?.awaiting_report && !ctx.message.text.startsWith('/')) {
+    if (!session) return next();
+    
+    // Ensure session.data is an object (already done in getOrCreateSession, but double-check)
+    if (typeof session.data === 'string') {
+        try { session.data = JSON.parse(session.data); } catch(e) { session.data = {}; }
+    }
+    
+    // 1. Awaiting hire story (from /hired command)
+    if (session.data?.awaiting_hire_story && !ctx.message.text.startsWith('/')) {
+        const story = ctx.message.text;
+        const isAnonymous = session.data.hire_anonymous || false;
+        await db.saveTestimonial({
+            client_id: client.id,
+            name: isAnonymous ? 'Anonymous' : (client.first_name || 'Valued Client'),
+            text: story,
+            rating: 5,
+            position: 'Hired Client',
+            approved: false,
+            is_hire_story: true,
+            anonymous: isAnonymous
+        });
+        session.data.awaiting_hire_story = false;
+        session.data.hire_anonymous = false;
+        await db.updateSession(session.id, session.stage, session.current_section, session.data);
+        await ctx.reply(`🌟 *Thank You for Sharing Your Success!*\n\n${SEP}\nYour story will inspire countless others on their career journey.\n${SEP}\nWe're truly honored to have been part of your success. Wishing you continued growth and achievement!\n\n🤝 With gratitude,\nThe EasySuccor Team`, { parse_mode: 'Markdown' });
+        await db.logAdminAction({ admin_id: 'system', action: 'client_hired', details: `Client ${client.first_name || 'Anonymous'} reported getting hired. Story: ${story.substring(0, 100)}` });
+        const adminChatId = process.env.ADMIN_CHAT_ID;
+        if (adminChatId) {
+            await bot.telegram.sendMessage(adminChatId, `🎉 *Client Got Hired!*\n\nClient: ${isAnonymous ? 'Anonymous' : (client.first_name || 'Unknown')}\nStory: ${story}\n\nUse /approve_testimonial to review.`, { parse_mode: 'Markdown' });
+        }
+        return;
+    }
+    
+    // 2. Awaiting bug report
+    if (session.data?.awaiting_report && !ctx.message.text.startsWith('/')) {
         session.data.report_description = ctx.message.text;
         await db.updateSession(session.id, session.stage, session.current_section, session.data);
         await ctx.reply(`📝 *Description saved!*\n\nNow please send the screenshot of the issue.`, {
@@ -7407,6 +7645,183 @@ bot.on('text', async (ctx, next) => {
         });
         return;
     }
+    
+    // 3. Portfolio collection (user types links or 'skip')
+    if (session.stage === 'collecting_portfolio' && !ctx.message.text.startsWith('/')) {
+        await handlePortfolioCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 4. Personal information collection
+    if (session.stage === 'collecting_personal' && !ctx.message.text.startsWith('/')) {
+        await handlePersonalCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 5. Education collection
+    if (session.stage === 'collecting_education' && !ctx.message.text.startsWith('/')) {
+        await handleEducationCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 6. Skills collection
+    if (session.stage === 'collecting_skills' && !ctx.message.text.startsWith('/')) {
+        await handleSkillsCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 7. Certifications collection
+    if (session.stage === 'collecting_certifications' && !ctx.message.text.startsWith('/')) {
+        await handleCertificationsCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 8. Projects collection
+    if (session.stage === 'collecting_projects' && !ctx.message.text.startsWith('/')) {
+        await handleProjectsCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 9. Achievements collection
+    if (session.stage === 'collecting_achievements' && !ctx.message.text.startsWith('/')) {
+        await handleAchievementsCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 10. Volunteer collection
+    if (session.stage === 'collecting_volunteer' && !ctx.message.text.startsWith('/')) {
+        await handleVolunteerCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 11. Leadership collection
+    if (session.stage === 'collecting_leadership' && !ctx.message.text.startsWith('/')) {
+        await handleLeadershipCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 12. Awards collection
+    if (session.stage === 'collecting_awards' && !ctx.message.text.startsWith('/')) {
+        await handleAwardsCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 13. Publications collection
+    if (session.stage === 'collecting_publications' && !ctx.message.text.startsWith('/')) {
+        await handlePublicationsCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 14. Conferences collection
+    if (session.stage === 'collecting_conferences' && !ctx.message.text.startsWith('/')) {
+        await handleConferencesCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 15. Interests collection
+    if (session.stage === 'collecting_interests' && !ctx.message.text.startsWith('/')) {
+        await handleInterestsCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 16. Missing sections (smart draft)
+    if (session.stage === 'collecting_missing' && !ctx.message.text.startsWith('/')) {
+        await smartDraft.handleMissingCollection(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 17. Cover letter questions (position, company, etc.)
+    if (session.stage === 'cover_collecting_position' && !ctx.message.text.startsWith('/')) {
+        await handleCoverPosition(ctx, client, session, ctx.message.text);
+        return;
+    }
+    if (session.stage === 'cover_collecting_company' && !ctx.message.text.startsWith('/')) {
+        await handleCoverCompany(ctx, client, session, ctx.message.text);
+        return;
+    }
+    if (session.stage === 'cover_collecting_experience' && !ctx.message.text.startsWith('/')) {
+        await handleCoverExperience(ctx, client, session, ctx.message.text);
+        return;
+    }
+    if (session.stage === 'cover_collecting_skills' && !ctx.message.text.startsWith('/')) {
+        await handleCoverSkills(ctx, client, session, ctx.message.text);
+        return;
+    }
+    if (session.stage === 'cover_collecting_achievement' && !ctx.message.text.startsWith('/')) {
+        await handleCoverAchievement(ctx, client, session, ctx.message.text);
+        return;
+    }
+    if (session.stage === 'cover_collecting_why' && !ctx.message.text.startsWith('/')) {
+        await handleCoverWhy(ctx, client, session, ctx.message.text);
+        return;
+    }
+    if (session.stage === 'cover_collecting_availability_specific' && !ctx.message.text.startsWith('/')) {
+        await handleCoverAvailabilitySpecific(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 18. Awaiting cover confirmation (CONFIRM / EDIT)
+    if (session.stage === 'awaiting_cover_confirmation' && !ctx.message.text.startsWith('/')) {
+        await handleCoverConfirmation(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 19. Editing cover letter (if user typed EDIT)
+    if (session.stage === 'editing_cover' && !ctx.message.text.startsWith('/')) {
+        // You may implement editing logic; for now just acknowledge
+        await sendMarkdown(ctx, `✅ Changes saved. Please type CONFIRM to proceed.`);
+        session.data.editing_cover = false;
+        await db.updateSession(session.id, 'awaiting_cover_confirmation', 'cover', session.data);
+        return;
+    }
+    
+    // 20. Awaiting vacancy upload (text input for vacancy)
+    if (session.stage === 'awaiting_vacancy_upload' && !ctx.message.text.startsWith('/')) {
+        await handleVacancyText(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 21. Awaiting update request (intelligent update)
+    if (session.stage === 'awaiting_update_request' && !ctx.message.text.startsWith('/')) {
+        await handleUpdateRequest(ctx, client, session, ctx.message.text);
+        return;
+    }
+    
+    // 22. Awaiting confirmation (summary confirmation)
+    if (session.stage === 'awaiting_confirmation' && !ctx.message.text.startsWith('/')) {
+        if (ctx.message.text.toUpperCase() === 'CONFIRM') {
+            // Proceed to payment
+            const totalCharge = session.data.total_charge;
+            const paymentReference = generatePaymentReference();
+            session.data.payment_reference = paymentReference;
+            await db.updateSession(session.id, session.stage, session.current_section, session.data);
+            await showPaymentOptions(ctx, session.data.order_id || 'PENDING', totalCharge, paymentReference);
+        } else if (ctx.message.text.toUpperCase().startsWith('EDIT')) {
+            await sendMarkdown(ctx, `What would you like to change? Type the section name (personal, employment, education, skills, etc.)`);
+            session.data.editing_cv = true;
+            await db.updateSession(session.id, 'editing_cv', 'summary', session.data);
+        } else {
+            await sendMarkdown(ctx, `Please type *CONFIRM* to proceed or *EDIT* to make changes.`);
+        }
+        return;
+    }
+    
+    // 23. Awaiting testimonial text (after rating)
+    if (session.data?.awaiting_testimonial_text && !ctx.message.text.startsWith('/')) {
+        await db.saveTestimonial({
+            client_id: client.id,
+            name: client.first_name,
+            rating: 5,
+            text: ctx.message.text,
+            approved: false
+        });
+        session.data.awaiting_testimonial_text = false;
+        await db.updateSession(session.id, session.stage, session.current_section, session.data);
+        await ctx.reply(`✅ Thank you for your testimonial! It will be reviewed and published soon.`);
+        return;
+    }
+    
+    // If none of the above match, let other handlers process (e.g., commands)
     return next();
 });
 

@@ -6181,15 +6181,26 @@ ${SEP}
         await db.updateSession(session.id, 'selecting_delivery', null, session.data);
     }
 }
-
+// ============ CALCULATE TOTAL PRICE ============
+function calculateTotal(category, service, delivery) {
+    const basePrice = getBasePrice(category, service);
+    const deliveryFee = DELIVERY_PRICES[delivery] || 0;
+    return basePrice + deliveryFee;
+}
 // ============ DELIVERY SELECTION (UPDATED) ============
 async function handleDeliverySelection(ctx, client, session, data) {
     const delivery = { delivery_standard: 'standard', delivery_express: 'express', delivery_rush: 'rush' }[data];
     session.data.delivery_option = delivery;
     session.data.delivery_time = DELIVERY_TIMES[delivery];
+      // Safety check
+    if (!session.data.category || !session.data.service) {
+        await sendMarkdown(ctx, `❌ Missing category or service. Please start over with /start.`);
+        return;
+    }
+    
     const totalAmount = calculateTotal(session.data.category, session.data.service, delivery);
     session.data.total_charge = formatPrice(totalAmount);
-    
+
     await sendMarkdown(ctx, `✅ *Delivery Selected: ${DELIVERY_TIMES[delivery]}*
 
 💰 Total Amount: *${session.data.total_charge}*
@@ -6502,6 +6513,7 @@ bot.action('skip_cert_image', async (ctx) => {
     session.data.collection_step = 'waiting_cert_image';
     await handleCertificationsCollection(ctx, client, session, null, null);
 });
+
 // ============ INTELLIGENT UPDATE HANDLERS ============
 async function handleIntelligentUpdate(ctx, client, session) {
     const orders = await db.getClientOrders(client.id);

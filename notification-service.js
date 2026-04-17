@@ -155,21 +155,23 @@ class NotificationService {
       console.error('❌ Email credentials missing');
       return { success: false, error: 'Email credentials not configured' };
     }
-
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { 
-        user: process.env.EMAIL_USER, 
-        pass: process.env.EMAIL_PASS 
-      },
-      connectionTimeout: 30000,
-      greetingTimeout: 30000,
-      socketTimeout: 30000,
-      pool: true,
-      maxConnections: 5,
-      rateLimit: 10
-    });
-    
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  auth: { 
+    user: process.env.EMAIL_USER, 
+    pass: process.env.EMAIL_PASS 
+  },
+  family: 4,  // Force IPv4
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
+  pool: true,
+  maxConnections: 5,
+  rateLimit: 10
+});
+  
     try {
       const emailContent = this.formatEmailHTML(message, subject);
       const mailOptions = {

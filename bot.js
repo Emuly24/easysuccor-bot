@@ -1932,16 +1932,16 @@ const ENCOURAGEMENTS = {
         (section, name) => `💎 ${name}, ${section} is polished and ready! On to the next!`
     ],
     final: [
-        (name) => `🎉 *AMAZING JOB, ${name}!* 🎉\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYou've provided everything I need to create a CV that truly represents your professional excellence.\n\nYour thoroughness and dedication are exactly what employers look for. This CV is going to open doors!`,
-        (name) => `✨ *PERFECT, ${name}!* ✨\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYou've done an exceptional job providing all the details. Your future CV already reflects the professional you are.\n\nNow let's get this masterpiece ready for you!`,
-        (name) => `💪 *WAY TO GO, ${name}!* 💪\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYou've completed every step with excellence. The foundation you've laid will result in a powerful, compelling CV.\n\nLet's bring it to life!`,
-        (name) => `🌟 *OUTSTANDING WORK, ${name}!* 🌟\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYour attention to detail and commitment to excellence shine through every section. This CV is going to make employers take notice.\n\nReady for the final step?`,
-        (name) => `🏆 *YOU DID IT, ${name}!* 🏆\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nFrom start to finish, you've shown the dedication of a true professional. Your CV will reflect exactly that.\n\nNow let's get it delivered!`,
-        (name) => `💫 *INCREDIBLE JOB, ${name}!* 💫\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYou've shared your professional journey beautifully. I can already tell this CV is going to be exceptional.\n\nLet's complete the process!`,
-        (name) => `🔥 *PHENOMENAL, ${name}!* 🔥\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nThe thoroughness you've shown tells me you're serious about your career. Employers value that.\n\nYour CV will showcase the professional you truly are!`,
-        (name) => `📄 *MASTERFUL, ${name}!* 📄\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nEvery section you've completed adds to a compelling professional narrative. Your CV is going to stand out.\n\nReady to receive it?`,
-        (name) => `⭐ *EXCELLENT WORK, ${name}!* ⭐\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYou've provided everything needed for a powerful, professional CV. Your future self will thank you for this investment.\n\nLet's finish strong!`,
-        (name) => `🎯 *BRILLIANT, ${name}!* 🎯\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nYou've completed your part with excellence. Now it's my turn to craft a CV that opens doors for you.\n\nLet's make it official!`
+        (name) => `🎉 *AMAZING JOB, ${name}!* 🎉\n\n${SEP}\nYou've provided everything I need to create a CV that truly represents your professional excellence.\n\nYour thoroughness and dedication are exactly what employers look for. This CV is going to open doors!`,
+        (name) => `✨ *PERFECT, ${name}!* ✨\n\n${SEP}\nYou've done an exceptional job providing all the details. Your future CV already reflects the professional you are.\n\nNow let's get this masterpiece ready for you!`,
+        (name) => `💪 *WAY TO GO, ${name}!* 💪\n\n${SEP}\nYou've completed every step with excellence. The foundation you've laid will result in a powerful, compelling CV.\n\nLet's bring it to life!`,
+        (name) => `🌟 *OUTSTANDING WORK, ${name}!* 🌟\n\n${SEP}\nYour attention to detail and commitment to excellence shine through every section. This CV is going to make employers take notice.\n\nReady for the final step?`,
+        (name) => `🏆 *YOU DID IT, ${name}!* 🏆\n\n${SEP}\nFrom start to finish, you've shown the dedication of a true professional. Your CV will reflect exactly that.\n\nNow let's get it delivered!`,
+        (name) => `💫 *INCREDIBLE JOB, ${name}!* 💫\n\n${SEP}\nYou've shared your professional journey beautifully. I can already tell this CV is going to be exceptional.\n\nLet's complete the process!`,
+        (name) => `🔥 *PHENOMENAL, ${name}!* 🔥\n\n${SEP}\nThe thoroughness you've shown tells me you're serious about your career. Employers value that.\n\nYour CV will showcase the professional you truly are!`,
+        (name) => `📄 *MASTERFUL, ${name}!* 📄\n\n${SEP}\nEvery section you've completed adds to a compelling professional narrative. Your CV is going to stand out.\n\nReady to receive it?`,
+        (name) => `⭐ *EXCELLENT WORK, ${name}!* ⭐\n\n${SEP}\nYou've provided everything needed for a powerful, professional CV. Your future self will thank you for this investment.\n\nLet's finish strong!`,
+        (name) => `🎯 *BRILLIANT, ${name}!* 🎯\n\n${SEP}\nYou've completed your part with excellence. Now it's my turn to craft a CV that opens doors for you.\n\nLet's make it official!`
     ],
     halfway: [
         (name) => `🎯 ${name}, you're halfway there! This is where most people give up - but not you! 💪`,
@@ -2065,10 +2065,10 @@ function getTimeBasedFirstTimeWelcome(name) {
     const appreciation = welcomeData.appreciation[Math.floor(Math.random() * welcomeData.appreciation.length)];
     
     const trustMessages = [
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🙏 *Thank You for Your Trust*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✨ *We Don't Take This Lightly*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🤝 *Your Trust Inspires Us*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n💫 *We're Committed to Excellence*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        "${SEP}\n🙏 *Thank You for Your Trust*\n${SEP}",
+        "${SEP}\n✨ *We Don't Take This Lightly*\n${SEP}",
+        "${SEP}\n🤝 *Your Trust Inspires Us*\n${SEP}",
+        "${SEP}\n💫 *We're Committed to Excellence*\n${SEP}"
     ];
     const trust = trustMessages[Math.floor(Math.random() * trustMessages.length)];
     
@@ -2082,10 +2082,10 @@ function getTimeBasedFirstTimeWelcome(name) {
     const promise = promiseMessages[Math.floor(Math.random() * promiseMessages.length)];
     
     const beginMessages = [
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📋 *Let's Begin Your Journey*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🚀 *Ready to Transform Your Career?*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✨ *Your Professional Journey Starts Here*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 *Let's Create Something Exceptional*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        "${SEP}\n📋 *Let's Begin Your Journey*\n${SEP}",
+        "${SEP}\n🚀 *Ready to Transform Your Career?*\n${SEP}",
+        "${SEP}\n✨ *Your Professional Journey Starts Here*\n${SEP}",
+        "${SEP}\n🎯 *Let's Create Something Exceptional*\n${SEP}"
     ];
     const begin = beginMessages[Math.floor(Math.random() * beginMessages.length)];
     
@@ -2100,10 +2100,10 @@ function getTimeBasedReturningWelcome(name) {
     const appreciation = welcomeData.appreciation[Math.floor(Math.random() * welcomeData.appreciation.length)].replace('${name}', name);
     
     const honorMessages = [
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🙏 *We're Honored You Returned*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✨ *Your Loyalty Inspires Us*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n💝 *Clients Like You Make Our Work Meaningful*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🤝 *Thank You for Your Continued Trust*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        "${SEP}\n🙏 *We're Honored You Returned*\n${SEP}",
+        "${SEP}\n✨ *Your Loyalty Inspires Us*\n${SEP}",
+        "${SEP}\n💝 *Clients Like You Make Our Work Meaningful*\n${SEP}",
+        "${SEP}\n🤝 *Thank You for Your Continued Trust*\n${SEP}"
     ];
     const honor = honorMessages[Math.floor(Math.random() * honorMessages.length)];
     

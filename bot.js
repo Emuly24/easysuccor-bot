@@ -1990,15 +1990,13 @@ const ENCOURAGEMENTS = {
 
 // ============ TIME HELPER FUNCTIONS ============
 function getTimePeriod() {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return 'morning';
-    else if (hour >= 12 && hour < 17) return 'afternoon';
-    else if (hour >= 17 && hour < 21) return 'evening';
+    // Get local time in Africa/Blantyre (UTC+2)
+    const now = new Date();
+    const localHour = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Blantyre' })).getHours();
+    if (localHour >= 5 && localHour < 12) return 'morning';
+    else if (localHour >= 12 && localHour < 17) return 'afternoon';
+    else if (localHour >= 17 && localHour < 21) return 'evening';
     else return 'night';
-}
-
-function getCurrentHour() {
-    return new Date().getHours();
 }
 
 function getTimeEmoji() {
@@ -3328,6 +3326,12 @@ Now, which service would you like?`, {
 
 // ============ SERVICE SELECTION ============
 async function handleServiceSelection(ctx, client, session, data) {
+    // If no category is set (e.g., returning client), use a default
+    if (!session.data.category) {
+        session.data.category = 'professional'; // or 'returningclient'
+        console.log(`⚠️ No category found, defaulting to ${session.data.category}`);
+    }
+    
     const serviceMap = {
         service_new: 'new cv', 
         service_editable: 'editable cv',
@@ -6846,6 +6850,8 @@ bot.start(async (ctx) => {
     const client = await db.getClient(ctx.from.id);
     const startPayload = ctx.startPayload;
     console.log('📥 Start command received from:', ctx.from.first_name, ctx.from.id);
+    
+    // Handle referral payload
     if (startPayload && startPayload.startsWith('ref_')) {
         const parts = startPayload.split('_');
         if (parts.length >= 3) {
@@ -6859,9 +6865,12 @@ bot.start(async (ctx) => {
             return;
         }
     }
+    
     let telegramName = ctx.from.first_name || 'Valued Professional';
     if (startPayload && !startPayload.startsWith('ref_')) telegramName = decodeURIComponent(startPayload);
+    
     if (!client) {
+        // Brand new user (never interacted)
         const newClient = await db.createClient(ctx.from.id, ctx.from.username, telegramName, ctx.from.last_name || '');
         const welcomeMessage = getTimeBasedFirstTimeWelcome(telegramName);
         await ctx.reply(welcomeMessage, {
@@ -6880,6 +6889,32 @@ bot.start(async (ctx) => {
         console.log('✅ New client welcome completed for:', telegramName);
         return;
     }
+    
+    // Existing client – check if they have any orders
+    const orders = await db.getClientOrders(client.id);
+    const hasOrders = orders && orders.length > 0;
+    
+    if (!hasOrders) {
+        // Client exists but has never completed an order → treat as first-time user
+        const welcomeMessage = getTimeBasedFirstTimeWelcome(client.first_name || telegramName);
+        await ctx.reply(welcomeMessage, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "🎓 Student / Recent Graduate", callback_data: "category_student" }],
+                    [{ text: "💼 Professional (3+ years)", callback_data: "category_professional" }],
+                    [{ text: "🌱 Career Starter / Non-Working", callback_data: "category_nonworking" }],
+                    [{ text: "🔄 Returning Client", callback_data: "category_returning" }]
+                ]
+            }
+        });
+        await ctx.reply('💡 *Quick Tip:* Use the keyboard below for quick access!', { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard });
+        await db.logAdminAction({ admin_id: 'system', action: 'warm_welcome', details: `Client ${client.first_name} restarted with no orders` });
+        console.log('✅ First-time welcome (after reset) completed for:', client.first_name);
+        return;
+    }
+    
+    // Returning client with at least one order
     const clientName = client.first_name || telegramName;
     const welcomeBackMessage = getTimeBasedReturningWelcome(clientName);
     await ctx.reply(welcomeBackMessage, {
@@ -6898,7 +6933,6 @@ bot.start(async (ctx) => {
     await ctx.reply('💡 *Quick Tip:* Use the keyboard below for quick access!', { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard });
     console.log('✅ Returning client welcome completed for:', clientName);
 });
-
 // ============ HEALTH CHECK COMMAND ============
 bot.command('health', async (ctx) => {
     if (ctx.from.id.toString() !== process.env.ADMIN_CHAT_ID) return await ctx.reply("⛔ Unauthorized.");

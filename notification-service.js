@@ -14,50 +14,54 @@ const SEP = '\n┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅\n';
 
 class NotificationService {
   constructor() {
-    this.adminEmail = process.env.ADMIN_EMAIL || 'blessingsemulyn@gmail.com';
-    this.adminPhone = process.env.ADMIN_PHONE || '0991295401';
-    this.retryCount = 5;
-    this.retryDelay = 2000;
-    this.maxRetryDelay = 30000;
-    this.notificationQueue = [];
-    this.isProcessing = false;
-    
-    this.templatePath = path.join(__dirname, 'email_templates');
-    if (!fs.existsSync(this.templatePath)) {
-      fs.mkdirSync(this.templatePath, { recursive: true });
-    }
-    
-    // Ensure data directory exists
-    const dataDir = path.join(__dirname, 'data');
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    
-    this.historyPath = path.join(dataDir, 'notification_history.json');
-    this.notificationHistory = this.loadHistory();
-    
-    this.startQueueProcessor();
+  this.adminEmail = process.env.ADMIN_EMAIL || 'blessingsemulyn@gmail.com';
+  this.adminPhone = process.env.ADMIN_PHONE || '0991295401';
+  this.retryCount = 5;
+  this.retryDelay = 2000;
+  this.maxRetryDelay = 30000;
+  this.notificationQueue = [];
+  this.isProcessing = false;
+  
+  this.templatePath = path.join(__dirname, 'email_templates');
+  if (!fs.existsSync(this.templatePath)) {
+    fs.mkdirSync(this.templatePath, { recursive: true });
   }
+  
+  // Ensure data directory exists
+  const dataDir = path.join(__dirname, 'data');
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  
+  this.historyPath = path.join(dataDir, 'notification_history.json');
+  this.notificationHistory = this.loadHistory();
+  
+  this.startQueueProcessor();
+}
 
   loadHistory() {
-    try {
-      if (fs.existsSync(this.historyPath)) {
-        return JSON.parse(fs.readFileSync(this.historyPath, 'utf8'));
-      }
-    } catch (error) {
-      console.error('Error loading notification history:', error);
+  try {
+    const dataDir = path.join(__dirname, 'data');
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+    if (fs.existsSync(this.historyPath)) {
+      return JSON.parse(fs.readFileSync(this.historyPath, 'utf8'));
     }
-    return [];
+  } catch (error) {
+    console.error('Error loading notification history:', error);
   }
+  return [];
+}
 
-  saveHistory() {
-    try {
-      const historyToSave = this.notificationHistory.slice(-1000);
-      fs.writeFileSync(this.historyPath, JSON.stringify(historyToSave, null, 2));
-    } catch (error) {
-      console.error('Error saving notification history:', error);
-    }
+saveHistory() {
+  try {
+    const dataDir = path.join(__dirname, 'data');
+    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+    const historyToSave = this.notificationHistory.slice(-1000);
+    fs.writeFileSync(this.historyPath, JSON.stringify(historyToSave, null, 2));
+  } catch (error) {
+    console.error('Error saving notification history:', error);
   }
+}
 
   addToHistory(notification) {
     this.notificationHistory.push({
@@ -144,88 +148,99 @@ class NotificationService {
 
   // ============ EMAIL NOTIFICATION ============
   async sendEmail(to, subject, message, attachments = null, priority = 'normal') {
-    return this.queueNotification({
-      type: 'email',
-      to,
-      subject,
-      message,
-      attachments,
-      priority,
-      retryCount: 0
-    });
+  return this.queueNotification({
+    type: 'email',
+    to,
+    subject,
+    message,
+    attachments,
+    priority,       
+    retryCount: 0
+  });
+}
+
+ async sendEmailDirect(to, subject, message, attachments = null, priority = 'normal') {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.error('❌ Email credentials missing');
+    return { success: false, error: 'Email credentials not configured' };
   }
 
-  async sendEmailDirect(to, subject, message, attachments = null, priority = 'normal') {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.error('❌ Email credentials missing');
-      return { success: false, error: 'Email credentials not configured' };
-    }
+  // Resolve smtp.gmail.com to an IPv4 address
+  let smtpHost = 'smtp.gmail.com';
+  let smtpIP;
+  try {
+    const addresses = await dns.resolve4(smtpHost);
+    smtpIP = addresses[0];
+    console.log(`✅ Resolved ${smtpHost} to IPv4: ${smtpIP}`);
+  } catch (err) {
+    console.error('DNS resolution failed, falling back to hostname:', err.message);
+    smtpIP = smtpHost;
+  }
 
-    // Resolve smtp.gmail.com to an IPv4 address
-    let smtpHost = 'smtp.gmail.com';
-    let smtpIP;
-    try {
-      const addresses = await dns.resolve4(smtpHost);
-      smtpIP = addresses[0];
-      console.log(`✅ Resolved ${smtpHost} to IPv4: ${smtpIP}`);
-    } catch (err) {
-      console.error('DNS resolution failed, falling back to hostname:', err.message);
-      smtpIP = smtpHost;
-    }
+  // Use port 465 with SSL (more reliable than 587)
+  const transporter = nodemailer.createTransport({
+    host: smtpIP,
+    port: 465,
+    secure: true,                // SSL
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    family: 4,
+    tls: {
+      servername: smtpHost,      // Important when using IP directly
+      rejectUnauthorized: false  // Sometimes needed on Railway
+    },
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
+    pool: true,
+    maxConnections: 5,
+    rateLimit: 10
+  });
 
-    const transporter = nodemailer.createTransport({
-      host: smtpIP,                // use IP directly to bypass IPv6
-      port: 587,
-      secure: false,               // STARTTLS on port 587
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-      family: 4,                   // force IPv4 socket
-      tls: {
-        ciphers: 'SSLv3',
-        rejectUnauthorized: false  // allow self-signed? Gmail uses valid cert, but sometimes needed
-      },
-      connectionTimeout: 30000,
-      greetingTimeout: 30000,
-      socketTimeout: 30000,
-      pool: true,
-      maxConnections: 5,
-      rateLimit: 10
-    });
-
-    // If we used an IP, we must set the servername for TLS certificate validation
-    if (smtpIP !== smtpHost) {
-      transporter.options.tls = transporter.options.tls || {};
-      transporter.options.tls.servername = smtpHost;
-    }
-
-    try {
-      const emailContent = this.formatEmailHTML(message, subject);
-      const mailOptions = {
-        from: `"EasySuccor Bot" <${process.env.EMAIL_USER}>`,
-        to: to,
-        subject: subject,
-        text: message,
-        html: emailContent,
-        priority: priority === 'high' ? 'high' : 'normal',
-        headers: {
-          'X-Priority': priority === 'high' ? '1' : '3',
-          'X-MSMail-Priority': priority === 'high' ? 'High' : 'Normal',
-          'Importance': priority === 'high' ? 'high' : 'normal'
-        }
-      };
-      
-      if (attachments && Array.isArray(attachments)) {
-        mailOptions.attachments = attachments;
+  try {
+    const emailContent = this.formatEmailHTML(message, subject);
+    const mailOptions = {
+      from: `"EasySuccor Bot" <${process.env.EMAIL_USER}>`,
+      to: to,
+      subject: subject,
+      text: message,
+      html: emailContent,
+      priority: priority === 'high' ? 'high' : 'normal',
+      headers: {
+        'X-Priority': priority === 'high' ? '1' : '3',
+        'X-MSMail-Priority': priority === 'high' ? 'High' : 'Normal',
+        'Importance': priority === 'high' ? 'high' : 'normal'
       }
-      
-      const info = await transporter.sendMail(mailOptions);
-      console.log(`📧 Email sent to ${to} - Message ID: ${info.messageId}`);
+    };
+    
+    if (attachments && Array.isArray(attachments)) {
+      mailOptions.attachments = attachments;
+    }
+    
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`📧 Email sent to ${to} - Message ID: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('Email failed:', error.message);
+    // Fallback: try without IP (use hostname) – sometimes works
+    try {
+      const fallbackTransporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: 465,
+        secure: true,
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+        family: 4,
+        tls: { rejectUnauthorized: false },
+        connectionTimeout: 30000,
+      });
+      const info = await fallbackTransporter.sendMail(mailOptions);
+      console.log(`📧 Email sent via fallback to ${to} - ${info.messageId}`);
       return { success: true, messageId: info.messageId };
-    } catch (error) {
-      console.error('Email failed:', error.message);
+    } catch (fallbackError) {
+      console.error('Fallback email also failed:', fallbackError.message);
       return { success: false, error: error.message };
     }
   }
-
+}
   formatEmailHTML(message, subject) {
     const timestamp = new Date().toLocaleString();
     const year = new Date().getFullYear();

@@ -708,7 +708,6 @@ app.get('/admin/imports-summary', adminAuth, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 // ============ CLIENT MANAGEMENT ENDPOINTS ============
 
 // Delete client and all associated data
@@ -1396,7 +1395,6 @@ app.get('/api/referrer-info', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 // ============ DASHBOARD API ENDPOINTS ============
 
 // Get full statistics for dashboard
@@ -2061,7 +2059,6 @@ function getTimeBasedEncouragement(name) {
     const msg = messages[Math.floor(Math.random() * messages.length)];
     return msg(name);
 }
-
 // ============ WELCOME MESSAGE BUILDERS ============
 function getTimeBasedFirstTimeWelcome(name) {
     const period = getTimePeriod();
@@ -2071,10 +2068,10 @@ function getTimeBasedFirstTimeWelcome(name) {
     const appreciation = welcomeData.appreciation[Math.floor(Math.random() * welcomeData.appreciation.length)];
     
     const trustMessages = [
-        "${SEP}🙏 *Thank You for Your Trust*${SEP}",
-        "${SEP}✨ *We Don't Take This Lightly*${SEP}",
-        "${SEP}🤝 *Your Trust Inspires Us*${SEP}",
-        "${SEP}💫 *We're Committed to Excellence*${SEP}"
+        `${SEP}🙏 *Thank You for Your Trust*${SEP}`,
+        `${SEP}✨ *We Don't Take This Lightly*${SEP}`,
+        `${SEP}🤝 *Your Trust Inspires Us*${SEP}`,
+        `${SEP}💫 *We're Committed to Excellence*${SEP}`
     ];
     const trust = trustMessages[Math.floor(Math.random() * trustMessages.length)];
     
@@ -2088,10 +2085,10 @@ function getTimeBasedFirstTimeWelcome(name) {
     const promise = promiseMessages[Math.floor(Math.random() * promiseMessages.length)];
     
     const beginMessages = [
-        "${SEP}📋 *Let's Begin Your Journey*${SEP}",
-        "${SEP}🚀 *Ready to Transform Your Career?*${SEP}",
-        "${SEP}✨ *Your Professional Journey Starts Here*${SEP}",
-        "${SEP}🎯 *Let's Create Something Exceptional*${SEP}"
+        `${SEP}📋 *Let's Begin Your Journey*${SEP}`,
+        `${SEP}🚀 *Ready to Transform Your Career?*${SEP}`,
+        `${SEP}✨ *Your Professional Journey Starts Here*${SEP}`,
+        `${SEP}🎯 *Let's Create Something Exceptional*${SEP}`
     ];
     const begin = beginMessages[Math.floor(Math.random() * beginMessages.length)];
     
@@ -2106,10 +2103,10 @@ function getTimeBasedReturningWelcome(name) {
     const appreciation = welcomeData.appreciation[Math.floor(Math.random() * welcomeData.appreciation.length)].replace('${name}', name);
     
     const honorMessages = [
-        "${SEP}🙏 *We're Honored You Returned*${SEP}",
-        "${SEP}✨ *Your Loyalty Inspires Us*${SEP}",
-        "${SEP}💝 *Clients Like You Make Our Work Meaningful*${SEP}",
-        "${SEP}🤝 *Thank You for Your Continued Trust*${SEP}"
+        `${SEP}🙏 *We're Honored You Returned*${SEP}`,
+        `${SEP}✨ *Your Loyalty Inspires Us*${SEP}`,
+        `${SEP}💝 *Clients Like You Make Our Work Meaningful*${SEP}`,
+        `${SEP}🤝 *Thank You for Your Continued Trust*${SEP}`
     ];
     const honor = honorMessages[Math.floor(Math.random() * honorMessages.length)];
     
@@ -2807,7 +2804,6 @@ const mainMenuKeyboard = Markup.keyboard([
     ["✏️ Update CV", "📎 Upload Draft"],
     ["ℹ️ About", "📞 Contact", "🏠 Portal"]
 ]).resize().persistent();
-
 // ============ DOCUMENT UPLOAD HANDLING (unified handler) ============
 // This handler processes both single document requests (e.g., after education)
 // and bulk attachment collection.
@@ -2859,6 +2855,45 @@ bot.on(['photo', 'document'], async (ctx, next) => {
 
     const session = await db.getActiveSession(client.id);
     if (!session) return next();
+
+    // Priority 0: Awaiting draft upload (CV/cover letter file)
+    if (session.data?.awaiting_draft_upload) {
+        let fileId, mimeType, fileName;
+        if (ctx.message.photo) {
+            const photo = ctx.message.photo[ctx.message.photo.length - 1];
+            fileId = photo.file_id;
+            mimeType = 'image/jpeg';
+            fileName = `photo_${Date.now()}.jpg`;
+        } else if (ctx.message.document) {
+            fileId = ctx.message.document.file_id;
+            mimeType = ctx.message.document.mime_type;
+            fileName = ctx.message.document.file_name;
+        } else {
+            return next();
+        }
+        await ctx.reply("📄 Processing your draft...");
+        try {
+            const fileLink = await ctx.telegram.getFileLink(fileId);
+            const tempPath = path.join(__dirname, 'temp', `${Date.now()}_${fileName}`);
+            await documentGenerator.downloadFile(fileLink.href, tempPath);
+            const result = await documentGenerator.extractWithDeepSeek(tempPath, 'cv');
+            if (result.success) {
+                session.data.cv_data = result.data;
+                session.data.is_draft_upload = true;
+                delete session.data.awaiting_draft_upload;
+                await db.updateSession(session.id, session.stage, session.current_section, session.data);
+                await ctx.reply(`✅ Draft processed!\n\n${result.summary}\n\nNow let's fill any missing details.`);
+                await smartDraft.collectNextMissingSection(ctx, client, session);
+            } else {
+                await ctx.reply("❌ Could not extract data from your file. Please try a clearer document or choose manual entry.");
+            }
+            fs.unlinkSync(tempPath);
+        } catch (error) {
+            console.error('Draft upload error:', error);
+            await ctx.reply("❌ Failed to process your draft. Please try again.");
+        }
+        return;
+    }
 
     // Priority 1: Awaiting a specific document (e.g., after education, certification)
     if (session.data?.awaiting_document) {
@@ -2998,44 +3033,6 @@ bot.on(['photo', 'document'], async (ctx, next) => {
         }
         return;
     }
-    // Priority 0: Awaiting draft upload (CV/cover letter file)
-if (session.data?.awaiting_draft_upload) {
-    let fileId, mimeType, fileName;
-    if (ctx.message.photo) {
-        const photo = ctx.message.photo[ctx.message.photo.length - 1];
-        fileId = photo.file_id;
-        mimeType = 'image/jpeg';
-        fileName = `photo_${Date.now()}.jpg`;
-    } else if (ctx.message.document) {
-        fileId = ctx.message.document.file_id;
-        mimeType = ctx.message.document.mime_type;
-        fileName = ctx.message.document.file_name;
-    } else {
-        return next();
-    }
-    await ctx.reply("📄 Processing your draft...");
-    try {
-        const fileLink = await ctx.telegram.getFileLink(fileId);
-        const tempPath = path.join(__dirname, 'temp', `${Date.now()}_${fileName}`);
-        await documentGenerator.downloadFile(fileLink.href, tempPath);
-        const result = await documentGenerator.extractFullCVData(tempPath, 'cv');
-        if (result.success) {
-            session.data.cv_data = result.data;
-            session.data.is_draft_upload = true;
-            delete session.data.awaiting_draft_upload;
-            await db.updateSession(session.id, session.stage, session.current_section, session.data);
-            await ctx.reply("✅ Draft processed! Now let's fill any missing details.");
-            await smartDraft.collectNextMissingSection(ctx, client, session);
-        } else {
-            await ctx.reply("❌ Could not extract data from your file. Please try a clearer document or choose manual entry.");
-        }
-        fs.unlinkSync(tempPath);
-    } catch (error) {
-        console.error('Draft upload error:', error);
-        await ctx.reply("❌ Failed to process your draft. Please try again.");
-    }
-    return;
-}
 
     return next();
 });
@@ -3430,7 +3427,6 @@ I can extract ALL information from your existing CV including:
     
     await db.updateSession(session.id, 'selecting_build_method', null, session.data);
 }
-
 // ============ COVER LETTER HANDLERS (UPDATED) ============
 async function handleCoverLetterStart(ctx, client, session) {
     ensureCoverLetterData(session);
@@ -5843,9 +5839,161 @@ bot.action('missing_done', async (ctx) => {
         await smartDraft.collectNextMissingSection(ctx, client, session);
     }
 });
-// Add similar for cert_done, lang_done, proj_done, ach_done, vol_done, lead_done, award_done, pub_done, conf_done, more_ref_yes, more_ref_no
-// (You can copy the pattern from your existing handlers – many are already defined in your code but may be missing due to incomplete copy. Verify they exist.)
+// Additional handlers for smart draft missing collection
+bot.action('cert_done', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    // Finish certifications – move to next missing section
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+bot.action('cert_skip_section', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
 
+bot.action('lang_done', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+bot.action('lang_skip_section', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+
+bot.action('proj_done', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+bot.action('proj_skip_section', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+
+bot.action('ach_done', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+bot.action('ach_skip_section', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+
+bot.action('vol_done', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+bot.action('vol_skip_section', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+
+bot.action('lead_done', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+bot.action('lead_skip_section', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+
+bot.action('award_done', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+bot.action('award_skip_section', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+
+bot.action('pub_done', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+bot.action('pub_skip_section', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+
+bot.action('conf_done', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+bot.action('conf_skip_section', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
+
+bot.action('more_ref_yes', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    // Re‑enter referees collection
+    session.data.ref_step = 'name';
+    session.data.temp_ref = {};
+    await sendMarkdown(ctx, "Next referee - Full name? 👥");
+    await db.updateSession(session.id, 'collecting_missing', 'missing', session.data);
+});
+
+bot.action('more_ref_no', async (ctx) => {
+    await ctx.answerCbQuery();
+    const client = await db.getClient(ctx.from.id);
+    const session = await db.getActiveSession(client.id);
+    session.data.current_missing_index = (session.data.current_missing_index || 0) + 1;
+    await smartDraft.collectNextMissingSection(ctx, client, session);
+});
 // 26. Cancel update
 bot.action('cancel_update', async (ctx) => {
     await ctx.answerCbQuery();
@@ -6449,12 +6597,12 @@ async function handleMainMenu(ctx, client, session, text) {
     } else {
         await sendMarkdown(ctx, `Please select a category to get started:`, {
             reply_markup: { inline_keyboard: [
-                [{ text: "🎓 Student", callback_data: "cat_student" }],
-                [{ text: "📜 Recent Graduate", callback_data: "cat_recent" }],
-                [{ text: "💼 Professional", callback_data: "cat_professional" }],
-                [{ text: "🌱 Non-Working", callback_data: "cat_nonworking" }],
-                [{ text: "🔄 Returning Client", callback_data: "cat_returning" }]
-            ] }
+                [{ text: "🎓 Student - Still studying", callback_data: "cat_student" }],
+                        [{ text: "📜 Recent Graduate < a year", callback_data: "cat_recent" }],
+                        [{ text: "💼 Professional - currently working", callback_data: "cat_professional" }],
+                        [{ text: "🌱 Non-Working - Career break", callback_data: "cat_nonworking" }],
+                        [{ text: "🔄 Returning Client - Used us before", callback_data: "cat_returning" }]
+                    ] }
         });
     }
 }
@@ -7286,6 +7434,7 @@ bot.command('pause', async (ctx) => {
     } else await sendMarkdown(ctx, `No active session to pause.`);
 });
 
+// ============ IMPROVED /RESUME COMMAND ============
 bot.command('resume', async (ctx) => {
     const client = await getOrCreateClient(ctx);
     const pausedSession = await db.getPausedSession(client.id);
@@ -7302,186 +7451,87 @@ bot.command('resume', async (ctx) => {
     // Reactivate the session (set is_paused = 0)
     await db.updateSession(pausedSession.id, pausedSession.stage, pausedSession.current_section, pausedSession.data, 0);
     
-    let resumeMessage = "🔄 Welcome back! Let's continue where we left off.\n\n";
-    
-    // Determine the correct prompt based on stage and collection step
+    // Redirect to appropriate handler based on stage
     switch (pausedSession.stage) {
         case 'collecting_personal':
-            const step = pausedSession.data.collection_step;
-            if (step === 'name') resumeMessage += getQuestion('name');
-            else if (step === 'email') resumeMessage += getQuestion('email');
-            else if (step === 'phone') resumeMessage += getQuestion('phone');
-            else if (step === 'alt_phone') resumeMessage += "📞 Alternative phone number?\n\nClick 'Skip' if none.";
-            else if (step === 'whatsapp') resumeMessage += "📱 WhatsApp for delivery?\n\nClick 'Same' or type a new number.";
-            else if (step === 'location') resumeMessage += getQuestion('location');
-            else if (step === 'professional_title') resumeMessage += "💼 Professional title? (Optional)\n\nType 'Skip' to continue.";
-            else if (step === 'linkedin') resumeMessage += "🔗 LinkedIn URL? (Optional)\n\nType 'Skip' to continue.";
-            else if (step === 'github') resumeMessage += "💻 GitHub URL? (Optional)\n\nType 'Skip' to continue.";
-            else if (step === 'physical_address') resumeMessage += "🏠 Physical address? (Optional)\n\nType 'Skip' to continue.";
-            else if (step === 'nationality') resumeMessage += "🌍 Nationality? (Optional)\n\nType 'Skip' to continue.";
-            else if (step === 'date_of_birth') resumeMessage += "🎂 Date of birth? (Optional)\n\nType 'Skip' to continue.";
-            else if (step === 'id_upload') resumeMessage += "Please upload your National ID or Driver's Licence, or click Skip.";
-            else if (step === 'after_id') resumeMessage += "Do you have any special documents? (e.g., Professional License)\n\nType each, then click 'Done'.";
-            else resumeMessage += getQuestion('name');
+            await handlePersonalCollection(ctx, client, pausedSession, null, true);
             break;
-            
         case 'collecting_education':
-            const eduStep = pausedSession.data.collection_step;
-            if (eduStep === 'level') resumeMessage += "What's your highest qualification? 🎓";
-            else if (eduStep === 'field') resumeMessage += "Field of study? 📚";
-            else if (eduStep === 'institution') resumeMessage += "Institution? 🏛️";
-            else if (eduStep === 'year') resumeMessage += "Year of completion? 📅";
-            else if (eduStep === 'add_more') resumeMessage += "Another qualification? (Click Yes/No)";
-            else resumeMessage += "Let's continue with your education.";
+            await handleEducationCollection(ctx, client, pausedSession, null, null, true);
             break;
-            
         case 'collecting_skills':
-            resumeMessage += getQuestion('skills');
+            await sendMarkdown(ctx, getQuestion('skills'));
             break;
-            
         case 'collecting_certifications':
-            const certStep = pausedSession.data.collection_step;
-            if (certStep === 'name') resumeMessage += "Certification name? 📜";
-            else if (certStep === 'issuer') resumeMessage += "Issuing organization? 🏛️";
-            else if (certStep === 'date') resumeMessage += "Date obtained? 📅";
-            else if (certStep === 'expiry') resumeMessage += "Expiry date? (or type 'Skip')";
-            else if (certStep === 'credential_id') resumeMessage += "Credential ID? (or type 'Skip')";
-            else if (certStep === 'url') resumeMessage += "Certificate URL? (or type 'Skip')";
-            else if (certStep === 'add_more') resumeMessage += "Another certification? (Click Yes/No)";
-            else resumeMessage += "Any certifications? (Click SKIP if none)";
+            await handleCertificationsCollection(ctx, client, pausedSession, null, null);
             break;
-            
         case 'collecting_projects':
-            const projStep = pausedSession.data.collection_step;
-            if (projStep === 'name') resumeMessage += "Project name? 📁";
-            else if (projStep === 'description') resumeMessage += "Project description? (2-3 sentences)";
-            else if (projStep === 'technologies') resumeMessage += "Technologies used? 🔧";
-            else if (projStep === 'role') resumeMessage += "Your role? 👤";
-            else if (projStep === 'team_size') resumeMessage += "Team size? (or type 'Skip')";
-            else if (projStep === 'duration') resumeMessage += "Duration? 📅";
-            else if (projStep === 'link') resumeMessage += "Project link? (or type 'Skip')";
-            else if (projStep === 'outcome') resumeMessage += "Project outcome/impact? 📊";
-            else if (projStep === 'add_more') resumeMessage += "Another project? (Click Yes/No)";
-            else resumeMessage += "Any projects? (Click SKIP if none)";
+            await handleProjectsCollection(ctx, client, pausedSession, null, null);
             break;
-            
         case 'collecting_achievements':
-            resumeMessage += "What are your key achievements? (Type each, then DONE when finished)";
+            await handleAchievementsCollection(ctx, client, pausedSession, null, null);
             break;
-            
         case 'collecting_volunteer':
-            resumeMessage += "Any volunteer experience? (Click SKIP if none)";
+            await handleVolunteerCollection(ctx, client, pausedSession, null, null);
             break;
-            
         case 'collecting_leadership':
-            resumeMessage += "Any leadership roles? (Click SKIP if none)";
+            await handleLeadershipCollection(ctx, client, pausedSession, null, null);
             break;
-            
         case 'collecting_awards':
-            resumeMessage += "Any awards? (Click SKIP if none)";
+            await handleAwardsCollection(ctx, client, pausedSession, null, null);
             break;
-            
         case 'collecting_publications':
-            resumeMessage += "Any publications? (Click SKIP if none)";
+            await handlePublicationsCollection(ctx, client, pausedSession, null, null);
             break;
-            
         case 'collecting_conferences':
-            resumeMessage += "Any conferences? (Click SKIP if none)";
+            await handleConferencesCollection(ctx, client, pausedSession, null, null);
             break;
-            
         case 'collecting_interests':
-            resumeMessage += "What are your interests/hobbies? (comma separated, or click SKIP)";
+            await handleInterestsCollection(ctx, client, pausedSession, null, null);
             break;
-            
         case 'collecting_portfolio':
-            resumeMessage += "📎 Please provide your portfolio links (one per line) or click SKIP.";
+            await portfolioCollector.askForPortfolio(ctx);
             break;
-            
         case 'collecting_missing':
-            const missingSection = pausedSession.data.current_section;
-            resumeMessage += `Let's continue with: ${missingSection}\n\n${getMissingPrompt(missingSection)}`;
+            await smartDraft.collectNextMissingSection(ctx, client, pausedSession);
             break;
-            
         case 'cover_selecting_vacancy':
-            resumeMessage += "Do you have a job vacancy in mind? (Yes/No)";
+            await handleCoverVacancyChoice(ctx, client, pausedSession, null);
             break;
-            
         case 'cover_collecting_position':
-            resumeMessage += "What position are you applying for?";
+            await sendMarkdown(ctx, "What position are you applying for?");
             break;
-            
         case 'cover_collecting_company':
-            resumeMessage += "Which company are you applying to?";
+            await sendMarkdown(ctx, "Which company are you applying to?");
             break;
-            
         case 'cover_collecting_experience':
-            resumeMessage += "What's your most relevant experience for this role? (2-3 sentences)";
+            await sendMarkdown(ctx, "What's your most relevant experience for this role? (2-3 sentences)");
             break;
-            
         case 'cover_collecting_skills':
-            resumeMessage += "What are your top 3 skills for this role? (comma separated)";
+            await sendMarkdown(ctx, "What are your top 3 skills for this role? (comma separated)");
             break;
-            
         case 'cover_collecting_achievement':
-            resumeMessage += "What's your biggest professional achievement?";
+            await sendMarkdown(ctx, "What's your biggest professional achievement?");
             break;
-            
         case 'cover_collecting_why':
-            resumeMessage += "Why are you interested in this role/company? (2-3 sentences)";
+            await sendMarkdown(ctx, "Why are you interested in this role/company? (2-3 sentences)");
             break;
-            
         case 'cover_collecting_availability':
-            resumeMessage += "When are you available to start? (Immediately / 2 weeks / 1 month / Specific date)";
+            await sendMarkdown(ctx, "When are you available to start? (Immediately / 2 weeks / 1 month / Specific date)");
             break;
-            
         case 'awaiting_cover_confirmation':
-            resumeMessage += "Please type CONFIRM to proceed or EDIT to make changes.";
+            await sendMarkdown(ctx, "Please type CONFIRM to proceed or EDIT to make changes.");
             break;
-            
         case 'selecting_delivery':
-            resumeMessage += "Please select delivery speed: Standard (6h), Express (+MK3,000), Rush (+MK5,000)";
+            await sendMarkdown(ctx, "Please select delivery speed: Standard (6h), Express (+MK3,000), Rush (+MK5,000)");
             break;
-            
         case 'awaiting_payment':
-            resumeMessage += "You have a pending payment. Use /pay to complete it.";
+            await sendMarkdown(ctx, "You have a pending payment. Use /pay to complete it.");
             break;
-            
         default:
-            resumeMessage += "Type /start to begin or /help for commands.";
-            break;
+            await sendMarkdown(ctx, "Resumed. Type /help if you need assistance.");
     }
-    
-    await sendMarkdown(ctx, resumeMessage);
 });
-
-// Helper function for missing section prompts (used in smart draft resume)
-function getMissingPrompt(section) {
-    const prompts = {
-        'Full Name': "What's your full name? 📛",
-        'Email': "What's your email address? 📧",
-        'Phone': "What's your phone number? 📞",
-        'Location': "Where are you based? (City, Country) 📍",
-        'Physical Address (Optional)': "🏠 Physical address? (Optional)\n\nType 'Skip' to continue.",
-        'Nationality (Optional)': "🌍 Nationality? (Optional)\n\nType 'Skip' to continue.",
-        'LinkedIn (Optional)': "🔗 LinkedIn URL? (Optional)\n\nType 'Skip' to continue.",
-        'GitHub (Optional)': "💻 GitHub URL? (Optional)\n\nType 'Skip' to continue.",
-        'Work Experience': "Let's add your work experience. Most recent job title? 💼",
-        'Education': "What's your highest qualification? 🎓",
-        'Skills': "List your key skills (comma separated) ⚡",
-        'Certifications (Optional)': "📜 Any certifications? (Optional)\n\nClick SKIP to continue.",
-        'Languages (Optional)': "🌍 What languages do you speak? (Optional)\n\nClick SKIP to continue.",
-        'Projects (Optional)': "📁 Any projects you want to showcase? (Optional)\n\nClick SKIP to continue.",
-        'Achievements (Optional)': "🏆 What are your key achievements? (Optional)\n\nClick SKIP to continue.",
-        'Volunteer Experience (Optional)': "🤝 Any volunteer experience? (Optional)\n\nClick SKIP to continue.",
-        'Leadership Roles (Optional)': "👔 Any leadership roles? (Optional)\n\nClick SKIP to continue.",
-        'Awards (Optional)': "🏅 Any awards or recognition? (Optional)\n\nClick SKIP to continue.",
-        'Publications (Optional)': "📖 Any publications? (Optional)\n\nClick SKIP to continue.",
-        'Conferences (Optional)': "🎤 Any conferences attended? (Optional)\n\nClick SKIP to continue.",
-        'Interests (Optional)': "💡 What are your interests/hobbies? (Optional)\n\nClick SKIP to continue.",
-        'Referees (need 2 more, minimum 2 required)': "Please provide professional referees (minimum 2 required).\n\nReferee 1 - Full name? 👥"
-    };
-    return prompts[section] || `Please provide your ${section.toLowerCase()}:`;
-};
 
 bot.command('confirm', async (ctx) => {
     const args = ctx.message.text.split(' ');

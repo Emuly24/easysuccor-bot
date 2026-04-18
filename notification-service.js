@@ -3,6 +3,11 @@ const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
 const db = require('./database');
+const dns = require('dns').promises;
+
+// Force IPv4 for all DNS resolutions (global)
+const { setDefaultResultOrder } = require('dns');
+setDefaultResultOrder('ipv4first');
 
 // Mobile-friendly separator
 const SEP = '\n┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅\n';
@@ -155,15 +160,43 @@ class NotificationService {
       console.error('❌ Email credentials missing');
       return { success: false, error: 'Email credentials not configured' };
     }
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-  family: 4,
-  tls: { rejectUnauthorized: false }
-});
-  
+
+    // Resolve smtp.gmail.com to an IPv4 address
+    let smtpHost = 'smtp.gmail.com';
+    let smtpIP;
+    try {
+      const addresses = await dns.resolve4(smtpHost);
+      smtpIP = addresses[0];
+      console.log(`✅ Resolved ${smtpHost} to IPv4: ${smtpIP}`);
+    } catch (err) {
+      console.error('DNS resolution failed, falling back to hostname:', err.message);
+      smtpIP = smtpHost;
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtpIP,                // use IP directly to bypass IPv6
+      port: 587,
+      secure: false,               // STARTTLS on port 587
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      family: 4,                   // force IPv4 socket
+      tls: {
+        ciphers: 'SSLv3',
+        rejectUnauthorized: false  // allow self-signed? Gmail uses valid cert, but sometimes needed
+      },
+      connectionTimeout: 30000,
+      greetingTimeout: 30000,
+      socketTimeout: 30000,
+      pool: true,
+      maxConnections: 5,
+      rateLimit: 10
+    });
+
+    // If we used an IP, we must set the servername for TLS certificate validation
+    if (smtpIP !== smtpHost) {
+      transporter.options.tls = transporter.options.tls || {};
+      transporter.options.tls.servername = smtpHost;
+    }
+
     try {
       const emailContent = this.formatEmailHTML(message, subject);
       const mailOptions = {

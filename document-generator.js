@@ -184,10 +184,30 @@ Return ONLY valid JSON. If a field is not found, use null or empty array. DO NOT
         publications: [],
         conferences: [],
         referees: [],
-        interests: []
+        interests: [],
+        social_media: {},
+        portfolio: []
     };
 
-    // 1. Name (first line that looks like a name)
+    // Helper to extract sections between headers
+    function getSectionContent(startKeyword, endKeywords = []) {
+        let inSection = false;
+        let content = [];
+        for (const line of lines) {
+            const lower = line.toLowerCase();
+            if (!inSection && lower.includes(startKeyword)) {
+                inSection = true;
+                continue;
+            }
+            if (inSection && endKeywords.some(k => lower.includes(k))) {
+                break;
+            }
+            if (inSection && line.trim()) content.push(line.trim());
+        }
+        return content;
+    }
+
+    // 1. Personal details
     for (let i = 0; i < Math.min(5, lines.length); i++) {
         const line = lines[i].trim();
         if (line.length > 2 && line.length < 60 && !line.includes('@') && !line.match(/\d/) && 
@@ -196,20 +216,20 @@ Return ONLY valid JSON. If a field is not found, use null or empty array. DO NOT
             break;
         }
     }
-    
-    // 2. Email
     const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
     if (emailMatch) result.personal.email = emailMatch[0];
-    
-    // 3. Phone
     const phoneMatch = text.match(/\+?[\d\s\-\(\)]{8,20}/);
     if (phoneMatch) result.personal.primary_phone = phoneMatch[0];
-    
-    // 4. Location
     const locMatch = text.match(/(?:Location|Address|Based in)[:\s]*([A-Za-z\s,]+)/i);
     if (locMatch) result.personal.location = locMatch[1].trim();
-    
-    // 5. Professional summary (first long paragraph)
+    const linkedinMatch = text.match(/linkedin\.com\/in\/[a-zA-Z0-9\-_]+/i);
+    if (linkedinMatch) result.personal.linkedin = linkedinMatch[0];
+    const githubMatch = text.match(/github\.com\/[a-zA-Z0-9\-_]+/i);
+    if (githubMatch) result.personal.github = githubMatch[0];
+    const titleMatch = text.match(/(?:Professional Title|Job Title)[:\s]*([A-Za-z\s]+)/i);
+    if (titleMatch) result.personal.professional_title = titleMatch[1].trim();
+
+    // 2. Professional summary (first long paragraph)
     const paragraphs = text.split(/\n\s*\n/);
     for (const para of paragraphs) {
         if (para.length > 100 && para.length < 1000 && !para.includes('@') && !para.match(/\d{10,}/)) {
@@ -217,100 +237,203 @@ Return ONLY valid JSON. If a field is not found, use null or empty array. DO NOT
             break;
         }
     }
-    
-    // 6. Work experience
-    const jobKeywords = ['manager', 'engineer', 'developer', 'officer', 'assistant', 'specialist', 'consultant', 'director', 'coordinator', 'analyst'];
+
+    // 3. Work experience (enhanced)
+    const jobKeywords = ['manager', 'engineer', 'developer', 'officer', 'assistant', 'specialist', 'consultant', 'director', 'coordinator', 'analyst', 'lead', 'supervisor', 'head'];
     let currentJob = null;
     for (const line of lines) {
         const lower = line.toLowerCase();
         if (jobKeywords.some(k => lower.includes(k)) && (line.match(/\d{4}/) || line.includes(' - ') || line.includes(' at '))) {
             if (currentJob) result.employment.push(currentJob);
-            currentJob = { title: line.trim(), company: '', duration: '', responsibilities: [], achievements: [] };
+            currentJob = { title: line.trim(), company: '', location: '', duration: '', responsibilities: [], achievements: [] };
         } else if (currentJob && (line.includes('-') || line.includes('•') || line.match(/^\s*[\d-]/))) {
             if (line.length > 15 && !line.toLowerCase().includes('email') && !line.includes('@')) {
-                currentJob.responsibilities.push(line.replace(/^[\s\-•]+/, '').trim());
+                const cleanLine = line.replace(/^[\s\-•]+/, '').trim();
+                if (cleanLine.match(/(achieved|increased|reduced|improved|led|created|developed|won|awarded)/i)) {
+                    currentJob.achievements.push(cleanLine);
+                } else {
+                    currentJob.responsibilities.push(cleanLine);
+                }
             }
-        } else if (currentJob && line.match(/\d{4}\s*[-–]\s*\d{4}/)) {
+        } else if (currentJob && line.match(/\d{4}\s*[-–]\s*(?:\d{4}|Present)/i)) {
             currentJob.duration = line.trim();
         } else if (currentJob && line.length < 60 && !line.match(/\d/) && line.trim().length > 2) {
             if (!currentJob.company && !lower.includes('responsibilities') && !lower.includes('achievements')) {
                 currentJob.company = line.trim();
+            } else if (!currentJob.location && line.match(/(?:remote|hybrid|office|,)/i)) {
+                currentJob.location = line.trim();
             }
         }
     }
     if (currentJob) result.employment.push(currentJob);
-    
-    // 7. Education
-    const eduKeywords = ['bachelor', 'master', 'diploma', 'degree', 'bsc', 'msc', 'phd', 'certificate', 'high school'];
+
+    // 4. Education (enhanced)
+    const eduKeywords = ['bachelor', 'master', 'diploma', 'degree', 'bsc', 'msc', 'phd', 'certificate', 'high school', 'associate'];
     let currentEdu = null;
     for (const line of lines) {
         const lower = line.toLowerCase();
         if (eduKeywords.some(k => lower.includes(k))) {
             if (currentEdu) result.education.push(currentEdu);
-            currentEdu = { level: line.trim(), field: '', institution: '', year: '' };
+            currentEdu = { level: line.trim(), field: '', institution: '', year: '', gpa: '', achievements: [] };
         } else if (currentEdu && line.match(/\d{4}/)) {
             currentEdu.year = line.trim();
         } else if (currentEdu && line.length < 60 && line.trim().length > 2) {
-            if (!currentEdu.institution && !lower.includes('university') && !lower.includes('college')) {
-                currentEdu.field = line.trim();
-            } else if (!currentEdu.institution) {
+            if (!currentEdu.institution && (lower.includes('university') || lower.includes('college') || lower.includes('institute'))) {
                 currentEdu.institution = line.trim();
+            } else if (!currentEdu.field && !lower.includes('university') && !lower.includes('college')) {
+                currentEdu.field = line.trim();
+            } else if (line.toLowerCase().includes('gpa')) {
+                const gpaMatch = line.match(/\d\.\d/);
+                if (gpaMatch) currentEdu.gpa = gpaMatch[0];
             }
         }
     }
     if (currentEdu) result.education.push(currentEdu);
-    
-    // 8. Skills
-    const techSkills = ['python', 'javascript', 'java', 'react', 'node', 'sql', 'aws', 'docker', 'git', 'linux', 'excel', 'power bi', 'tableau', 'spss', 'matlab', 'autocad', 'solidworks'];
-    const softSkills = ['leadership', 'communication', 'teamwork', 'problem solving', 'critical thinking', 'time management', 'organization', 'adaptability', 'creativity', 'collaboration', 'negotiation', 'conflict resolution', 'decision making', 'project management', 'agile', 'scrum'];
+
+    // 5. Skills (categorized)
+    const techSkills = ['python', 'javascript', 'java', 'react', 'node', 'sql', 'aws', 'docker', 'git', 'linux', 'excel', 'power bi', 'tableau', 'spss', 'matlab', 'autocad', 'solidworks', 'c++', 'c#', 'php', 'laravel', 'django', 'flask', 'mongodb', 'postgresql', 'redis', 'kubernetes', 'terraform', 'ansible', 'jenkins', 'jira', 'confluence', 'salesforce', 'sap', 'oracle', 'wordpress', 'shopify', 'seo', 'google analytics'];
+    const softSkills = ['leadership', 'communication', 'teamwork', 'problem solving', 'critical thinking', 'time management', 'organization', 'adaptability', 'creativity', 'collaboration', 'negotiation', 'conflict resolution', 'decision making', 'project management', 'agile', 'scrum', 'kanban', 'mentoring', 'coaching', 'presentation', 'public speaking'];
+    const tools = ['microsoft office', 'google suite', 'slack', 'trello', 'asana', 'zoom', 'teams', 'skype', 'photoshop', 'illustrator', 'indesign', 'figma', 'sketch', 'invision', 'adobe xd', 'wordpress', 'shopify', 'salesforce', 'hubspot', 'mailchimp', 'hootsuite', 'buffer'];
     for (const skill of techSkills) {
         if (text.toLowerCase().includes(skill)) result.skills.technical.push(skill);
     }
     for (const skill of softSkills) {
         if (text.toLowerCase().includes(skill)) result.skills.soft.push(skill);
     }
-    
-    // 9. Certifications (simple)
-    const certKeywords = ['certified', 'certification', 'license', 'credential'];
+    for (const tool of tools) {
+        if (text.toLowerCase().includes(tool)) result.skills.tools.push(tool);
+    }
+
+    // 6. Certifications
+    const certKeywords = ['certified', 'certification', 'license', 'credential', 'certificate'];
+    let currentCert = null;
     for (const line of lines) {
         const lower = line.toLowerCase();
         if (certKeywords.some(k => lower.includes(k)) && line.length < 100) {
-            result.certifications.push({ name: line.trim(), issuer: '', date: '' });
+            if (currentCert) result.certifications.push(currentCert);
+            currentCert = { name: line.trim(), issuer: '', date: '' };
+        } else if (currentCert && line.match(/\d{4}/)) {
+            currentCert.date = line.trim();
+        } else if (currentCert && line.length < 50 && !lower.includes('certified')) {
+            currentCert.issuer = line.trim();
         }
     }
-    
-    // 10. Languages
-    const langKeywords = ['english', 'chichewa', 'french', 'swahili', 'portuguese', 'mandarin', 'spanish'];
+    if (currentCert) result.certifications.push(currentCert);
+
+    // 7. Languages
+    const langKeywords = ['english', 'chichewa', 'french', 'swahili', 'portuguese', 'mandarin', 'spanish', 'german', 'arabic', 'russian', 'japanese', 'korean', 'dutch', 'italian'];
     for (const lang of langKeywords) {
         if (text.toLowerCase().includes(lang)) {
-            result.languages.push({ name: lang, proficiency: 'Professional' });
+            let proficiency = 'Professional';
+            if (text.toLowerCase().includes(`${lang} fluent`)) proficiency = 'Fluent';
+            else if (text.toLowerCase().includes(`${lang} native`)) proficiency = 'Native';
+            else if (text.toLowerCase().includes(`${lang} intermediate`)) proficiency = 'Intermediate';
+            else if (text.toLowerCase().includes(`${lang} basic`)) proficiency = 'Basic';
+            result.languages.push({ name: lang.charAt(0).toUpperCase() + lang.slice(1), proficiency });
         }
     }
-    
-    // 11. Referees (simple)
-    const refSections = text.split(/\n\s*\n/);
-    for (const section of refSections) {
-        if (section.toLowerCase().includes('referee') || section.toLowerCase().includes('reference')) {
-            const lines = section.split('\n');
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (line && !line.toLowerCase().includes('referee') && !line.toLowerCase().includes('reference')) {
-                    result.referees.push({ name: line, position: '', company: '', contact: '' });
-                    break;
-                }
-            }
+
+    // 8. Projects
+    const projSections = getSectionContent('project', ['experience', 'education', 'skill']);
+    for (const line of projSections) {
+        if (line.length > 10 && !line.toLowerCase().includes('project')) {
+            result.projects.push({ name: line.substring(0, 50), description: line, technologies: '', role: '', duration: '', link: '', outcome: '' });
         }
     }
-    
-    // 12. Achievements (lines starting with bullet or containing "achieved", "won", "increased")
-    const achievementIndicators = ['achieved', 'won', 'increased', 'improved', 'reduced', 'led', 'created', 'developed', 'successfully'];
+
+    // 9. Achievements (already done but we can add more)
+    const achievementIndicators = ['achieved', 'won', 'increased', 'improved', 'reduced', 'led', 'created', 'developed', 'successfully', 'awarded', 'recognized', 'published', 'presented'];
     for (const line of lines) {
         const lower = line.toLowerCase();
         if (achievementIndicators.some(ai => lower.includes(ai)) && line.length < 200 && !line.includes('@')) {
             result.achievements.push({ title: line.trim(), description: '', date: '', issuer: '' });
         }
     }
-    
+
+    // 10. Volunteer
+    const volSections = getSectionContent('volunteer', ['experience', 'education', 'skill']);
+    for (const line of volSections) {
+        if (line.length > 10) {
+            result.volunteer.push({ role: line.substring(0, 50), organization: '', duration: '', responsibilities: [] });
+        }
+    }
+
+    // 11. Leadership
+    const leadSections = getSectionContent('leadership', ['experience', 'education']);
+    for (const line of leadSections) {
+        if (line.length > 10) {
+            result.leadership.push({ role: line.substring(0, 50), organization: '', duration: '', impact: '' });
+        }
+    }
+
+    // 12. Awards
+    const awardSections = getSectionContent('award', ['education', 'skill']);
+    for (const line of awardSections) {
+        if (line.length > 10) {
+            result.awards.push({ name: line.substring(0, 50), issuer: '', date: '', description: '' });
+        }
+    }
+
+    // 13. Publications
+    const pubSections = getSectionContent('publication', ['education', 'skill']);
+    for (const line of pubSections) {
+        if (line.length > 10) {
+            result.publications.push({ title: line.substring(0, 50), publisher: '', date: '', url: '', authors: '' });
+        }
+    }
+
+    // 14. Conferences
+    const confSections = getSectionContent('conference', ['experience', 'education']);
+    for (const line of confSections) {
+        if (line.length > 10) {
+            result.conferences.push({ name: line.substring(0, 50), role: '', date: '', location: '' });
+        }
+    }
+
+    // 15. Referees (improved)
+    const refSections = text.split(/\n\s*\n/);
+    for (const section of refSections) {
+        if (section.toLowerCase().includes('referee') || section.toLowerCase().includes('reference')) {
+            const refLines = section.split('\n');
+            for (let i = 0; i < refLines.length; i++) {
+                const line = refLines[i].trim();
+                if (line && !line.toLowerCase().includes('referee') && !line.toLowerCase().includes('reference') && line.length > 3) {
+                    result.referees.push({ name: line, position: '', company: '', contact: '' });
+                    // Try to get next line as position/company
+                    if (i+1 < refLines.length && refLines[i+1].trim() && !refLines[i+1].includes('@') && !refLines[i+1].match(/\d/)) {
+                        result.referees[result.referees.length-1].position = refLines[i+1].trim();
+                        i++;
+                    }
+                    if (i+1 < refLines.length && (refLines[i+1].includes('@') || refLines[i+1].match(/\d/))) {
+                        result.referees[result.referees.length-1].contact = refLines[i+1].trim();
+                        i++;
+                    }
+                    break; // only take first referee? We'll take multiple by not breaking? Actually loop continues.
+                }
+            }
+        }
+    }
+
+    // 16. Interests
+    const interestSections = getSectionContent('interest', ['skill', 'education']);
+    for (const line of interestSections) {
+        if (line.length > 5) {
+            result.interests.push(line);
+        }
+    }
+
+    // 17. Social media links
+    const socialPatterns = {
+        twitter: /twitter\.com\/[a-zA-Z0-9_]+/i,
+        facebook: /facebook\.com\/[a-zA-Z0-9.]+/i,
+        instagram: /instagram\.com\/[a-zA-Z0-9_]+/i,
+        youtube: /youtube\.com\/[a-zA-Z0-9_]+/i
+    };
+    for (const [platform, pattern] of Object.entries(socialPatterns)) {
+        const match = text.match(pattern);
+        if (match) result.social_media[platform] = match[0];
+    }
+
     return result;
 }
 
@@ -341,18 +464,146 @@ Return ONLY valid JSON. If a field is not found, use null or empty array. DO NOT
       writer.on('error', reject);
     });
   }
-
+generateFallbackSummary(extractedData) {
+    const personal = extractedData.personal || {};
+    const employment = extractedData.employment || [];
+    const education = extractedData.education || [];
+    const skills = extractedData.skills || {};
+    const certifications = extractedData.certifications || [];
+    const languages = extractedData.languages || [];
+    const projects = extractedData.projects || [];
+    const achievements = extractedData.achievements || [];
+    const volunteer = extractedData.volunteer || [];
+    const leadership = extractedData.leadership || [];
+    const awards = extractedData.awards || [];
+    
+    const name = personal.full_name || 'Candidate';
+    const title = personal.professional_title || '';
+    const location = personal.location || '';
+    
+    // Calculate total years of experience
+    let totalYears = 0;
+    for (const job of employment) {
+        const duration = job.duration || '';
+        const yearMatch = duration.match(/(\d+)\s*(?:years?|yrs?)/i);
+        if (yearMatch) totalYears += parseInt(yearMatch[1]);
+        else if (duration.includes('Present') && job.start_date) {
+            const startYear = parseInt(job.start_date.match(/\d{4}/)?.[0] || 0);
+            if (startYear) totalYears += new Date().getFullYear() - startYear;
+        }
+    }
+    
+    // Collect all skills
+    const allSkills = [
+        ...(skills.technical || []),
+        ...(skills.soft || []),
+        ...(skills.tools || [])
+    ];
+    
+    // Build summary parts dynamically
+    const sentences = [];
+    
+    // 1. Opening: Name and professional identity
+    if (name && name !== 'Candidate') {
+        let opening = `${name} is `;
+        if (title) opening += `a ${title}`;
+        else if (employment.length > 0) opening += `a ${employment[0].title}`;
+        else opening += `a dedicated professional`;
+        if (totalYears > 0) opening += ` with ${totalYears}+ years of experience`;
+        if (location) opening += ` based in ${location}`;
+        sentences.push(opening + '.');
+    } else {
+        let opening = `A dedicated professional`;
+        if (title) opening += ` ${title}`;
+        else if (employment.length > 0) opening += ` ${employment[0].title}`;
+        if (totalYears > 0) opening += ` with ${totalYears}+ years of experience`;
+        if (location) opening += ` based in ${location}`;
+        sentences.push(opening + '.');
+    }
+    
+    // 2. Work experience highlights (most recent job achievements)
+    if (employment.length > 0 && employment[0].achievements?.length) {
+        const topAchievement = employment[0].achievements[0];
+        if (topAchievement) {
+            sentences.push(`In their most recent role as ${employment[0].title}, ${name.split(' ')[0]} ${topAchievement.substring(0, 100)}.`);
+        }
+    }
+    
+    // 3. Skills (top 5)
+    if (allSkills.length > 0) {
+        const topSkills = allSkills.slice(0, 5);
+        let skillText = `Core competencies include ${topSkills.join(', ')}`;
+        if (allSkills.length > 5) skillText += ` and other ${allSkills.length - 5} skills`;
+        sentences.push(skillText + '.');
+    }
+    
+    // 4. Education highlight
+    if (education.length > 0) {
+        const highest = education[0];
+        let eduText = `${name.split(' ')[0]} holds a ${highest.level}`;
+        if (highest.field) eduText += ` in ${highest.field}`;
+        if (highest.institution) eduText += ` from ${highest.institution}`;
+        sentences.push(eduText + '.');
+        if (education.length > 1) {
+            sentences.push(`Additionally, ${name.split(' ')[0]} has ${education.length - 1} other qualification(s).`);
+        }
+    }
+    
+    // 5. Certifications
+    if (certifications.length > 0) {
+        let certText = `Certified in ${certifications.slice(0, 2).map(c => c.name).join(', ')}`;
+        if (certifications.length > 2) certText += ` and ${certifications.length - 2} more certifications`;
+        sentences.push(certText + '.');
+    }
+    
+    // 6. Languages
+    if (languages.length > 0) {
+        const langText = languages.slice(0, 3).map(l => `${l.name} (${l.proficiency || 'Professional'})`).join(', ');
+        sentences.push(`Fluent in ${langText}${languages.length > 3 ? ` and other languages` : ''}.`);
+    }
+    
+    // 7. Projects
+    if (projects.length > 0) {
+        const projectNames = projects.slice(0, 2).map(p => p.name).join(', ');
+        sentences.push(`Notable projects include ${projectNames}${projects.length > 2 ? ` and ${projects.length - 2} others` : ''}.`);
+    }
+    
+    // 8. Volunteer / Leadership / Awards (pick one)
+    if (volunteer.length > 0) {
+        sentences.push(`Committed to community service through ${volunteer[0].role} at ${volunteer[0].organization}.`);
+    } else if (leadership.length > 0) {
+        sentences.push(`Demonstrated leadership as ${leadership[0].role} of ${leadership[0].organization}.`);
+    } else if (awards.length > 0) {
+        sentences.push(`Recognized with ${awards[0].name} award.`);
+    }
+    
+    // 9. Closing: Motivation / Career goal
+    const closingOptions = [
+        `Seeking opportunities to leverage expertise in a dynamic environment.`,
+        `Eager to contribute to organizational success and drive meaningful impact.`,
+        `Looking to bring strategic value and technical excellence to a forward-thinking team.`,
+        `Passionate about continuous learning and delivering exceptional results.`,
+        `Ready to apply ${totalYears > 0 ? `${totalYears}+ years of ` : ''}experience to solve complex challenges.`
+    ];
+    sentences.push(closingOptions[Math.floor(Math.random() * closingOptions.length)]);
+    
+    // Join sentences into a coherent paragraph
+    return sentences.join(' ');
+}
   // ============ LOCAL EXTRACTION (FALLBACK) ============
   async extractFullCVData(filePath, fileType = 'cv') {
     try {
-      const rawText = await this.extractTextFromFile(filePath);
-      const structuredData = this.intelligentlyParseCVText(rawText, fileType);
-      return { success: true, data: structuredData };
+        const rawText = await this.extractTextFromFile(filePath);
+        const structuredData = this.intelligentlyParseCVText(rawText, fileType);
+        // Generate a summary from extracted data
+        const summary = this.generateFallbackSummary(structuredData);
+        structuredData.professional_summary = summary; // overwrite raw summary with generated one
+        return { success: true, data: structuredData, summary: summary };
     } catch (error) {
-      console.error('Extraction error:', error);
-      return { success: false, error: error.message };
+        console.error('Extraction error:', error);
+        return { success: false, error: error.message };
     }
-  }
+}
 
   async extractTextFromFile(filePath) {
     const fileExt = path.extname(filePath).toLowerCase();

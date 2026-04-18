@@ -75,9 +75,15 @@ app.use(express.static('public'));
 
 // ============ Home Page ROUTES ============
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    const refCode = req.query.ref;
+    if (refCode) {
+        // Serve the referral landing page
+        res.sendFile(path.join(__dirname, 'public', 'referral.html'));
+    } else {
+        // Serve the regular home page
+        res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    }
 });
-
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
@@ -1932,16 +1938,16 @@ const ENCOURAGEMENTS = {
         (section, name) => `💎 ${name}, ${section} is polished and ready! On to the next!`
     ],
     final: [
-        (name) => `🎉 *AMAZING JOB, ${name}!* 🎉\n\n${SEP}\nYou've provided everything I need to create a CV that truly represents your professional excellence.\n\nYour thoroughness and dedication are exactly what employers look for. This CV is going to open doors!`,
-        (name) => `✨ *PERFECT, ${name}!* ✨\n\n${SEP}\nYou've done an exceptional job providing all the details. Your future CV already reflects the professional you are.\n\nNow let's get this masterpiece ready for you!`,
-        (name) => `💪 *WAY TO GO, ${name}!* 💪\n\n${SEP}\nYou've completed every step with excellence. The foundation you've laid will result in a powerful, compelling CV.\n\nLet's bring it to life!`,
-        (name) => `🌟 *OUTSTANDING WORK, ${name}!* 🌟\n\n${SEP}\nYour attention to detail and commitment to excellence shine through every section. This CV is going to make employers take notice.\n\nReady for the final step?`,
-        (name) => `🏆 *YOU DID IT, ${name}!* 🏆\n\n${SEP}\nFrom start to finish, you've shown the dedication of a true professional. Your CV will reflect exactly that.\n\nNow let's get it delivered!`,
-        (name) => `💫 *INCREDIBLE JOB, ${name}!* 💫\n\n${SEP}\nYou've shared your professional journey beautifully. I can already tell this CV is going to be exceptional.\n\nLet's complete the process!`,
-        (name) => `🔥 *PHENOMENAL, ${name}!* 🔥\n\n${SEP}\nThe thoroughness you've shown tells me you're serious about your career. Employers value that.\n\nYour CV will showcase the professional you truly are!`,
-        (name) => `📄 *MASTERFUL, ${name}!* 📄\n\n${SEP}\nEvery section you've completed adds to a compelling professional narrative. Your CV is going to stand out.\n\nReady to receive it?`,
-        (name) => `⭐ *EXCELLENT WORK, ${name}!* ⭐\n\n${SEP}\nYou've provided everything needed for a powerful, professional CV. Your future self will thank you for this investment.\n\nLet's finish strong!`,
-        (name) => `🎯 *BRILLIANT, ${name}!* 🎯\n\n${SEP}\nYou've completed your part with excellence. Now it's my turn to craft a CV that opens doors for you.\n\nLet's make it official!`
+        (name) => `🎉 *AMAZING JOB, ${name}!* 🎉${SEP}You've provided everything I need to create a CV that truly represents your professional excellence.\n\nYour thoroughness and dedication are exactly what employers look for. This CV is going to open doors!`,
+        (name) => `✨ *PERFECT, ${name}!* ✨${SEP}You've done an exceptional job providing all the details. Your future CV already reflects the professional you are.\n\nNow let's get this masterpiece ready for you!`,
+        (name) => `💪 *WAY TO GO, ${name}!* 💪${SEP}You've completed every step with excellence. The foundation you've laid will result in a powerful, compelling CV.\n\nLet's bring it to life!`,
+        (name) => `🌟 *OUTSTANDING WORK, ${name}!* 🌟${SEP}Your attention to detail and commitment to excellence shine through every section. This CV is going to make employers take notice.\n\nReady for the final step?`,
+        (name) => `🏆 *YOU DID IT, ${name}!* 🏆${SEP}From start to finish, you've shown the dedication of a true professional. Your CV will reflect exactly that.\n\nNow let's get it delivered!`,
+        (name) => `💫 *INCREDIBLE JOB, ${name}!* 💫${SEP}You've shared your professional journey beautifully. I can already tell this CV is going to be exceptional.\n\nLet's complete the process!`,
+        (name) => `🔥 *PHENOMENAL, ${name}!* 🔥${SEP}The thoroughness you've shown tells me you're serious about your career. Employers value that.\n\nYour CV will showcase the professional you truly are!`,
+        (name) => `📄 *MASTERFUL, ${name}!* 📄${SEP}Every section you've completed adds to a compelling professional narrative. Your CV is going to stand out.\n\nReady to receive it?`,
+        (name) => `⭐ *EXCELLENT WORK, ${name}!* ⭐${SEP}You've provided everything needed for a powerful, professional CV. Your future self will thank you for this investment.\n\nLet's finish strong!`,
+        (name) => `🎯 *BRILLIANT, ${name}!* 🎯${SEP}You've completed your part with excellence. Now it's my turn to craft a CV that opens doors for you.\n\nLet's make it official!`
     ],
     halfway: [
         (name) => `🎯 ${name}, you're halfway there! This is where most people give up - but not you! 💪`,
@@ -2065,10 +2071,10 @@ function getTimeBasedFirstTimeWelcome(name) {
     const appreciation = welcomeData.appreciation[Math.floor(Math.random() * welcomeData.appreciation.length)];
     
     const trustMessages = [
-        "${SEP}\n🙏 *Thank You for Your Trust*\n${SEP}",
-        "${SEP}\n✨ *We Don't Take This Lightly*\n${SEP}",
-        "${SEP}\n🤝 *Your Trust Inspires Us*\n${SEP}",
-        "${SEP}\n💫 *We're Committed to Excellence*\n${SEP}"
+        "${SEP}🙏 *Thank You for Your Trust*${SEP}",
+        "${SEP}✨ *We Don't Take This Lightly*${SEP}",
+        "${SEP}🤝 *Your Trust Inspires Us*${SEP}",
+        "${SEP}💫 *We're Committed to Excellence*${SEP}"
     ];
     const trust = trustMessages[Math.floor(Math.random() * trustMessages.length)];
     
@@ -2082,10 +2088,10 @@ function getTimeBasedFirstTimeWelcome(name) {
     const promise = promiseMessages[Math.floor(Math.random() * promiseMessages.length)];
     
     const beginMessages = [
-        "${SEP}\n📋 *Let's Begin Your Journey*\n${SEP}",
-        "${SEP}\n🚀 *Ready to Transform Your Career?*\n${SEP}",
-        "${SEP}\n✨ *Your Professional Journey Starts Here*\n${SEP}",
-        "${SEP}\n🎯 *Let's Create Something Exceptional*\n${SEP}"
+        "${SEP}📋 *Let's Begin Your Journey*${SEP}",
+        "${SEP}🚀 *Ready to Transform Your Career?*${SEP}",
+        "${SEP}✨ *Your Professional Journey Starts Here*${SEP}",
+        "${SEP}🎯 *Let's Create Something Exceptional*${SEP}"
     ];
     const begin = beginMessages[Math.floor(Math.random() * beginMessages.length)];
     
@@ -2100,10 +2106,10 @@ function getTimeBasedReturningWelcome(name) {
     const appreciation = welcomeData.appreciation[Math.floor(Math.random() * welcomeData.appreciation.length)].replace('${name}', name);
     
     const honorMessages = [
-        "${SEP}\n🙏 *We're Honored You Returned*\n${SEP}",
-        "${SEP}\n✨ *Your Loyalty Inspires Us*\n${SEP}",
-        "${SEP}\n💝 *Clients Like You Make Our Work Meaningful*\n${SEP}",
-        "${SEP}\n🤝 *Thank You for Your Continued Trust*\n${SEP}"
+        "${SEP}🙏 *We're Honored You Returned*${SEP}",
+        "${SEP}✨ *Your Loyalty Inspires Us*${SEP}",
+        "${SEP}💝 *Clients Like You Make Our Work Meaningful*${SEP}",
+        "${SEP}🤝 *Thank You for Your Continued Trust*${SEP}"
     ];
     const honor = honorMessages[Math.floor(Math.random() * honorMessages.length)];
     
@@ -2992,6 +2998,44 @@ bot.on(['photo', 'document'], async (ctx, next) => {
         }
         return;
     }
+    // Priority 0: Awaiting draft upload (CV/cover letter file)
+if (session.data?.awaiting_draft_upload) {
+    let fileId, mimeType, fileName;
+    if (ctx.message.photo) {
+        const photo = ctx.message.photo[ctx.message.photo.length - 1];
+        fileId = photo.file_id;
+        mimeType = 'image/jpeg';
+        fileName = `photo_${Date.now()}.jpg`;
+    } else if (ctx.message.document) {
+        fileId = ctx.message.document.file_id;
+        mimeType = ctx.message.document.mime_type;
+        fileName = ctx.message.document.file_name;
+    } else {
+        return next();
+    }
+    await ctx.reply("📄 Processing your draft...");
+    try {
+        const fileLink = await ctx.telegram.getFileLink(fileId);
+        const tempPath = path.join(__dirname, 'temp', `${Date.now()}_${fileName}`);
+        await documentGenerator.downloadFile(fileLink.href, tempPath);
+        const result = await documentGenerator.extractFullCVData(tempPath, 'cv');
+        if (result.success) {
+            session.data.cv_data = result.data;
+            session.data.is_draft_upload = true;
+            delete session.data.awaiting_draft_upload;
+            await db.updateSession(session.id, session.stage, session.current_section, session.data);
+            await ctx.reply("✅ Draft processed! Now let's fill any missing details.");
+            await smartDraft.collectNextMissingSection(ctx, client, session);
+        } else {
+            await ctx.reply("❌ Could not extract data from your file. Please try a clearer document or choose manual entry.");
+        }
+        fs.unlinkSync(tempPath);
+    } catch (error) {
+        console.error('Draft upload error:', error);
+        await ctx.reply("❌ Failed to process your draft. Please try again.");
+    }
+    return;
+}
 
     return next();
 });
@@ -3758,9 +3802,9 @@ class VacancyLibrary {
     formatVacancyMatches(matches, clientPosition) {
         if (matches.length === 0) return null;
         let message = `🔍 *I Found Similar Vacancies in Our Library!*\n\n`;
-        message += `${SEP}\n`;
+        message += `${SEP}`;
         message += `We already have details for ${matches.length} similar position(s).\n`;
-        message += `${SEP}\n\n`;
+        message += `${SEP}\n`;
         matches.slice(0, 3).forEach((match, i) => {
             const matchPercent = Math.min(100, match.match_score);
             message += `${i + 1}. *${match.position}* at *${match.company}*\n`;
@@ -3769,7 +3813,7 @@ class VacancyLibrary {
             if (match.deadline) message += `   ⏰ Deadline: ${match.deadline}\n`;
             message += `\n`;
         });
-        message += `${SEP}\n`;
+        message += `${SEP}`;
         message += `Is one of these the position you're applying for?\n\n`;
         message += `✅ *Yes, use existing details* - I'll tailor your documents perfectly\n`;
         message += `📝 *No, this is different* - I'll collect new details\n`;
@@ -4862,7 +4906,7 @@ async function handleInterestsCollection(ctx, client, session, text, callbackDat
 // ============ SMART DRAFT PROCESSOR (UPDATED) ============
 class SmartDraftProcessor {
     async processDraftUpload(ctx, client, session, fileUrl, fileName) {
-        await sendMarkdown(ctx, `📄 *Processing your document with AI...*\n\nDeepSeek AI is extracting all information from your file. This may take a moment. ⏳`);
+        await sendMarkdown(ctx, `📄 *Processing your document ...*\n\nI'm  extracting all information from your file. This may take a moment. ⏳`);
         const extractedData = await documentGenerator.extractFullCVDataFromUrl(fileUrl, fileName);
         if (!extractedData.success) {
             await sendMarkdown(ctx, `❌ Could not extract data from your file. Please try again with a clearer document or choose manual entry.`);
@@ -4876,9 +4920,9 @@ class SmartDraftProcessor {
         session.data.current_missing_index = 0;
         
         let foundMessage = `📄 *Draft Processed Successfully!*\n\n`;
-        foundMessage += `${SEP}\n`;
+        foundMessage += `${SEP}`;
         foundMessage += `✅ *EXTRACTED INFORMATION*\n`;
-        foundMessage += `${SEP}\n\n`;
+        foundMessage += `${SEP}\n`;
         foundMessage += `👤 *Personal Information*\n`;
         foundMessage += `• Name: ${cvData.personal?.full_name || 'Not found'}\n`;
         foundMessage += `• Email: ${cvData.personal?.email || 'Not found'}\n`;
@@ -4938,17 +4982,17 @@ class SmartDraftProcessor {
             foundMessage += `💡 *Interests*: ${cvData.interests.slice(0, 5).join(', ')}${cvData.interests.length > 5 ? '...' : ''}\n\n`;
         }
         if (missingSections.length > 0) {
-            foundMessage += `${SEP}\n`;
+            foundMessage += `${SEP}`;
             foundMessage += `⚠️ *MISSING INFORMATION*\n`;
-            foundMessage += `${SEP}\n`;
+            foundMessage += `${SEP}`;
             for (const missing of missingSections) foundMessage += `• ${missing}\n`;
             foundMessage += `\nLet's fill in the missing information.`;
             await sendMarkdown(ctx, foundMessage);
             await this.collectNextMissingSection(ctx, client, session);
         } else {
-            foundMessage += `${SEP}\n`;
+            foundMessage += `${SEP}`;
             foundMessage += `🎉 *COMPLETE!* Your draft has everything needed!\n`;
-            foundMessage += `${SEP}\n\n`;
+            foundMessage += `${SEP}\n`;
             foundMessage += `Proceed to payment? Click below to continue.`;
             await sendMarkdown(ctx, foundMessage, {
                 reply_markup: { inline_keyboard: [[{ text: "💰 Proceed to Payment", callback_data: "proceed_payment" }]] }
@@ -6090,7 +6134,7 @@ class CVVersioning {
     formatVersionHistory(versions, currentVersion = null) {
         if (!versions || versions.length === 0) return "📭 *No version history available.*\n\nYour CV versions will appear here as you make updates.";
         let message = "📁 *YOUR CV VERSION HISTORY*\n\n";
-        message += `${SEP}\n`;
+        message += `${SEP}`;
         for (const v of versions) {
             const currentMarker = v.is_current ? " ✅ CURRENT" : "";
             const date = new Date(v.created_at).toLocaleDateString();
@@ -6102,7 +6146,7 @@ class CVVersioning {
             if (summary) message += `   📊 ${summary.employment_count} jobs · ${summary.education_count} edu · ${summary.skills_count} skills\n`;
             message += `\n`;
         }
-        message += `${SEP}\n`;
+        message += `${SEP}`;
         message += `💡 *Commands:*\n`;
         message += `• /version DETAILS - View full version details\n`;
         message += `• /compare V1 V2 - Compare two versions\n`;
@@ -6115,10 +6159,10 @@ class CVVersioning {
         const cv = version.cv_data;
         const summary = this.getVersionSummary(cv);
         let message = `📄 *VERSION ${version.version_number} DETAILS*\n\n`;
-        message += `${SEP}\n`;
+        message += `${SEP}`;
         message += `📅 Created: ${new Date(version.created_at).toLocaleString()}\n`;
         message += `📝 Changes: ${version.changes || 'Initial version'}\n`;
-        message += `${SEP}\n\n`;
+        message += `${SEP}\n`;
         const personal = cv.personal || {};
         message += `👤 *Personal Information*\n`;
         message += `• Name: ${personal.full_name || 'Not set'}\n`;
@@ -6159,7 +6203,7 @@ class CVVersioning {
             message += `📊 *Additional Sections*\n`;
             message += `• ${otherSections.join(' · ')}\n\n`;
         }
-        message += `${SEP}\n`;
+        message += `${SEP}`;
         message += `To restore this version, type: /revert ${version.version_number}`;
         return message;
     }
@@ -6174,7 +6218,7 @@ async function handleBuildMethod(ctx, client, session, data) {
 
 Send me your existing CV or cover letter (PDF, DOCX, or image).
 
-✨ *What I'll extract using AI:*
+✨ *I'll extract:*
 ${SEP}
 📋 Personal Information (name, email, phone, location, LinkedIn, GitHub)
 💼 Work Experience (titles, companies, dates, responsibilities, achievements)
@@ -6315,10 +6359,9 @@ Please send me your CV or cover letter file.
 *Maximum file size:* 20MB
 
 *What happens next:*
-1️⃣ I'll send your file to DeepSeek AI for extraction
-2️⃣ All 18+ categories will be analyzed
-3️⃣ You'll see a summary of what was found
-4️⃣ I'll ask for any missing information
+1️⃣ I'll extract your file and analyze the content
+2️⃣ You'll see a summary of what was found
+3️⃣ I'll ask for any missing information
 
 Send your file now... 📎`);
     session.data.awaiting_draft_upload = true;
@@ -6422,7 +6465,7 @@ async function handleVacancyText(ctx, client, session, text) {
         const vacancyData = aiAnalyzer.extractVacancyDetails(text);
         session.data.vacancy_data = vacancyData;
         session.data.awaiting_vacancy = false;
-        let extractedMessage = `📊 *Vacancy Details Extracted*\n\n${SEP}\n📌 *Position:* ${vacancyData.position || 'Not detected'}\n🏢 *Company:* ${vacancyData.company || 'Not detected'}\n📍 *Location:* ${vacancyData.location || 'Not detected'}\n⏰ *Deadline:* ${vacancyData.deadline || 'Not specified'}\n📋 *Job Type:* ${vacancyData.job_type || 'Not specified'}\n${SEP}\n*Requirements:*\n${(vacancyData.requirements || []).slice(0, 3).map(r => `• ${r}`).join('\n') || '• Not specified'}\n\n*Position applying for?* (or type 'SAME')`;
+        let extractedMessage = `📊 *Vacancy Details Extracted*${SEP}📌 *Position:* ${vacancyData.position || 'Not detected'}\n🏢 *Company:* ${vacancyData.company || 'Not detected'}\n📍 *Location:* ${vacancyData.location || 'Not detected'}\n⏰ *Deadline:* ${vacancyData.deadline || 'Not specified'}\n📋 *Job Type:* ${vacancyData.job_type || 'Not specified'}${SEP}*Requirements:*\n${(vacancyData.requirements || []).slice(0, 3).map(r => `• ${r}`).join('\n') || '• Not specified'}\n\n*Position applying for?* (or type 'SAME')`;
         await sendMarkdown(ctx, extractedMessage);
         await db.updateSession(session.id, 'collecting_coverletter_position', 'coverletter', session.data);
     } catch (error) {
@@ -6436,12 +6479,12 @@ async function handleVacancyText(ctx, client, session, text) {
 // ============ ADDITIONAL MESSAGE TEMPLATES ============
 const ADDITIONAL_TEMPLATES = {
     error_report: {
-        received: (name, reference) => `🐛 *Error Report Received*\n\n${SEP}\nDear ${name},\n\nThank you for helping us improve EasySuccor! Your error report has been logged.\n\n*Reference:* \`${reference}\`\n\nWe'll investigate and notify you when resolved.\n\n${SEP}\n🤝 The EasySuccor Team`,
-        resolved: (name, reference) => `✅ *Error Report Resolved*\n\n${SEP}\nDear ${name},\n\nGreat news! The issue you reported has been fixed.\n\n*Reference:* \`${reference}\`\n\nThank you for your patience!\n\n${SEP}\n🤝 The EasySuccor Team`
+        received: (name, reference) => `🐛 *Error Report Received*${SEP}Dear ${name},\n\nThank you for helping us improve EasySuccor! Your error report has been logged.\n\n*Reference:* \`${reference}\`\n\nWe'll investigate and notify you when resolved.${SEP}🤝 The EasySuccor Team`,
+        resolved: (name, reference) => `✅ *Error Report Resolved*${SEP}Dear ${name},\n\nGreat news! The issue you reported has been fixed.\n\n*Reference:* \`${reference}\`\n\nThank you for your patience!${SEP}🤝 The EasySuccor Team`
     },
     followup: {
-        after_7_days: (name) => `👋 *Checking In*\n\n${SEP}\nDear ${name},\n\nIt's been a week since you received your CV. How's the job search going?\n\nIf you've landed an interview or got hired, we'd love to celebrate! Use /hired to share your success.\n\n${SEP}\n🤝 The EasySuccor Team`,
-        after_30_days: (name) => `🌟 *Still Here for You*\n\n${SEP}\nDear ${name},\n\nIt's been a month since we created your CV. We're always here if you need:\n• CV Updates\n• Cover Letters\n• Referral rewards (/referral)\n\nWishing you continued success!\n\n${SEP}\n🤝 The EasySuccor Team`
+        after_7_days: (name) => `👋 *Checking In*${SEP}Dear ${name},\n\nIt's been a week since you received your CV. How's the job search going?\n\nIf you've landed an interview or got hired, we'd love to celebrate! Use /hired to share your success.${SEP}🤝 The EasySuccor Team`,
+        after_30_days: (name) => `🌟 *Still Here for You*${SEP}Dear ${name},\n\nIt's been a month since we created your CV. We're always here if you need:\n• CV Updates\n• Cover Letters\n• Referral rewards (/referral)\n\nWishing you continued success!${SEP}🤝 The EasySuccor Team`
     },
     whatsapp: {
         document_ready: (name, orderId) => `Hello ${name}, your document (Order: ${orderId}) is ready! Please check your Telegram chat to download it. - EasySuccor`,
@@ -6464,7 +6507,7 @@ async function processVacancyFile(ctx, client, session, fileUrl, fileName) {
     const vacancyData = await aiAnalyzer.extractVacancyFromFile(fileUrl, fileName);
     session.data.vacancy_data = vacancyData;
     session.data.awaiting_vacancy = false;
-    let message = `📊 *Vacancy Details Extracted*\n\n${SEP}\n📌 *Position:* ${vacancyData.position || 'Not detected'}\n🏢 *Company:* ${vacancyData.company || 'Not detected'}\n📍 *Location:* ${vacancyData.location || 'Not detected'}\n⏰ *Deadline:* ${vacancyData.deadline || 'Not specified'}\n💰 *Salary:* ${vacancyData.salary || 'Not specified'}\n📋 *Job Type:* ${vacancyData.job_type || 'Not specified'}\n🎓 *Experience Required:* ${vacancyData.experience_required || 'Not specified'}\n🎓 *Education Required:* ${vacancyData.education_required || 'Not specified'}\n${SEP}\n*Key Requirements:*\n${(vacancyData.requirements || []).slice(0, 5).map(r => `• ${r}`).join('\n') || '• No specific requirements listed'}\n\n*Responsibilities:*\n${(vacancyData.responsibilities || []).slice(0, 3).map(r => `• ${r}`).join('\n') || '• No specific responsibilities listed'}\n\n*Benefits:*\n${(vacancyData.benefits || []).slice(0, 3).map(b => `• ${b}`).join('\n') || '• Not specified'}\n\n${SEP}\n*Contact:* ${vacancyData.contact_email || vacancyData.contact_phone || 'Not specified'}\n\nDo you want to add any additional information?`;
+    let message = `📊 *Vacancy Details Extracted*${SEP}📌 *Position:* ${vacancyData.position || 'Not detected'}\n🏢 *Company:* ${vacancyData.company || 'Not detected'}\n📍 *Location:* ${vacancyData.location || 'Not detected'}\n⏰ *Deadline:* ${vacancyData.deadline || 'Not specified'}\n💰 *Salary:* ${vacancyData.salary || 'Not specified'}\n📋 *Job Type:* ${vacancyData.job_type || 'Not specified'}\n🎓 *Experience Required:* ${vacancyData.experience_required || 'Not specified'}\n🎓 *Education Required:* ${vacancyData.education_required || 'Not specified'}${SEP}*Key Requirements:*\n${(vacancyData.requirements || []).slice(0, 5).map(r => `• ${r}`).join('\n') || '• No specific requirements listed'}\n\n*Responsibilities:*\n${(vacancyData.responsibilities || []).slice(0, 3).map(r => `• ${r}`).join('\n') || '• No specific responsibilities listed'}\n\n*Benefits:*\n${(vacancyData.benefits || []).slice(0, 3).map(b => `• ${b}`).join('\n') || '• Not specified'}${SEP}*Contact:* ${vacancyData.contact_email || vacancyData.contact_phone || 'Not specified'}\n\nDo you want to add any additional information?`;
     await sendMarkdown(ctx, message, {
         reply_markup: { inline_keyboard: [
             [{ text: "✅ Yes, add more info", callback_data: "cover_add_info" }],
@@ -6482,7 +6525,7 @@ async function handleCoverContinue(ctx, client, session, data) {
     } else {
         const coverData = session.data.cover_data || {};
         const vacancyData = session.data.vacancy_data || {};
-        const summary = `📝 *Cover Letter Summary*\n\n${SEP}\n📋 *Your Details*\n${SEP}\nPosition: ${coverData.position || vacancyData.position || 'Not specified'}\nCompany: ${coverData.company || vacancyData.company || 'Not specified'}\nExperience: ${coverData.experience_highlight || 'Provided'}\nSkills: ${(coverData.skills || []).join(', ') || 'Provided'}\nAchievement: ${coverData.achievement || 'Provided'}\nMotivation: ${coverData.motivation || 'Provided'}\nAvailability: ${coverData.availability || 'Not specified'}\n\n${SEP}\n✅ Type *CONFIRM* to proceed or *EDIT* to make changes.`;
+        const summary = `📝 *Cover Letter Summary*${SEP}📋 *Your Details*${SEP}Position: ${coverData.position || vacancyData.position || 'Not specified'}\nCompany: ${coverData.company || vacancyData.company || 'Not specified'}\nExperience: ${coverData.experience_highlight || 'Provided'}\nSkills: ${(coverData.skills || []).join(', ') || 'Provided'}\nAchievement: ${coverData.achievement || 'Provided'}\nMotivation: ${coverData.motivation || 'Provided'}\nAvailability: ${coverData.availability || 'Not specified'}${SEP}✅ Type *CONFIRM* to proceed or *EDIT* to make changes.`;
         await sendMarkdown(ctx, summary);
         session.data.awaiting_cover_confirmation = true;
         await db.updateSession(session.id, 'awaiting_cover_confirmation', 'cover', session.data);
@@ -6622,7 +6665,7 @@ async function handleUpdateRequest(ctx, client, session, text, fileUrl = null, f
                 if (extractedVacancy && extractedVacancy.has_vacancy) {
                     vacancyData = extractedVacancy;
                     userRequest = `Update my CV for ${vacancyData.position} at ${vacancyData.company}`;
-                    await sendMarkdown(ctx, `📊 *Vacancy Detected:*\n${SEP}\n📌 Position: ${vacancyData.position}\n🏢 Company: ${vacancyData.company}\n📋 Requirements: ${(vacancyData.requirements || []).slice(0, 3).join(', ')}\n\nI'll tailor your CV for this role.`);
+                    await sendMarkdown(ctx, `📊 *Vacancy Detected:*${SEP}📌 Position: ${vacancyData.position}\n🏢 Company: ${vacancyData.company}\n📋 Requirements: ${(vacancyData.requirements || []).slice(0, 3).join(', ')}\n\nI'll tailor your CV for this role.`);
                 }
             }
         }
@@ -6740,7 +6783,7 @@ ${SEP}`;
     } else {
         message += `\nNo documents yet. Start your first order with /start`;
     }
-    message += `\n\n${SEP}
+    message += `${SEP}
 ⚙️ *QUICK ACTIONS*
 ${SEP}
 
@@ -6802,11 +6845,11 @@ async function showSummaryAndFinalize(ctx, client, session) {
     const cvData = session.data.cv_data || {};
     const total = session.data.total_charge || formatPrice(calculateTotal(session.data.category, session.data.service, session.data.delivery_option));
     let summary = `📄 *CV SUMMARY*\n\n`;
-    summary += `${SEP}\n`;
+    summary += `${SEP}`;
     summary += `👤 ${cvData.personal?.full_name || 'Not provided'}\n`;
     summary += `💼 ${cvData.employment?.length || 0} jobs · 🎓 ${cvData.education?.length || 0} education\n`;
     summary += `⚡ ${(cvData.skills?.technical?.length || 0) + (cvData.skills?.soft?.length || 0)} skills\n`;
-    summary += `${SEP}\n`;
+    summary += `${SEP}`;
     summary += `💰 Total: ${total}\n\n`;
     summary += `Type *CONFIRM* to proceed to payment or *EDIT* to make changes.`;
     await sendMarkdown(ctx, summary);
@@ -6945,7 +6988,7 @@ bot.command('health', async (ctx) => {
         healthStatus.deepseek = 'working';
         healthStatus.deepseek_response = testResponse.choices[0].message.content;
     } catch (error) { healthStatus.deepseek = `error: ${error.message}`; }
-    const message = `🩺 *HEALTH CHECK REPORT*\n\n${SEP}\n🤖 *Bot Status:* ${healthStatus.bot}\n🕐 *Uptime:* ${Math.floor(healthStatus.uptime / 60)} minutes\n📅 *Timestamp:* ${healthStatus.timestamp}\n${SEP}\n🗄️ *Database:* ${healthStatus.database}\n🧠 *DeepSeek API:* ${healthStatus.deepseek}\n${healthStatus.deepseek_response ? `📝 *Test:* ${healthStatus.deepseek_response}` : ''}\n${SEP}\n✅ All systems operational.`;
+    const message = `🩺 *HEALTH CHECK REPORT*${SEP}🤖 *Bot Status:* ${healthStatus.bot}\n🕐 *Uptime:* ${Math.floor(healthStatus.uptime / 60)} minutes\n📅 *Timestamp:* ${healthStatus.timestamp}${SEP}🗄️ *Database:* ${healthStatus.database}\n🧠 *DeepSeek API:* ${healthStatus.deepseek}\n${healthStatus.deepseek_response ? `📝 *Test:* ${healthStatus.deepseek_response}` : ''}${SEP}✅ All systems operational.`;
     await ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
@@ -6985,38 +7028,38 @@ bot.command('admin_view', async (ctx) => {
     const cvData = order.cv_data || {};
     const personal = cvData.personal || {};
     let message = `📄 *FULL CV DATA FOR ORDER ${orderId}*\n\n`;
-    message += `${SEP}\n👤 *PERSONAL INFORMATION*\n${SEP}\n• Name: ${personal.full_name || 'N/A'}\n• Email: ${personal.email || 'N/A'}\n• Phone: ${personal.primary_phone || 'N/A'}\n• Location: ${personal.location || 'N/A'}\n• LinkedIn: ${personal.linkedin || 'N/A'}\n• GitHub: ${personal.github || 'N/A'}\n• Professional Title: ${personal.professional_title || 'N/A'}\n\n`;
-    message += `${SEP}\n💼 *WORK EXPERIENCE* (${cvData.employment?.length || 0})\n${SEP}\n`;
+    message += `${SEP}👤 *PERSONAL INFORMATION*${SEP}• Name: ${personal.full_name || 'N/A'}\n• Email: ${personal.email || 'N/A'}\n• Phone: ${personal.primary_phone || 'N/A'}\n• Location: ${personal.location || 'N/A'}\n• LinkedIn: ${personal.linkedin || 'N/A'}\n• GitHub: ${personal.github || 'N/A'}\n• Professional Title: ${personal.professional_title || 'N/A'}\n\n`;
+    message += `${SEP}💼 *WORK EXPERIENCE* (${cvData.employment?.length || 0})${SEP}`;
     for (const job of (cvData.employment || [])) message += `• ${job.title} at ${job.company}\n  📅 ${job.duration || 'Duration not specified'}\n${job.achievements?.length ? `  🏆 ${job.achievements[0].substring(0, 60)}${job.achievements[0].length > 60 ? '...' : ''}\n` : ''}`;
-    message += `\n${SEP}\n🎓 *EDUCATION* (${cvData.education?.length || 0})\n${SEP}\n`;
+    message += `${SEP}🎓 *EDUCATION* (${cvData.education?.length || 0})${SEP}`;
     for (const edu of (cvData.education || [])) message += `• ${edu.level} in ${edu.field}\n  🏛️ ${edu.institution}\n  📅 ${edu.graduation_date || edu.year || 'Year not specified'}\n`;
-    message += `\n${SEP}\n⚡ *SKILLS*\n${SEP}\n`;
+    message += `${SEP}⚡ *SKILLS*${SEP}`;
     const skills = cvData.skills || {};
     if (skills.technical?.length) message += `• Technical: ${skills.technical.join(', ')}\n`;
     if (skills.soft?.length) message += `• Soft: ${skills.soft.join(', ')}\n`;
     if (skills.tools?.length) message += `• Tools: ${skills.tools.join(', ')}\n`;
     message += `\n`;
     if (cvData.certifications?.length) {
-        message += `${SEP}\n📜 *CERTIFICATIONS* (${cvData.certifications.length})\n${SEP}\n`;
+        message += `${SEP}📜 *CERTIFICATIONS* (${cvData.certifications.length})${SEP}`;
         for (const cert of cvData.certifications) message += `• ${cert.name}${cert.issuer ? ` (${cert.issuer})` : ''}\n`;
         message += `\n`;
     }
     if (cvData.languages?.length) {
-        message += `${SEP}\n🌍 *LANGUAGES* (${cvData.languages.length})\n${SEP}\n`;
+        message += `${SEP}🌍 *LANGUAGES* (${cvData.languages.length})${SEP}`;
         for (const lang of cvData.languages) message += `• ${lang.name} (${lang.proficiency || 'Not specified'})\n`;
         message += `\n`;
     }
     if (cvData.projects?.length) {
-        message += `${SEP}\n📁 *PROJECTS* (${cvData.projects.length})\n${SEP}\n`;
+        message += `${SEP}📁 *PROJECTS* (${cvData.projects.length})${SEP}`;
         for (const proj of cvData.projects.slice(0, 5)) message += `• ${proj.name}${proj.role ? ` (${proj.role})` : ''}\n`;
         message += `\n`;
     }
     if (cvData.referees?.length) {
-        message += `${SEP}\n👥 *REFEREES* (${cvData.referees.length})\n${SEP}\n`;
+        message += `${SEP}👥 *REFEREES* (${cvData.referees.length})${SEP}`;
         for (const ref of cvData.referees) message += `• ${ref.name} - ${ref.position || 'Position not specified'} at ${ref.company || 'Company not specified'}\n`;
         message += `\n`;
     }
-    message += `${SEP}\n💾 *Raw JSON available in database*`;
+    message += `${SEP}💾 *Raw JSON available in database*`;
     await ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
@@ -7076,9 +7119,9 @@ bot.command('admin_deepseek', async (ctx) => {
         const startTime = Date.now();
         const response = await deepseek.chat.completions.create({ model: 'deepseek-chat', messages: [{ role: 'user', content: 'Say "API OK"' }], max_tokens: 10 });
         const responseTime = Date.now() - startTime;
-        await ctx.reply(`✅ *DeepSeek API is WORKING*\n\n${SEP}\n📊 *Status:* Online\n⏱️ *Response Time:* ${responseTime}ms\n📝 *Test Response:* ${response.choices[0].message.content}\n${SEP}\nDeepSeek AI is ready to process CV extractions!`);
+        await ctx.reply(`✅ *DeepSeek API is WORKING*${SEP}📊 *Status:* Online\n⏱️ *Response Time:* ${responseTime}ms\n📝 *Test Response:* ${response.choices[0].message.content}${SEP}I'm  ready to process CV extractions!`);
     } catch (error) {
-        await ctx.reply(`❌ *DeepSeek API ERROR*\n\n${SEP}\n📊 *Status:* Offline\n❌ *Error:* ${error.message}\n${SEP}\nPlease check your DEEPSEEK_API_KEY environment variable.`);
+        await ctx.reply(`❌ *DeepSeek API ERROR*${SEP}📊 *Status:* Offline\n❌ *Error:* ${error.message}${SEP}Please check your DEEPSEEK_API_KEY environment variable.`);
     }
 });
 
@@ -7128,7 +7171,7 @@ bot.command('admin_stats', async (ctx) => {
     const revenue = completed.reduce((sum, o) => sum + (parseInt(String(o.total_charge).replace(/[^0-9]/g, '') || 0)), 0);
     const today = new Date().toISOString().split('T')[0];
     const todayOrders = orders.filter(o => o.created_at?.startsWith(today));
-    const message = `📊 *QUICK STATISTICS*\n\n${SEP}\n👥 *Clients:* ${clients.length}\n📦 *Total Orders:* ${orders.length}\n✅ *Completed:* ${completed.length}\n⏳ *Pending:* ${pending.length}\n💰 *Revenue:* MK${revenue.toLocaleString()}\n📅 *Today's Orders:* ${todayOrders.length}\n${SEP}\n📊 *Full Dashboard:* ${process.env.WEBHOOK_URL}/admin`;
+    const message = `📊 *QUICK STATISTICS*${SEP}👥 *Clients:* ${clients.length}\n📦 *Total Orders:* ${orders.length}\n✅ *Completed:* ${completed.length}\n⏳ *Pending:* ${pending.length}\n💰 *Revenue:* MK${revenue.toLocaleString()}\n📅 *Today's Orders:* ${todayOrders.length}${SEP}📊 *Full Dashboard:* ${process.env.WEBHOOK_URL}/admin`;
     await ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
@@ -7138,10 +7181,10 @@ bot.command('portal', async (ctx) => {
     const orders = await db.getClientOrders(client.id);
     const cvOrders = orders.filter(o => o.service === 'new cv' || o.service === 'editable cv');
     const coverOrders = orders.filter(o => o.service === 'cover letter' || o.service === 'editable cover letter');
-    let message = `🏠 *YOUR PORTAL*\n\n${SEP}\n👤 *PROFILE*\n${SEP}\n• Name: ${client.first_name} ${client.last_name || ''}\n• Phone: ${client.phone || '❌ Not set'}\n• Email: ${client.email || '❌ Not set'}\n• Location: ${client.location || '❌ Not set'}\n\n${SEP}\n📊 *STATISTICS*\n${SEP}\n• Total Orders: ${orders.length}\n• CVs: ${cvOrders.length}\n• Cover Letters: ${coverOrders.length}\n• Completed: ${orders.filter(o => o.payment_status === 'completed').length}\n\n${SEP}\n📄 *RECENT DOCUMENTS*\n${SEP}`;
+    let message = `🏠 *YOUR PORTAL*${SEP}👤 *PROFILE*${SEP}• Name: ${client.first_name} ${client.last_name || ''}\n• Phone: ${client.phone || '❌ Not set'}\n• Email: ${client.email || '❌ Not set'}\n• Location: ${client.location || '❌ Not set'}${SEP}📊 *STATISTICS*${SEP}• Total Orders: ${orders.length}\n• CVs: ${cvOrders.length}\n• Cover Letters: ${coverOrders.length}\n• Completed: ${orders.filter(o => o.payment_status === 'completed').length}${SEP}📄 *RECENT DOCUMENTS*${SEP}`;
     if (orders.length > 0) message += orders.slice(0, 5).map(o => `\n• ${o.service} - ${o.status}\n  📅 ${new Date(o.created_at).toLocaleDateString()}\n  💰 ${o.total_charge}`).join('');
     else message += `\nNo documents yet. Start with /start`;
-    message += `\n\n${SEP}\n⚙️ *QUICK ACTIONS*\n${SEP}\n• /mydocs - View all documents\n• /versions - View CV history\n• /referral - Share & earn\n• /feedback - Rate your experience\n\nNeed help? Type /help`;
+    message += `${SEP}⚙️ *QUICK ACTIONS*${SEP}• /mydocs - View all documents\n• /versions - View CV history\n• /referral - Share & earn\n• /feedback - Rate your experience\n\nNeed help? Type /help`;
     await sendMarkdown(ctx, message);
 });
 
@@ -7196,7 +7239,7 @@ bot.command('referral', async (ctx) => {
     const refInfo = await db.getReferralInfo(client.id);
     const websiteUrl = process.env.WEBSITE_URL || 'https://easysuccor-bot-production.up.railway.app';
     const shareLink = `${websiteUrl}?ref=${refInfo.referral_code}`;
-    const message = `🎁 <b>REFERRAL PROGRAM</b>\n\n${SEP}\n📋 <b>YOUR REFERRAL LINK</b>\n${SEP}\n<b>Your code:</b> <code>${refInfo.referral_code}</code>\n\n🔗 <b>Share this link:</b>\n<a href="${shareLink}">${shareLink}</a>\n\n${SEP}\n📊 <b>YOUR STATISTICS</b>\n${SEP}\n• Tier: ${getReferralTier(refInfo.completed_referrals)}\n• Total referrals: ${refInfo.total_referrals}\n• Completed: ${refInfo.completed_referrals}\n• Pending reward: MK${(refInfo.pending_reward || 0).toLocaleString()}\n• Available credit: MK${(refInfo.available_credit || 0).toLocaleString()}\n\n${SEP}\n📤 <b>SHARE NOW</b>\n${SEP}\nTap the link above to copy and share!\n\nEvery referral brings you closer to a free CV! 🎉`;
+    const message = `🎁 <b>REFERRAL PROGRAM</b>${SEP}📋 <b>YOUR REFERRAL LINK</b>${SEP}<b>Your code:</b> <code>${refInfo.referral_code}</code>\n\n🔗 <b>Share this link:</b>\n<a href="${shareLink}">${shareLink}</a>${SEP}📊 <b>YOUR STATISTICS</b>${SEP}• Tier: ${getReferralTier(refInfo.completed_referrals)}\n• Total referrals: ${refInfo.total_referrals}\n• Completed: ${refInfo.completed_referrals}\n• Pending reward: MK${(refInfo.pending_reward || 0).toLocaleString()}\n• Available credit: MK${(refInfo.available_credit || 0).toLocaleString()}${SEP}📤 <b>SHARE NOW</b>${SEP}Tap the link above to copy and share!\n\nEvery referral brings you closer to a free CV! 🎉`;
     await ctx.replyWithHTML(message);
 });
 
@@ -7216,7 +7259,7 @@ bot.command('pay', async (ctx) => {
     const totalCharge = session.data.total_charge;
     session.data.payment_reference = paymentReference;
     await db.updateSession(session.id, session.stage, session.current_section, session.data);
-    const paymentMessage = `💳 *COMPLETE YOUR PAYMENT*\n\n${SEP}\n📋 ORDER SUMMARY\n${SEP}\nOrder: \`${session.data.order_id || 'Pending'}\`\nAmount: *${totalCharge}*\nReference: \`${paymentReference}\`\n\n${SEP}\n💳 PAYMENT OPTIONS\n${SEP}\n*1️⃣ Mobile Money*\n   📱 Airtel: 0991295401\n   📱 Mpamba: 0886928639\n\n*2️⃣ Bank Account*\n   🏦 MO626: 1005653618\n\n*3️⃣ USSD*\n   📞 Dial *211# (Airtel)\n   📞 Dial *444# (Mpamba)\n\n*4️⃣ Pay Later*\n   ⏳ Pay within 7 days\n\n*5️⃣ Installments*\n   📅 2 parts over 7 days\n\n${SEP}\n📌 NEXT STEPS\n${SEP}\n1️⃣ Send exactly *${totalCharge}* to any account above\n2️⃣ Use reference: \`${paymentReference}\`\n3️⃣ After payment, click the button below:\n\nNeed help? Contact +265 991 295 401`;
+    const paymentMessage = `💳 *COMPLETE YOUR PAYMENT*${SEP}📋 ORDER SUMMARY${SEP}Order: \`${session.data.order_id || 'Pending'}\`\nAmount: *${totalCharge}*\nReference: \`${paymentReference}\`${SEP}💳 PAYMENT OPTIONS${SEP}*1️⃣ Mobile Money*\n   📱 Airtel: 0991295401\n   📱 Mpamba: 0886928639\n\n*2️⃣ Bank Account*\n   🏦 MO626: 1005653618\n\n*3️⃣ USSD*\n   📞 Dial *211# (Airtel)\n   📞 Dial *444# (Mpamba)\n\n*4️⃣ Pay Later*\n   ⏳ Pay within 7 days\n\n*5️⃣ Installments*\n   📅 2 parts over 7 days${SEP}📌 NEXT STEPS${SEP}1️⃣ Send exactly *${totalCharge}* to any account above\n2️⃣ Use reference: \`${paymentReference}\`\n3️⃣ After payment, click the button below:\n\nNeed help? Contact +265 991 295 401`;
     await sendMarkdown(ctx, paymentMessage, {
         reply_markup: { inline_keyboard: [[ { text: "✅ I Have Made Payment", callback_data: `confirm_${paymentReference}` } ]] }
     });
@@ -7599,7 +7642,7 @@ bot.hears('🏠 Portal', async (ctx) => {
 });
 
 bot.help(async (ctx) => {
-    await sendMarkdown(ctx, `🆘 *HELP CENTER*\n\n${SEP}\n📋 *COMMANDS*\n${SEP}\n/start - Begin or restart\n/resume - Continue paused session\n/pause - Save progress and pause\n/pay - Make a payment\n/confirm REF - Confirm payment\n/portal - Your dashboard\n/mydocs - Your documents\n/versions - View CV versions\n/referral - Share & earn\n/feedback - Share your experience\n/testimonials - See success stories\n/reset - Reset current session\n/help - Show this help\n\n${SEP}\n📞 *CONTACT*\n${SEP}\nPhone: +265 991 295 401\nWhatsApp: +265 881 193 707\nEmail: ${process.env.EMAIL_USER}\n\n${SEP}\n🌐 *WEBSITE*\n${SEP}\n${process.env.WEBHOOK_URL || 'https://easysuccor-bot-production.up.railway.app'}\n\nWe're here to help! 💙`);
+    await sendMarkdown(ctx, `🆘 *HELP CENTER*${SEP}📋 *COMMANDS*${SEP}/start - Begin or restart\n/resume - Continue paused session\n/pause - Save progress and pause\n/pay - Make a payment\n/confirm REF - Confirm payment\n/portal - Your dashboard\n/mydocs - Your documents\n/versions - View CV versions\n/referral - Share & earn\n/feedback - Share your experience\n/testimonials - See success stories\n/reset - Reset current session\n/help - Show this help${SEP}📞 *CONTACT*${SEP}Phone: +265 991 295 401\nWhatsApp: +265 881 193 707\nEmail: ${process.env.EMAIL_USER}${SEP}🌐 *WEBSITE*${SEP}${process.env.WEBHOOK_URL || 'https://easysuccor-bot-production.up.railway.app'}\n\nWe're here to help! 💙`);
 });
 
 bot.command('extend', async (ctx) => {
@@ -7614,7 +7657,7 @@ bot.command('extend', async (ctx) => {
 
 bot.command('report', async (ctx) => {
     const client = await db.getClient(ctx.from.id);
-    await ctx.reply(`🐛 *Report a Bug*\n\n${SEP}\n📸 *How to Report*\n${SEP}\n1️⃣ Take a screenshot of the issue\n2️⃣ Send the screenshot here with a brief description\n3️⃣ We'll investigate and notify you when fixed!\n\n*Please describe what happened:*\n(Type your description or click Cancel)`, {
+    await ctx.reply(`🐛 *Report a Bug*${SEP}📸 *How to Report*${SEP}1️⃣ Take a screenshot of the issue\n2️⃣ Send the screenshot here with a brief description\n3️⃣ We'll investigate and notify you when fixed!\n\n*Please describe what happened:*\n(Type your description or click Cancel)`, {
         parse_mode: 'Markdown',
         reply_markup: { inline_keyboard: [[ { text: "❌ Cancel", callback_data: "report_cancel" } ]] }
     });
@@ -7660,7 +7703,7 @@ bot.on('text', async (ctx, next) => {
         session.data.awaiting_hire_story = false;
         session.data.hire_anonymous = false;
         await db.updateSession(session.id, session.stage, session.current_section, session.data);
-        await ctx.reply(`🌟 *Thank You for Sharing Your Success!*\n\n${SEP}\nYour story will inspire countless others on their career journey.\n${SEP}\nWe're truly honored to have been part of your success. Wishing you continued growth and achievement!\n\n🤝 With gratitude,\nThe EasySuccor Team`, { parse_mode: 'Markdown' });
+        await ctx.reply(`🌟 *Thank You for Sharing Your Success!*${SEP}Your story will inspire countless others on their career journey.${SEP}We're truly honored to have been part of your success. Wishing you continued growth and achievement!\n\n🤝 With gratitude,\nThe EasySuccor Team`, { parse_mode: 'Markdown' });
         await db.logAdminAction({ admin_id: 'system', action: 'client_hired', details: `Client ${client.first_name || 'Anonymous'} reported getting hired. Story: ${story.substring(0, 100)}` });
         const adminChatId = process.env.ADMIN_CHAT_ID;
         if (adminChatId) {

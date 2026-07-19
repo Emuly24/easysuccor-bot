@@ -768,11 +768,7 @@ class TwoFAHelper {
     }
 }
 
-// Serve Frontend HTML (Simple)
-if ($method === 'GET' && $uri === '/') {
-    echo "<h1>EasySuccor Bot</h1><p>Bot is running via Webhook.</p><a href='/public/dashboard.html'>Admin Dashboard</a>";
-    exit;
-}
+
 
 // Default fallback
 http_response_code(404);

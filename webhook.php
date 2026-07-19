@@ -493,6 +493,7 @@ class BotHandler {
     }
 
     // ---- CALLBACK HANDLER (Buttons) ----
+        // ---- CALLBACK HANDLER (Buttons) ----
     private function handleCb(array $cb): void {
         $this->api->answerCallback($cb['id']);
         $data = $cb['data']; $cid = (string)$cb['message']['chat']['id']; $mid = $cb['message']['message_id'];
@@ -501,28 +502,58 @@ class BotHandler {
         $stmt->execute([$cid]); $row = $stmt->fetch();
         if (!$row) return;
         $c = $row; $sesData = json_decode($c['data'], true); $sid = $c['sid'];
-        $update = function($k, $v) use ($pdo, $sid) { $pdo->prepare("UPDATE sessions SET data = JSON_SET(data, ?, ?) WHERE id = ?")->execute([$k, $v, $sid]); };
-        $stageSwitch = function($st) use ($pdo, $sid) { $pdo->prepare("UPDATE sessions SET stage = ? WHERE id = ?")->execute([$st, $sid]); };
+        
+        // ✅ NEW: Unified save function to update both stage and data in the DB
+        $save = function($newStage, $newData) use ($pdo, $sid) {
+            $pdo->prepare("UPDATE sessions SET stage = ?, data = ? WHERE id = ?")->execute([$newStage, json_encode($newData), $sid]);
+        };
         $respond = fn($msg) => $this->api->editMessageText($cid, $mid, $msg);
 
         // CATEGORY SELECTION
         if (str_starts_with($data, 'cat_')) {
             $cat = str_replace('cat_', '', $data);
             $sesData['category'] = $cat;
-            $stageSwitch('selecting_service');
+            $save('selecting_service', $sesData); // ✅ Persist data
             $respond("✅ Category selected: {$cat}\nSelect service:", ['inline_keyboard'=>[[['text'=>"📄 New CV",'callback_data'=>"service_new"]]]]);
             return;
         }
         // SERVICE SELECTION
         if (str_starts_with($data, 'service_')) {
             $sesData['service'] = str_replace('service_', '', $data);
-            $stageSwitch('selecting_build');
+            $save('selecting_build', $sesData); // ✅ Persist data
             $respond("📝 Build method:", ['inline_keyboard'=>[[['text'=>"📎 Upload Draft",'callback_data'=>"build_draft"], ['text'=>"✍️ Enter Manually",'callback_data'=>"build_manual"]]]]);
             return;
         }
         // BUILD METHOD
-        if ($data === 'build_draft') { $stageSwitch('awaiting_draft'); $respond("📎 Please upload your CV (PDF/DOCX)."); return; }
-        if ($data === 'build_manual') { $stageSwitch('collecting_portfolio'); $sesData['cv_data'] = []; $update('$.cv_data', json_encode([])); $respond("📁 Optional: Send portfolio links (or type /skip):"); return; }
+        if ($data === 'build_draft') { 
+            $save('awaiting_draft', $sesData); // ✅ Persist data
+            $respond("📎 Please upload your CV (PDF/DOCX)."); 
+            return; 
+        }
+        if ($data === 'build_manual') { 
+            $sesData['cv_data'] = []; 
+            $save('collecting_portfolio', $sesData); // ✅ Persist data
+            $respond("📁 Optional: Send portfolio links (or type /skip):"); 
+            return; 
+        }
+
+        // ✅ NEW: PAYMENT HANDLERS
+        if ($data === 'pay_mobile') {
+            $oid = $sesData['pending_order_id'] ?? 'UNKNOWN';
+            $respond("📱 *Mobile Money Payment*\n\n📋 *Order ID:* `{$oid}`\n\n💳 *Send to:*\n📱 Airtel: 0991295401\n📱 Mpamba: 0886928639\n\n📌 After payment, click confirm:", ['inline_keyboard'=>[[['text'=>"✅ I Have Paid",'callback_data'=>"confirm_payment_{$oid}"]]]]);
+            return;
+        }
+        if ($data === 'pay_installment') {
+            $oid = $sesData['pending_order_id'] ?? 'UNKNOWN';
+            // Fetch total amount from the newly inserted order
+            $stmt = $pdo->prepare("SELECT total_charge FROM orders WHERE id = ?");
+            $stmt->execute([$oid]);
+            $order = $stmt->fetch();
+            $total = (int)str_replace('MK', '', $order['total_charge']);
+            $this->pay->createInstallment($oid, $c['id'], $total); // Create the installment plan in DB
+            $respond("📅 *Installment Plan Activated*\n\nPay 50% now to start creation. Remaining 50% due in 7 days.\n\n*Reference:* `{$oid}`\n\n✅ After paying the first part:", ['inline_keyboard'=>[[['text'=>"✅ Paid First Installment",'callback_data'=>"inst_first_{$oid}"]]]]);
+            return;
+        }
 
         // PAYMENT CONFIRM
         if (str_starts_with($data, 'confirm_payment_')) {
@@ -539,7 +570,6 @@ class BotHandler {
             return;
         }
     }
-
     // ---- CORE HELPERS ----
     private function welcome(string $cid, array $c, array $s): void {
         $key = ['inline_keyboard'=>[[['text'=>"🎓 Student",'callback_data'=>"cat_student"], ['text'=>"💼 Professional",'callback_data'=>"cat_professional"]]]];
@@ -547,7 +577,7 @@ class BotHandler {
         $pdo = $this->db->getPdo(); $pdo->prepare("UPDATE sessions SET stage = 'start' WHERE id = ?")->execute([$s['id']]);
     }
 
-    private function finalizeOrder(string $cid, array $c, array $data, int $sid): void {
+        private function finalizeOrder(string $cid, array $c, array $data, int $sid): void {
         $pdo = $this->db->getPdo();
         $base = $this->prices[$data['category']][$data['service']] ?? 6000;
         $del = $this->delivery[$data['delivery'] ?? 'standard'];
@@ -555,7 +585,10 @@ class BotHandler {
         $oid = 'ORD_' . date('Ymd') . '_' . rand(1000, 9999);
         $stmt = $pdo->prepare("INSERT INTO orders (id, client_id, service, category, delivery_option, delivery_time, base_price, delivery_fee, total_charge, payment_status, cv_data, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([$oid, $c['id'], $data['service'], $data['category'], 'standard', $del['time'], $base, $del['fee'], "MK{$total}", 'pending', json_encode($data['cv_data']), 'pending']);
-        $pdo->prepare("UPDATE sessions SET stage = 'awaiting_payment' WHERE id = ?")->execute([$sid]);
+        
+        $data['pending_order_id'] = $oid;
+        $pdo->prepare("UPDATE sessions SET stage = 'awaiting_payment', data = ? WHERE id = ?")->execute([json_encode($data), $sid]);
+        
         $this->api->sendMessage($cid, "📋 Order created: `{$oid}`\nTotal: MK{$total}\n\nSelect payment method:", ['reply_markup'=>json_encode(['inline_keyboard'=>[[['text'=>"📱 Mobile Money",'callback_data'=>"pay_mobile"], ['text'=>"📅 Installments",'callback_data'=>"pay_installment"]]]])]);
     }
 
@@ -738,7 +771,7 @@ class TwoFAHelper {
 
 // Serve Frontend HTML (Simple)
 if ($method === 'GET' && $uri === '/') {
-    echo "<h1>EasySuccor Bot</h1><p>Bot is running via Webhook.</p><a href='/admin'>Admin Dashboard</a>";
+    echo "<h1>EasySuccor Bot</h1><p>Bot is running via Webhook.</p><a href='/public/dashboard.html'>Admin Dashboard</a>";
     exit;
 }
 

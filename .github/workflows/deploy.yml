@@ -1,0 +1,34 @@
+name: Deploy to InfinityFree
+
+on:
+  push:
+    branches: [ main ] # Change 'main' to 'master' if your default branch is master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout your code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+# Install PHP dependencies
+      - name: Install PHP dependencies
+        run: |
+          composer install --no-dev --optimize-autoloader
+
+      # 3. Deploy via FTP to InfinityFree
+      - name: FTP Deploy
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT }}
+          local-dir: ./ # The folder in your repository containing webhook.php
+          server-dir: ${{ secrets.FTP_TARGET_DIR }}/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/README.md

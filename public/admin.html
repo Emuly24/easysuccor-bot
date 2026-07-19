@@ -7,557 +7,146 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <style>
         /* ========== ALL ORIGINAL STYLES PRESERVED ========== */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        html, body {
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; min-height: 100vh; }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             background-attachment: fixed;
             min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-            overflow-x: hidden;
+            margin: 0; padding: 20px; overflow-x: hidden;
         }
-        
         :root {
-            --primary: #8A4FFF;
-            --primary-dark: #7B4BFF;
-            --secondary: #00C4CC;
-            --accent: #9C7BFF;
-            --bg-dark: #1a1a2e;
-            --bg-card: rgba(255, 255, 255, 0.03);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --text-primary: #ffffff;
-            --text-secondary: rgba(255, 255, 255, 0.7);
-            --text-muted: rgba(255, 255, 255, 0.4);
-            --success: #00C4CC;
-            --warning: #FFB800;
-            --danger: #FF4757;
-            --info: #8A4FFF;
+            --primary: #8A4FFF; --primary-dark: #7B4BFF; --secondary: #00C4CC;
+            --accent: #9C7BFF; --bg-dark: #1a1a2e; --bg-card: rgba(255, 255, 255, 0.03);
+            --border-color: rgba(255, 255, 255, 0.08); --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7); --text-muted: rgba(255, 255, 255, 0.4);
+            --success: #00C4CC; --warning: #FFB800; --danger: #FF4757; --info: #8A4FFF;
         }
-
-        .container {
-            position: relative;
-            z-index: 1;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        
-        /* Header */
+        .container { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; }
         .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 30px;
-            background: var(--bg-card);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            margin-bottom: 25px;
-            border: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 20px 30px; background: var(--bg-card); backdrop-filter: blur(10px);
+            border-radius: 20px; margin-bottom: 25px; border: 1px solid var(--border-color);
         }
-        
-        .logo-section {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        
-        .logo-text {
-            font-size: 24px;
-            font-weight: 700;
-        }
-        
+        .logo-section { display: flex; align-items: center; gap: 20px; }
+        .logo-text { font-size: 24px; font-weight: 700; }
         .logo-easy { color: var(--primary); }
         .logo-succor { color: var(--secondary); }
-        
         .center-badge {
             background: linear-gradient(135deg, var(--primary), var(--secondary));
-            padding: 6px 16px;
-            border-radius: 30px;
-            font-size: 12px;
-            font-weight: 600;
-            color: white;
-            letter-spacing: 1px;
+            padding: 6px 16px; border-radius: 30px; font-size: 12px; font-weight: 600;
+            color: white; letter-spacing: 1px;
         }
-        
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-        
+        .header-actions { display: flex; align-items: center; gap: 15px; }
         .nav-link {
-            color: var(--text-secondary);
-            text-decoration: none;
-            padding: 10px 16px;
-            border-radius: 10px;
-            transition: all 0.3s;
-            font-size: 14px;
+            color: var(--text-secondary); text-decoration: none; padding: 10px 16px;
+            border-radius: 10px; transition: all 0.3s; font-size: 14px;
         }
-        
-        .nav-link:hover {
-            background: rgba(138, 79, 255, 0.1);
-            color: white;
+        .nav-link:hover { background: rgba(138, 79, 255, 0.1); color: white; }
+        .main-grid { display: grid; grid-template-columns: 1fr 350px; gap: 25px; }
+        .upload-section, .history-section {
+            background: var(--bg-card); backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color); border-radius: 20px; padding: 30px;
         }
-        
-        /* Main Content */
-        .main-grid {
-            display: grid;
-            grid-template-columns: 1fr 350px;
-            gap: 25px;
-        }
-        
-        .upload-section {
-            background: var(--bg-card);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 30px;
-        }
-        
-        .history-section {
-            background: var(--bg-card);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 25px;
-        }
-        
         .section-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: white;
-            margin-bottom: 25px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            font-size: 18px; font-weight: 700; color: white; margin-bottom: 25px;
+            display: flex; align-items: center; gap: 10px;
         }
-        
-        .section-title span {
-            color: var(--primary);
-        }
-        
-        /* Form Styles */
-        .form-group {
-            margin-bottom: 25px;
-        }
-        
+        .section-title span { color: var(--primary); }
+        .form-group { margin-bottom: 25px; }
         .form-label {
-            display: block;
-            color: var(--text-secondary);
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            display: block; color: var(--text-secondary); font-size: 13px; font-weight: 600;
+            margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;
         }
-        
         .form-input, .form-select {
-            width: 100%;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid var(--border-color);
-            color: white;
-            padding: 14px 18px;
-            border-radius: 12px;
-            font-size: 14px;
-            font-family: 'Inter', sans-serif;
-            transition: all 0.3s;
+            width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color);
+            color: white; padding: 14px 18px; border-radius: 12px; font-size: 14px;
+            font-family: 'Inter', sans-serif; transition: all 0.3s;
         }
-        
         .form-input:focus, .form-select:focus {
-            outline: none;
-            border-color: var(--primary);
-            background: rgba(255,255,255,0.08);
+            outline: none; border-color: var(--primary); background: rgba(255,255,255,0.08);
         }
-        
-        .form-select option {
-            background: var(--bg-dark);
-            color: white;
-        }
-        
-        /* File Upload Area */
+        .form-select option { background: var(--bg-dark); color: white; }
         .file-upload-area {
-            border: 2px dashed var(--border-color);
-            border-radius: 16px;
-            padding: 40px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin-bottom: 20px;
+            border: 2px dashed var(--border-color); border-radius: 16px; padding: 40px;
+            text-align: center; cursor: pointer; transition: all 0.3s; margin-bottom: 20px;
         }
-        
-        .file-upload-area:hover {
-            border-color: var(--primary);
-            background: rgba(138, 79, 255, 0.05);
-        }
-        
-        .file-upload-area.dragover {
-            border-color: var(--secondary);
-            background: rgba(0, 196, 204, 0.05);
-        }
-        
-        .upload-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-        }
-        
-        .upload-text {
-            color: white;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-        
-        .upload-hint {
-            color: var(--text-muted);
-            font-size: 13px;
-        }
-        
-        /* File List */
-        .file-list {
-            margin-top: 20px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        
+        .file-upload-area:hover { border-color: var(--primary); background: rgba(138, 79, 255, 0.05); }
+        .file-upload-area.dragover { border-color: var(--secondary); background: rgba(0, 196, 204, 0.05); }
+        .upload-icon { font-size: 48px; margin-bottom: 15px; }
+        .upload-text { color: white; font-weight: 600; margin-bottom: 8px; }
+        .upload-hint { color: var(--text-muted); font-size: 13px; }
+        .file-list { margin-top: 20px; max-height: 200px; overflow-y: auto; }
         .file-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 15px;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            margin-bottom: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 15px; background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 8px;
         }
-        
-        .file-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        .file-icon {
-            font-size: 20px;
-        }
-        
-        .file-name {
-            color: white;
-            font-size: 13px;
-        }
-        
-        .file-size {
-            color: var(--text-muted);
-            font-size: 11px;
-            margin-left: 10px;
-        }
-        
-        .file-remove {
-            color: var(--danger);
-            cursor: pointer;
-            padding: 5px 10px;
-            border-radius: 6px;
-            transition: all 0.2s;
-        }
-        
-        .file-remove:hover {
-            background: rgba(255, 71, 87, 0.1);
-        }
-        
-        /* Review Options */
+        .file-info { display: flex; align-items: center; gap: 12px; }
+        .file-icon { font-size: 20px; }
+        .file-name { color: white; font-size: 13px; }
+        .file-size { color: var(--text-muted); font-size: 11px; margin-left: 10px; }
+        .file-remove { color: var(--danger); cursor: pointer; padding: 5px 10px; border-radius: 6px; transition: all 0.2s; }
+        .file-remove:hover { background: rgba(255, 71, 87, 0.1); }
         .review-options {
-            background: rgba(138, 79, 255, 0.05);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
-            margin-top: 20px;
+            background: rgba(138, 79, 255, 0.05); border: 1px solid var(--border-color);
+            border-radius: 12px; padding: 20px; margin-top: 20px;
         }
-        
-        .review-title {
-            color: var(--text-primary);
-            font-weight: 600;
-            margin-bottom: 15px;
-        }
-        
-        .radio-group {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-        
-        .radio-label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--text-secondary);
-            cursor: pointer;
-        }
-        
-        .radio-label input[type="radio"] {
-            accent-color: var(--primary);
-            width: 18px;
-            height: 18px;
-        }
-        
-        /* Buttons */
+        .review-title { color: var(--text-primary); font-weight: 600; margin-bottom: 15px; }
+        .radio-group { display: flex; gap: 20px; flex-wrap: wrap; }
+        .radio-label { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); cursor: pointer; }
+        .radio-label input[type="radio"] { accent-color: var(--primary); width: 18px; height: 18px; }
         .btn {
-            padding: 14px 28px;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.3s;
-            border: none;
-            font-family: 'Inter', sans-serif;
+            padding: 14px 28px; border-radius: 12px; font-weight: 600; font-size: 14px;
+            cursor: pointer; transition: all 0.3s; border: none; font-family: 'Inter', sans-serif;
         }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            color: white;
-            width: 100%;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(138, 79, 255, 0.3);
-        }
-        
-        .btn-primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .btn-secondary {
-            background: transparent;
-            border: 1px solid var(--border-color);
-            color: var(--text-secondary);
-        }
-        
-        .btn-secondary:hover {
-            background: rgba(255,255,255,0.05);
-            color: white;
-        }
-        
-        .btn-danger {
-            background: transparent;
-            border: 1px solid var(--danger);
-            color: var(--danger);
-        }
-        
-        .btn-danger:hover {
-            background: var(--danger);
-            color: white;
-        }
-        
-        /* Upload History */
-        .history-list {
-            max-height: 500px;
-            overflow-y: auto;
-        }
-        
-        .history-item {
-            padding: 15px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .history-item:last-child {
-            border-bottom: none;
-        }
-        
-        .history-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-        }
-        
-        .history-name {
-            color: white;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        
-        .history-time {
-            color: var(--text-muted);
-            font-size: 11px;
-        }
-        
-        .history-details {
-            display: flex;
-            gap: 15px;
-            font-size: 12px;
-            color: var(--text-secondary);
-        }
-        
-        .history-type {
-            color: var(--primary);
-        }
-        
-        .history-status {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 20px;
-            font-size: 10px;
-            font-weight: 600;
-        }
-        
+        .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; width: 100%; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(138, 79, 255, 0.3); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-secondary { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.05); color: white; }
+        .btn-danger { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+        .btn-danger:hover { background: var(--danger); color: white; }
+        .history-list { max-height: 500px; overflow-y: auto; }
+        .history-item { padding: 15px; border-bottom: 1px solid var(--border-color); }
+        .history-item:last-child { border-bottom: none; }
+        .history-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .history-name { color: white; font-weight: 600; font-size: 14px; }
+        .history-time { color: var(--text-muted); font-size: 11px; }
+        .history-details { display: flex; gap: 15px; font-size: 12px; color: var(--text-secondary); }
+        .history-type { color: var(--primary); }
+        .history-status { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; }
         .status-success { background: rgba(0, 196, 204, 0.15); color: var(--success); }
         .status-processing { background: rgba(255, 184, 0, 0.15); color: var(--warning); }
         .status-error { background: rgba(255, 71, 87, 0.15); color: var(--danger); }
-        
-        /* Progress Bar */
-        .progress-container {
-            margin: 20px 0;
-            display: none;
-        }
-        
-        .progress-bar {
-            height: 8px;
-            background: var(--border-color);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary), var(--secondary));
-            width: 0%;
-            transition: width 0.3s;
-            animation: pulse 1.5s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        
-        .progress-text {
-            color: var(--text-secondary);
-            font-size: 13px;
-            margin-top: 10px;
-            text-align: center;
-        }
-        
-        /* Results */
-        .results-container {
-            margin-top: 20px;
-            display: none;
-        }
-        
-        .result-item {
-            padding: 12px;
-            border-radius: 10px;
-            margin-bottom: 8px;
-            font-size: 13px;
-        }
-        
-        .result-success {
-            background: rgba(0, 196, 204, 0.1);
-            color: var(--success);
-            border-left: 3px solid var(--success);
-        }
-        
-        .result-error {
-            background: rgba(255, 71, 87, 0.1);
-            color: var(--danger);
-            border-left: 3px solid var(--danger);
-        }
-        
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: var(--text-muted);
-        }
-        
-        .empty-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-            opacity: 0.5;
-        }
-        
-        /* API Key Section */
-        .api-section {
-            background: rgba(255,255,255,0.03);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 25px;
-        }
-        
-        .api-input-group {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .api-input {
-            flex: 1;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid var(--border-color);
-            color: white;
-            padding: 14px 18px;
-            border-radius: 12px;
-            font-size: 14px;
-        }
-        
-        /* Stats Cards */
-        .stats-mini {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        
-        .stat-mini {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 15px;
-            text-align: center;
-        }
-        
-        .stat-mini-value {
-            font-size: 24px;
-            font-weight: 700;
-            color: white;
-        }
-        
-        .stat-mini-label {
-            font-size: 11px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
-        
-        /* Responsive */
-        @media (max-width: 900px) {
-            .main-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            body { padding: 10px; }
-            .header { flex-direction: column; gap: 15px; }
-            .upload-section { padding: 20px; }
-        }
+        .progress-container { margin: 20px 0; display: none; }
+        .progress-bar { height: 8px; background: var(--border-color); border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--secondary)); width: 0%; transition: width 0.3s; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .progress-text { color: var(--text-secondary); font-size: 13px; margin-top: 10px; text-align: center; }
+        .results-container { margin-top: 20px; display: none; }
+        .result-item { padding: 12px; border-radius: 10px; margin-bottom: 8px; font-size: 13px; }
+        .result-success { background: rgba(0, 196, 204, 0.1); color: var(--success); border-left: 3px solid var(--success); }
+        .result-error { background: rgba(255, 71, 87, 0.1); color: var(--danger); border-left: 3px solid var(--danger); }
+        .empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
+        .empty-icon { font-size: 48px; margin-bottom: 15px; opacity: 0.5; }
+        .api-section { background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px; margin-bottom: 25px; }
+        .api-input-group { display: flex; gap: 10px; }
+        .api-input { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: white; padding: 14px 18px; border-radius: 12px; font-size: 14px; }
+        .stats-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .stat-mini { background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 12px; padding: 15px; text-align: center; }
+        .stat-mini-value { font-size: 24px; font-weight: 700; color: white; }
+        .stat-mini-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; }
+        @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { body { padding: 10px; } .header { flex-direction: column; gap: 15px; } .upload-section { padding: 20px; } }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
         <div class="header">
             <div class="logo-section">
-                <span class="logo-text">
-                    <span class="logo-easy">Easy</span><span class="logo-succor">Succor</span>
-                </span>
+                <span class="logo-text"><span class="logo-easy">Easy</span><span class="logo-succor">Succor</span></span>
                 <span class="center-badge">📄 DOCUMENT UPLOAD CENTER</span>
             </div>
             <div class="header-actions">
@@ -567,7 +156,6 @@
             </div>
         </div>
         
-        <!-- API Key Section -->
         <div class="api-section">
             <div class="form-label">🔑 Admin API Key</div>
             <div class="api-input-group">
@@ -577,15 +165,10 @@
             <div id="apiStatus" style="margin-top: 10px; font-size: 12px;"></div>
         </div>
         
-        <!-- Main Content -->
         <div class="main-grid">
-            <!-- Upload Section -->
             <div class="upload-section">
-                <div class="section-title">
-                    <span>📤</span> Upload Documents
-                </div>
+                <div class="section-title"><span>📤</span> Upload Documents</div>
                 
-                <!-- Document Type Selection -->
                 <div class="form-group">
                     <label class="form-label">📋 Document Type</label>
                     <select id="documentType" class="form-select" onchange="onDocumentTypeChange()">
@@ -599,24 +182,15 @@
                     </select>
                 </div>
                 
-                <!-- Review Options (shown only for reviewed documents) -->
                 <div id="reviewOptions" class="review-options" style="display: none;">
                     <div class="review-title">🔄 Review Details (Informational only)</div>
                     <div class="form-group">
                         <label class="form-label">Review Number</label>
                         <div class="radio-group">
-                            <label class="radio-label">
-                                <input type="radio" name="reviewNumber" value="1" checked> First Review
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="reviewNumber" value="2"> Second Review
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="reviewNumber" value="3"> Third Review
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="reviewNumber" value="final"> Final Review
-                            </label>
+                            <label class="radio-label"><input type="radio" name="reviewNumber" value="1" checked> First Review</label>
+                            <label class="radio-label"><input type="radio" name="reviewNumber" value="2"> Second Review</label>
+                            <label class="radio-label"><input type="radio" name="reviewNumber" value="3"> Third Review</label>
+                            <label class="radio-label"><input type="radio" name="reviewNumber" value="final"> Final Review</label>
                         </div>
                     </div>
                     <div class="form-group">
@@ -626,24 +200,16 @@
                     <small style="color: var(--text-muted);">Note: Review details are stored locally for reference only.</small>
                 </div>
                 
-                <!-- Client Information -->
                 <div class="form-group">
                     <label class="form-label">👤 Client Information (Optional - will be auto-extracted)</label>
                     <input type="text" id="clientName" class="form-input" placeholder="Client Full Name">
                 </div>
                 
                 <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div class="form-group">
-                        <label class="form-label">📧 Email</label>
-                        <input type="email" id="clientEmail" class="form-input" placeholder="Optional">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">📞 Phone</label>
-                        <input type="tel" id="clientPhone" class="form-input" placeholder="Optional">
-                    </div>
+                    <div class="form-group"><label class="form-label">📧 Email</label><input type="email" id="clientEmail" class="form-input" placeholder="Optional"></div>
+                    <div class="form-group"><label class="form-label">📞 Phone</label><input type="tel" id="clientPhone" class="form-input" placeholder="Optional"></div>
                 </div>
                 
-                <!-- File Upload Area -->
                 <div class="form-group">
                     <label class="form-label">📎 Select Files</label>
                     <div id="dropZone" class="file-upload-area" onclick="document.getElementById('fileInput').click()">
@@ -654,251 +220,118 @@
                     <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.jpg,.jpeg,.png" multiple style="display: none;">
                 </div>
                 
-                <!-- Selected Files List -->
                 <div id="fileList" class="file-list" style="display: none;"></div>
                 
-                <!-- Progress Bar -->
                 <div id="progressContainer" class="progress-container">
-                    <div class="progress-bar">
-                        <div id="progressFill" class="progress-fill"></div>
-                    </div>
+                    <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
                     <div id="progressText" class="progress-text">Uploading...</div>
                 </div>
                 
-                <!-- Action Buttons -->
                 <div style="display: flex; gap: 15px; margin-top: 25px;">
                     <button id="uploadBtn" class="btn btn-primary" onclick="uploadFiles()" disabled>📤 Upload Files</button>
                     <button class="btn btn-secondary" onclick="clearAll()">🗑️ Clear All</button>
                 </div>
                 
-                <!-- Results -->
                 <div id="resultsContainer" class="results-container"></div>
             </div>
             
-            <!-- History Section -->
             <div class="history-section">
-                <div class="section-title">
-                    <span>📋</span> Recent Uploads
-                </div>
+                <div class="section-title"><span>📋</span> Recent Uploads</div>
                 
                 <div class="stats-mini">
-                    <div class="stat-mini">
-                        <div class="stat-mini-value" id="todayUploads">0</div>
-                        <div class="stat-mini-label">Today</div>
-                    </div>
-                    <div class="stat-mini">
-                        <div class="stat-mini-value" id="weekUploads">0</div>
-                        <div class="stat-mini-label">This Week</div>
-                    </div>
+                    <div class="stat-mini"><div class="stat-mini-value" id="todayUploads">0</div><div class="stat-mini-label">Today</div></div>
+                    <div class="stat-mini"><div class="stat-mini-value" id="weekUploads">0</div><div class="stat-mini-label">This Week</div></div>
                 </div>
                 
                 <div id="historyList" class="history-list">
-                    <div class="empty-state">
-                        <div class="empty-icon">📭</div>
-                        <p>No recent uploads</p>
-                    </div>
+                    <div class="empty-state"><div class="empty-icon">📭</div><p>No recent uploads</p></div>
                 </div>
                 
-                <button class="btn btn-secondary" onclick="loadUploadHistory()" style="width: 100%; margin-top: 15px;">
-                    🔄 Refresh History
-                </button>
+                <button class="btn btn-secondary" onclick="loadUploadHistory()" style="width: 100%; margin-top: 15px;">🔄 Refresh History</button>
             </div>
         </div>
     </div>
     
     <script>
-        // ============ PRODUCTION CONFIGURATION ============
-        // Allowed file types and max size
         const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.jpg', '.jpeg', '.png'];
-        const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
-        
+        const MAX_FILE_SIZE = 20 * 1024 * 1024;
         let selectedFiles = [];
         let uploadHistory = [];
         
-        // ============ INITIALIZATION ============
-        document.addEventListener('DOMContentLoaded', function() {
-            setupDragDrop();
-            loadStoredHistory();
-            checkApiKeyStored();
-        });
+        document.addEventListener('DOMContentLoaded', function() { setupDragDrop(); loadStoredHistory(); checkApiKeyStored(); });
         
-        function getApiKey() {
-            return document.getElementById('apiKey').value;
-        }
+        function getApiKey() { return document.getElementById('apiKey').value; }
         
         function checkApiKeyStored() {
             const storedKey = localStorage.getItem('easysuccor_admin_token');
-            if (storedKey) {
-                document.getElementById('apiKey').value = storedKey;
-                verifyApiKey(); // silently verify
-            }
+            if (storedKey) { document.getElementById('apiKey').value = storedKey; verifyApiKey(); }
         }
         
         async function verifyApiKey() {
             const apiKey = getApiKey();
-            if (!apiKey) {
-                showApiStatus('Please enter API Key', 'error');
-                return;
-            }
-            
+            if (!apiKey) { showApiStatus('Please enter API Key', 'error'); return; }
             showApiStatus('Verifying...', 'info');
-            
             try {
-                const response = await fetch('/api/status', {
-                    headers: { 'x-admin-key': apiKey }
-                });
-                
-                if (response.ok) {
-                    localStorage.setItem('easysuccor_admin_token', apiKey);
-                    showApiStatus('✅ API Key verified!', 'success');
-                    loadUploadHistory();
-                    updateUploadButton();
-                } else {
-                    showApiStatus('❌ Invalid API Key', 'error');
-                    localStorage.removeItem('easysuccor_admin_token');
-                }
-            } catch (error) {
-                showApiStatus('❌ Cannot connect to server', 'error');
-            }
+                const response = await fetch('/api/status', { headers: { 'x-admin-key': apiKey } });
+                if (response.ok) { localStorage.setItem('easysuccor_admin_token', apiKey); showApiStatus('✅ API Key verified!', 'success'); loadUploadHistory(); updateUploadButton(); }
+                else { showApiStatus('❌ Invalid API Key', 'error'); localStorage.removeItem('easysuccor_admin_token'); }
+            } catch (error) { showApiStatus('❌ Cannot connect to server', 'error'); }
         }
         
         function showApiStatus(message, type) {
             const statusDiv = document.getElementById('apiStatus');
             statusDiv.innerHTML = message;
             statusDiv.style.color = type === 'error' ? 'var(--danger)' : (type === 'success' ? 'var(--success)' : 'var(--text-secondary)');
-            setTimeout(() => {
-                if (type !== 'error') statusDiv.innerHTML = '';
-            }, 3000);
+            setTimeout(() => { if (type !== 'error') statusDiv.innerHTML = ''; }, 3000);
         }
         
         function logoutAdmin() {
             localStorage.removeItem('easysuccor_admin_token');
             document.getElementById('apiKey').value = '';
             showApiStatus('Logged out', 'info');
-            uploadHistory = [];
-            renderHistory();
-            updateUploadButton();
+            uploadHistory = []; renderHistory(); updateUploadButton();
         }
         
-        // ============ DRAG & DROP ============
         function setupDragDrop() {
             const dropZone = document.getElementById('dropZone');
-            
-            dropZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                dropZone.classList.add('dragover');
-            });
-            
-            dropZone.addEventListener('dragleave', () => {
-                dropZone.classList.remove('dragover');
-            });
-            
-            dropZone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('dragover');
-                handleFiles(e.dataTransfer.files);
-            });
-            
-            document.getElementById('fileInput').addEventListener('change', (e) => {
-                handleFiles(e.target.files);
-            });
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
+            dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+            document.getElementById('fileInput').addEventListener('change', (e) => { handleFiles(e.target.files); });
         }
         
         function handleFiles(files) {
-            const validFiles = [];
-            const errors = [];
-            
+            const validFiles = []; const errors = [];
             for (const file of Array.from(files)) {
                 const ext = '.' + file.name.split('.').pop().toLowerCase();
-                if (!ALLOWED_EXTENSIONS.includes(ext)) {
-                    errors.push(`${file.name}: Unsupported file type`);
-                    continue;
-                }
-                if (file.size > MAX_FILE_SIZE) {
-                    errors.push(`${file.name}: Exceeds 20MB limit`);
-                    continue;
-                }
+                if (!ALLOWED_EXTENSIONS.includes(ext)) { errors.push(`${file.name}: Unsupported file type`); continue; }
+                if (file.size > MAX_FILE_SIZE) { errors.push(`${file.name}: Exceeds 20MB limit`); continue; }
                 validFiles.push(file);
             }
-            
-            if (errors.length) {
-                alert(errors.join('\n'));
-            }
-            
-            if (validFiles.length) {
-                selectedFiles = [...selectedFiles, ...validFiles];
-                updateFileList();
-                updateUploadButton();
-            }
+            if (errors.length) alert(errors.join('\n'));
+            if (validFiles.length) { selectedFiles = [...selectedFiles, ...validFiles]; updateFileList(); updateUploadButton(); }
         }
         
         function updateFileList() {
             const container = document.getElementById('fileList');
-            
-            if (selectedFiles.length === 0) {
-                container.style.display = 'none';
-                return;
-            }
-            
+            if (selectedFiles.length === 0) { container.style.display = 'none'; return; }
             container.style.display = 'block';
             container.innerHTML = selectedFiles.map((file, index) => `
                 <div class="file-item">
-                    <div class="file-info">
-                        <span class="file-icon">${getFileIcon(file.name)}</span>
-                        <span class="file-name">${escapeHtml(file.name)}</span>
-                        <span class="file-size">${formatFileSize(file.size)}</span>
-                    </div>
+                    <div class="file-info"><span class="file-icon">${getFileIcon(file.name)}</span><span class="file-name">${escapeHtml(file.name)}</span><span class="file-size">${formatFileSize(file.size)}</span></div>
                     <span class="file-remove" onclick="removeFile(${index})">✖</span>
                 </div>
             `).join('');
         }
         
-        function getFileIcon(filename) {
-            const ext = filename.split('.').pop().toLowerCase();
-            const icons = { pdf: '📄', docx: '📝', doc: '📝', jpg: '🖼️', jpeg: '🖼️', png: '🖼️' };
-            return icons[ext] || '📎';
-        }
-        
-        function formatFileSize(bytes) {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-        }
-        
-        function removeFile(index) {
-            selectedFiles.splice(index, 1);
-            updateFileList();
-            updateUploadButton();
-            
-            const dt = new DataTransfer();
-            selectedFiles.forEach(f => dt.items.add(f));
-            document.getElementById('fileInput').files = dt.files;
-        }
-        
-        function clearAll() {
-            selectedFiles = [];
-            document.getElementById('fileInput').value = '';
-            document.getElementById('fileList').style.display = 'none';
-            document.getElementById('documentType').value = '';
-            document.getElementById('clientName').value = '';
-            document.getElementById('clientEmail').value = '';
-            document.getElementById('clientPhone').value = '';
-            document.getElementById('revisionNotes').value = '';
-            document.getElementById('reviewOptions').style.display = 'none';
-            document.getElementById('resultsContainer').style.display = 'none';
-            updateUploadButton();
-        }
+        function getFileIcon(filename) { const ext = filename.split('.').pop().toLowerCase(); const icons = { pdf: '📄', docx: '📝', doc: '📝', jpg: '🖼️', jpeg: '🖼️', png: '🖼️' }; return icons[ext] || '📎'; }
+        function formatFileSize(bytes) { if (bytes < 1024) return bytes + ' B'; if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'; return (bytes / (1024 * 1024)).toFixed(1) + ' MB'; }
+        function removeFile(index) { selectedFiles.splice(index, 1); updateFileList(); updateUploadButton(); const dt = new DataTransfer(); selectedFiles.forEach(f => dt.items.add(f)); document.getElementById('fileInput').files = dt.files; }
+        function clearAll() { selectedFiles = []; document.getElementById('fileInput').value = ''; document.getElementById('fileList').style.display = 'none'; document.getElementById('documentType').value = ''; document.getElementById('clientName').value = ''; document.getElementById('clientEmail').value = ''; document.getElementById('clientPhone').value = ''; document.getElementById('revisionNotes').value = ''; document.getElementById('reviewOptions').style.display = 'none'; document.getElementById('resultsContainer').style.display = 'none'; updateUploadButton(); }
         
         function onDocumentTypeChange() {
             const docType = document.getElementById('documentType').value;
-            const reviewOptions = document.getElementById('reviewOptions');
-            
-            if (docType === 'reviewed_cv' || docType === 'reviewed_cover') {
-                reviewOptions.style.display = 'block';
-            } else {
-                reviewOptions.style.display = 'none';
-            }
-            
+            document.getElementById('reviewOptions').style.display = (docType === 'reviewed_cv' || docType === 'reviewed_cover') ? 'block' : 'none';
             updateUploadButton();
         }
         
@@ -906,19 +339,13 @@
             const docType = document.getElementById('documentType').value;
             const hasFiles = selectedFiles.length > 0;
             const hasApiKey = localStorage.getItem('easysuccor_admin_token') !== null;
-            
             document.getElementById('uploadBtn').disabled = !docType || !hasFiles || !hasApiKey;
         }
         
-        // ============ UPLOAD ============
         async function uploadFiles() {
             const apiKey = getApiKey();
             const docType = document.getElementById('documentType').value;
-            
-            if (!apiKey || !docType || selectedFiles.length === 0) {
-                alert('Please select document type and files, and verify API key');
-                return;
-            }
+            if (!apiKey || !docType || selectedFiles.length === 0) { alert('Please select document type and files, and verify API key'); return; }
             
             const uploadBtn = document.getElementById('uploadBtn');
             const progressContainer = document.getElementById('progressContainer');
@@ -926,15 +353,9 @@
             const progressText = document.getElementById('progressText');
             const resultsContainer = document.getElementById('resultsContainer');
             
-            uploadBtn.disabled = true;
-            progressContainer.style.display = 'block';
-            resultsContainer.style.display = 'none';
+            uploadBtn.disabled = true; progressContainer.style.display = 'block'; resultsContainer.style.display = 'none';
             
-            const results = [];
-            let successCount = 0;
-            let failCount = 0;
-            
-            // Determine endpoint based on document type (CV or Cover Letter)
+            const results = []; let successCount = 0; let failCount = 0;
             const isCV = docType.includes('cv');
             const endpoint = isCV ? '/admin/upload-cv' : '/admin/upload-cover';
             
@@ -949,176 +370,74 @@
                 formData.append('client_name', document.getElementById('clientName').value);
                 formData.append('client_email', document.getElementById('clientEmail').value);
                 formData.append('client_phone', document.getElementById('clientPhone').value);
-                
-                // Add optional position/company for cover letters
-                if (!isCV) {
-                    formData.append('position', '');
-                    formData.append('company', '');
-                }
+                if (!isCV) { formData.append('position', ''); formData.append('company', ''); }
                 
                 try {
-                    const response = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: { 'x-admin-key': apiKey },
-                        body: formData
-                    });
-                    
+                    const response = await fetch(endpoint, { method: 'POST', headers: { 'x-admin-key': apiKey }, body: formData });
                     const result = await response.json();
-                    
                     if (response.ok) {
                         successCount++;
-                        const extractedStats = result.extracted_data?.stats || {};
-                        const categoriesCount = Object.values(extractedStats).reduce((a,b) => a + b, 0);
-                        
-                        results.push({
-                            file: file.name,
-                            success: true,
-                            message: result.message || 'Upload successful',
-                            categories: categoriesCount
-                        });
-                        
-                        // Save to local history
-                        saveToHistory({
-                            filename: file.name,
-                            document_type: docType,
-                            client_name: document.getElementById('clientName').value || 'Auto-extracted',
-                            status: 'success',
-                            categories_extracted: categoriesCount,
-                            created_at: new Date().toISOString()
-                        });
+                        const categoriesCount = Object.values(result.extracted_data?.stats || {}).reduce((a,b) => a + b, 0);
+                        results.push({ file: file.name, success: true, message: result.message || 'Upload successful', categories: categoriesCount });
+                        saveToHistory({ filename: file.name, document_type: docType, client_name: document.getElementById('clientName').value || 'Auto-extracted', status: 'success', categories_extracted: categoriesCount, created_at: new Date().toISOString() });
                     } else {
                         failCount++;
-                        results.push({
-                            file: file.name,
-                            success: false,
-                            error: result.error || 'Upload failed'
-                        });
-                        saveToHistory({
-                            filename: file.name,
-                            document_type: docType,
-                            client_name: document.getElementById('clientName').value || 'Unknown',
-                            status: 'error',
-                            error: result.error,
-                            created_at: new Date().toISOString()
-                        });
+                        results.push({ file: file.name, success: false, error: result.error || 'Upload failed' });
+                        saveToHistory({ filename: file.name, document_type: docType, client_name: document.getElementById('clientName').value || 'Unknown', status: 'error', error: result.error, created_at: new Date().toISOString() });
                     }
                 } catch (error) {
                     failCount++;
-                    results.push({
-                        file: file.name,
-                        success: false,
-                        error: error.message
-                    });
-                    saveToHistory({
-                        filename: file.name,
-                        document_type: docType,
-                        client_name: document.getElementById('clientName').value || 'Unknown',
-                        status: 'error',
-                        error: error.message,
-                        created_at: new Date().toISOString()
-                    });
+                    results.push({ file: file.name, success: false, error: error.message });
+                    saveToHistory({ filename: file.name, document_type: docType, client_name: document.getElementById('clientName').value || 'Unknown', status: 'error', error: error.message, created_at: new Date().toISOString() });
                 }
             }
             
             progressFill.style.width = '100%';
             progressText.textContent = `Complete! ${successCount} succeeded, ${failCount} failed`;
-            
-            // Show results
             resultsContainer.style.display = 'block';
-            resultsContainer.innerHTML = results.map(r => `
-                <div class="result-item ${r.success ? 'result-success' : 'result-error'}">
-                    ${r.success ? '✅' : '❌'} ${escapeHtml(r.file)}
-                    ${r.success ? `<br><small>${r.categories || 0} categories extracted</small>` : `<br><small>${escapeHtml(r.error)}</small>`}
-                </div>
-            `).join('');
-            
+            resultsContainer.innerHTML = results.map(r => `<div class="result-item ${r.success ? 'result-success' : 'result-error'}">${r.success ? '✅' : '❌'} ${escapeHtml(r.file)}${r.success ? `<br><small>${r.categories || 0} categories extracted</small>` : `<br><small>${escapeHtml(r.error)}</small>`}</div>`).join('');
             uploadBtn.disabled = false;
-            
-            if (successCount > 0) {
-                clearAll();
-                loadUploadHistory();
-            }
-            
-            setTimeout(() => {
-                progressContainer.style.display = 'none';
-            }, 3000);
+            if (successCount > 0) { clearAll(); loadUploadHistory(); }
+            setTimeout(() => { progressContainer.style.display = 'none'; }, 3000);
         }
         
-        // ============ LOCAL HISTORY MANAGEMENT ============
         function saveToHistory(item) {
             let history = JSON.parse(localStorage.getItem('easysuccor_upload_history') || '[]');
             history.unshift(item);
-            // Keep only last 100 items
             if (history.length > 100) history = history.slice(0, 100);
             localStorage.setItem('easysuccor_upload_history', JSON.stringify(history));
-            uploadHistory = history;
-            renderHistory();
-            updateStats();
+            uploadHistory = history; renderHistory(); updateStats();
         }
         
         function loadStoredHistory() {
             const stored = localStorage.getItem('easysuccor_upload_history');
-            if (stored) {
-                uploadHistory = JSON.parse(stored);
-                renderHistory();
-                updateStats();
-            } else {
-                uploadHistory = [];
-                renderHistory();
-            }
+            if (stored) { uploadHistory = JSON.parse(stored); renderHistory(); updateStats(); } else { uploadHistory = []; renderHistory(); }
         }
         
         async function loadUploadHistory() {
-            // First try to fetch from server if endpoint exists
             const apiKey = getApiKey();
             if (apiKey) {
                 try {
-                    const response = await fetch('/admin/recent-uploads', {
-                        headers: { 'x-admin-key': apiKey }
-                    });
+                    const response = await fetch('/admin/recent-uploads', { headers: { 'x-admin-key': apiKey } });
                     if (response.ok) {
                         const data = await response.json();
-                        if (data.uploads && data.uploads.length) {
-                            uploadHistory = data.uploads;
-                            localStorage.setItem('easysuccor_upload_history', JSON.stringify(uploadHistory));
-                            renderHistory();
-                            updateStats();
-                            return;
-                        }
+                        if (data.uploads && data.uploads.length) { uploadHistory = data.uploads; localStorage.setItem('easysuccor_upload_history', JSON.stringify(uploadHistory)); renderHistory(); updateStats(); return; }
                     }
-                } catch (e) {
-                    // Fallback to local storage
-                }
+                } catch (e) { /* fallback to local storage */ }
             }
-            // Fallback to local storage
             loadStoredHistory();
         }
         
         function renderHistory() {
             const container = document.getElementById('historyList');
-            
-            if (uploadHistory.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">📭</div>
-                        <p>No recent uploads</p>
-                    </div>
-                `;
-                return;
-            }
-            
+            if (uploadHistory.length === 0) { container.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>No recent uploads</p></div>`; return; }
             container.innerHTML = uploadHistory.slice(0, 20).map(item => `
                 <div class="history-item">
-                    <div class="history-header">
-                        <span class="history-name">${escapeHtml(item.filename || 'Unknown')}</span>
-                        <span class="history-time">${formatTime(item.created_at)}</span>
-                    </div>
+                    <div class="history-header"><span class="history-name">${escapeHtml(item.filename || 'Unknown')}</span><span class="history-time">${formatTime(item.created_at)}</span></div>
                     <div class="history-details">
                         <span class="history-type">${getDocumentTypeLabel(item.document_type)}</span>
                         <span>Client: ${escapeHtml(item.client_name || 'Auto-extracted')}</span>
-                        <span class="history-status ${item.status === 'success' ? 'status-success' : 'status-error'}">
-                            ${item.status === 'success' ? '✓ Success' : '✗ Failed'}
-                        </span>
+                        <span class="history-status ${item.status === 'success' ? 'status-success' : 'status-error'}">${item.status === 'success' ? '✓ Success' : '✗ Failed'}</span>
                     </div>
                     ${item.categories_extracted ? `<div class="history-details" style="margin-top: 5px;">📊 ${item.categories_extracted} categories extracted</div>` : ''}
                     ${item.error ? `<div class="history-details" style="margin-top: 5px; color: var(--danger);">❌ ${escapeHtml(item.error)}</div>` : ''}
@@ -1128,51 +447,15 @@
         
         function updateStats() {
             const today = new Date().toISOString().split('T')[0];
-            const weekAgo = new Date();
-            weekAgo.setDate(weekAgo.getDate() - 7);
-            
-            const todayCount = uploadHistory.filter(i => i.created_at?.startsWith(today)).length;
-            const weekCount = uploadHistory.filter(i => new Date(i.created_at) >= weekAgo).length;
-            
-            document.getElementById('todayUploads').textContent = todayCount;
-            document.getElementById('weekUploads').textContent = weekCount;
+            const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+            document.getElementById('todayUploads').textContent = uploadHistory.filter(i => i.created_at?.startsWith(today)).length;
+            document.getElementById('weekUploads').textContent = uploadHistory.filter(i => new Date(i.created_at) >= weekAgo).length;
         }
         
-        function getDocumentTypeLabel(type) {
-            const labels = {
-                'legacy_cv': '📄 Legacy CV',
-                'legacy_cover': '💌 Legacy Cover',
-                'reviewed_cv': '✅ Reviewed CV',
-                'reviewed_cover': '✅ Reviewed Cover',
-                'final_cv': '🎯 Final CV',
-                'final_cover': '🎯 Final Cover'
-            };
-            return labels[type] || type;
-        }
+        function getDocumentTypeLabel(type) { const labels = { 'legacy_cv': '📄 Legacy CV', 'legacy_cover': '💌 Legacy Cover', 'reviewed_cv': '✅ Reviewed CV', 'reviewed_cover': '✅ Reviewed Cover', 'final_cv': '🎯 Final CV', 'final_cover': '🎯 Final Cover' }; return labels[type] || type; }
+        function formatTime(timestamp) { if (!timestamp) return 'Just now'; const date = new Date(timestamp); const diff = Date.now() - date; if (diff < 60000) return 'Just now'; if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`; if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`; return date.toLocaleDateString(); }
+        function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
         
-        function formatTime(timestamp) {
-            if (!timestamp) return 'Just now';
-            const date = new Date(timestamp);
-            const now = new Date();
-            const diff = now - date;
-            
-            if (diff < 60000) return 'Just now';
-            if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-            if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-            return date.toLocaleDateString();
-        }
-        
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
-        
-        // Make functions globally available
         window.onDocumentTypeChange = onDocumentTypeChange;
         window.removeFile = removeFile;
         window.clearAll = clearAll;

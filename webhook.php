@@ -492,7 +492,6 @@ class BotHandler {
         }
     }
 
-    // ---- CALLBACK HANDLER (Buttons) ----
         // ---- CALLBACK HANDLER (Buttons) ----
     private function handleCb(array $cb): void {
         $this->api->answerCallback($cb['id']);
@@ -503,41 +502,42 @@ class BotHandler {
         if (!$row) return;
         $c = $row; $sesData = json_decode($c['data'], true); $sid = $c['sid'];
         
-        // ✅ NEW: Unified save function to update both stage and data in the DB
+        // ✅ FIXED: This closure now accepts the $keyboard parameter
         $save = function($newStage, $newData) use ($pdo, $sid) {
             $pdo->prepare("UPDATE sessions SET stage = ?, data = ? WHERE id = ?")->execute([$newStage, json_encode($newData), $sid]);
         };
-        $respond = fn($msg) => $this->api->editMessageText($cid, $mid, $msg);
+        // ✅ FIXED: $respond now correctly passes $keyboard to editMessageText
+        $respond = fn($msg, $keyboard = []) => $this->api->editMessageText($cid, $mid, $msg, $keyboard);
 
         // CATEGORY SELECTION
         if (str_starts_with($data, 'cat_')) {
             $cat = str_replace('cat_', '', $data);
             $sesData['category'] = $cat;
-            $save('selecting_service', $sesData); // ✅ Persist data
+            $save('selecting_service', $sesData);
             $respond("✅ Category selected: {$cat}\nSelect service:", ['inline_keyboard'=>[[['text'=>"📄 New CV",'callback_data'=>"service_new"]]]]);
             return;
         }
         // SERVICE SELECTION
         if (str_starts_with($data, 'service_')) {
             $sesData['service'] = str_replace('service_', '', $data);
-            $save('selecting_build', $sesData); // ✅ Persist data
+            $save('selecting_build', $sesData);
             $respond("📝 Build method:", ['inline_keyboard'=>[[['text'=>"📎 Upload Draft",'callback_data'=>"build_draft"], ['text'=>"✍️ Enter Manually",'callback_data'=>"build_manual"]]]]);
             return;
         }
         // BUILD METHOD
         if ($data === 'build_draft') { 
-            $save('awaiting_draft', $sesData); // ✅ Persist data
+            $save('awaiting_draft', $sesData);
             $respond("📎 Please upload your CV (PDF/DOCX)."); 
             return; 
         }
         if ($data === 'build_manual') { 
             $sesData['cv_data'] = []; 
-            $save('collecting_portfolio', $sesData); // ✅ Persist data
+            $save('collecting_portfolio', $sesData);
             $respond("📁 Optional: Send portfolio links (or type /skip):"); 
             return; 
         }
 
-        // ✅ NEW: PAYMENT HANDLERS
+        // PAYMENT HANDLERS
         if ($data === 'pay_mobile') {
             $oid = $sesData['pending_order_id'] ?? 'UNKNOWN';
             $respond("📱 *Mobile Money Payment*\n\n📋 *Order ID:* `{$oid}`\n\n💳 *Send to:*\n📱 Airtel: 0991295401\n📱 Mpamba: 0886928639\n\n📌 After payment, click confirm:", ['inline_keyboard'=>[[['text'=>"✅ I Have Paid",'callback_data'=>"confirm_payment_{$oid}"]]]]);
@@ -545,12 +545,11 @@ class BotHandler {
         }
         if ($data === 'pay_installment') {
             $oid = $sesData['pending_order_id'] ?? 'UNKNOWN';
-            // Fetch total amount from the newly inserted order
             $stmt = $pdo->prepare("SELECT total_charge FROM orders WHERE id = ?");
             $stmt->execute([$oid]);
             $order = $stmt->fetch();
             $total = (int)str_replace('MK', '', $order['total_charge']);
-            $this->pay->createInstallment($oid, $c['id'], $total); // Create the installment plan in DB
+            $this->pay->createInstallment($oid, $c['id'], $total);
             $respond("📅 *Installment Plan Activated*\n\nPay 50% now to start creation. Remaining 50% due in 7 days.\n\n*Reference:* `{$oid}`\n\n✅ After paying the first part:", ['inline_keyboard'=>[[['text'=>"✅ Paid First Installment",'callback_data'=>"inst_first_{$oid}"]]]]);
             return;
         }
